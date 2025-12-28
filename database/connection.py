@@ -1,0 +1,162 @@
+# database/connection.py
+"""Database connection and schema management."""
+
+import aiosqlite
+from pathlib import Path
+from typing import Optional
+from contextlib import asynccontextmanager
+
+from config import settings
+
+
+# SQL Schema
+SCHEMA = """
+-- Users table
+CREATE TABLE IF NOT EXISTS users (
+    telegram_id INTEGER PRIMARY KEY,
+    chat_id INTEGER NOT NULL,
+    username TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    is_active BOOLEAN DEFAULT TRUE,
+    first_notified_at TIMESTAMP
+);
+
+-- Search rules table
+CREATE TABLE IF NOT EXISTS search_rules (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    rule_type TEXT NOT NULL,
+    value TEXT NOT NULL,
+    original_text TEXT,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(telegram_id)
+);
+
+-- Seen listings (for deduplication)
+CREATE TABLE IF NOT EXISTS seen_listings (
+    listing_id TEXT PRIMARY KEY,
+    source TEXT NOT NULL,
+    url TEXT NOT NULL,
+    first_seen_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Cached enriched listings
+CREATE TABLE IF NOT EXISTS enriched_listings (
+    listing_id TEXT PRIMARY KEY,
+    source TEXT NOT NULL,
+    url TEXT NOT NULL,
+    title TEXT,
+    description TEXT,
+    location TEXT,
+    raw_text TEXT,
+    images TEXT,  -- JSON array of image URLs
+    extracted_price INTEGER,
+    extracted_bedrooms INTEGER,
+    extracted_location TEXT,
+    extracted_neighborhood TEXT,
+    has_broker_fee BOOLEAN DEFAULT FALSE,
+    attributes TEXT,  -- JSON
+    area_matches TEXT,  -- JSON
+    bordering_areas TEXT,  -- JSON
+    posted_at TIMESTAMP,
+    scraped_at TIMESTAMP,
+    enriched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Rejection logs
+CREATE TABLE IF NOT EXISTS rejection_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    listing_id TEXT NOT NULL,
+    user_id INTEGER NOT NULL,
+    listing_url TEXT,
+    listing_price INTEGER,
+    listing_location TEXT,
+    failed_rules TEXT NOT NULL,  -- JSON array
+    reasons TEXT NOT NULL,       -- JSON array
+    match_method TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(telegram_id)
+);
+
+-- Indexes for performance
+CREATE INDEX IF NOT EXISTS idx_rules_user ON search_rules(user_id);
+CREATE INDEX IF NOT EXISTS idx_rules_active ON search_rules(user_id, is_active);
+CREATE INDEX IF NOT EXISTS idx_rejections_user ON rejection_logs(user_id);
+CREATE INDEX IF NOT EXISTS idx_rejections_listing ON rejection_logs(listing_id);
+CREATE INDEX IF NOT EXISTS idx_rejections_time ON rejection_logs(user_id, created_at);
+"""
+
+
+class DatabaseManager:
+    """Manages database connections and initialization."""
+    
+    def __init__(self, db_url: str = None):
+        self.db_url = db_url or settings.DATABASE_URL
+        self._db_path = self._parse_db_path()
+        self._connection: Optional[aiosqlite.Connection] = None
+    
+    def _parse_db_path(self) -> str:
+        """Parse SQLite path from connection URL."""
+        if self.db_url.startswith("sqlite:///"):
+            return self.db_url.replace("sqlite:///", "")
+        return self.db_url
+    
+    async def initialize(self):
+        """Initialize database connection and create schema."""
+        self._connection = await aiosqlite.connect(self._db_path)
+        self._connection.row_factory = aiosqlite.Row
+        await self._connection.executescript(SCHEMA)
+        await self._connection.commit()
+    
+    async def close(self):
+        """Close database connection."""
+        if self._connection:
+            await self._connection.close()
+            self._connection = None
+    
+    @property
+    def connection(self) -> aiosqlite.Connection:
+        """Get the active database connection."""
+        if self._connection is None:
+            raise RuntimeError("Database not initialized. Call initialize() first.")
+        return self._connection
+    
+    async def execute(self, query: str, params: tuple = ()):
+        """Execute a query and return lastrowid."""
+        cursor = await self.connection.execute(query, params)
+        await self.connection.commit()
+        return cursor.lastrowid
+    
+    async def fetch_one(self, query: str, params: tuple = ()):
+        """Fetch a single row."""
+        cursor = await self.connection.execute(query, params)
+        return await cursor.fetchone()
+    
+    async def fetch_all(self, query: str, params: tuple = ()):
+        """Fetch all rows."""
+        cursor = await self.connection.execute(query, params)
+        return await cursor.fetchall()
+
+
+# Global database manager instance
+_db_manager: Optional[DatabaseManager] = None
+
+
+async def get_db() -> DatabaseManager:
+    """Get the global database manager, initializing if needed."""
+    global _db_manager
+    if _db_manager is None:
+        _db_manager = DatabaseManager()
+        await _db_manager.initialize()
+    return _db_manager
+
+
+@asynccontextmanager
+async def get_db_session():
+    """Context manager for database access."""
+    db = await get_db()
+    try:
+        yield db
+    finally:
+        pass  # Connection stays open for reuse

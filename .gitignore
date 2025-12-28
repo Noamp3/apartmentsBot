@@ -1,0 +1,24 @@
+# Secrets
+.env
+
+# Session data (DO NOT COMMIT - contains login session)
+data/
+fb_cookies.json
+fb_storage_state.json
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Database
+*.db
+
+# Logs
+logs/
+*.log
+
+# IDE
+.vscode/
+.idea/
