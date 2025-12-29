@@ -133,6 +133,9 @@ def has_broker_fee(text: str) -> bool:
         r"דרך\s*מתווך",
     ]
     
+    if is_direct_from_owner(text):
+        return False
+
     text_lower = text.lower()
     return any(re.search(p, text_lower) for p in patterns)
 
@@ -140,8 +143,8 @@ def has_broker_fee(text: str) -> bool:
 def is_direct_from_owner(text: str) -> bool:
     """Check if listing is directly from owner."""
     patterns = [
-        r"ללא\s*תיווך",
-        r"בלי\s*תיווך",
+        r"ללא\s*(?:דמי\s*)?תיווך",
+        r"בלי\s*(?:דמי\s*)?תיווך",
         r"ישירות\s*מ?הבעלים",
         r"ישירות\s*מ?בעל\s*הדירה",
         r"פרטי",

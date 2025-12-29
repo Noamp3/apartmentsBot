@@ -56,7 +56,19 @@ class SeenListingsRepository:
     async def filter_new(self, listings: List[Listing]) -> List[Listing]:
         """Filter out already-seen listings, returning only new ones."""
         seen_ids = await self.get_seen_ids()
-        return [l for l in listings if l.id not in seen_ids]
+        new_listings = []
+        skipped_ids = []
+        
+        for l in listings:
+            if l.id not in seen_ids:
+                new_listings.append(l)
+            else:
+                skipped_ids.append(l.id)
+        
+        if skipped_ids:
+            log.debug(f"Skipping {len(skipped_ids)} seen listings: {skipped_ids[:5]}...")
+            
+        return new_listings
     
     async def cleanup_old_entries(self, days_to_keep: int = 7):
         """Remove entries older than specified days."""

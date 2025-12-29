@@ -5,6 +5,7 @@ from database.repositories.user_repository import UserRepository
 from database.repositories.rule_repository import RuleRepository
 from database.repositories.listing_repository import ListingRepository, SeenListingsRepository
 from database.repositories.rejection_repository import RejectionRepository
+from database.repositories.notification_repository import NotificationRepository
 
 __all__ = [
     "UserRepository",
@@ -12,4 +13,5 @@ __all__ = [
     "ListingRepository",
     "SeenListingsRepository",
     "RejectionRepository",
+    "NotificationRepository",
 ]

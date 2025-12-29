@@ -36,7 +36,10 @@ class ScrapingScheduler:
         # Add main processing job
         self.scheduler.add_job(
             self._run_cycle,
-            IntervalTrigger(minutes=self.interval),
+            IntervalTrigger(
+                minutes=self.interval,
+                jitter=settings.SCRAPE_JITTER_SECONDS
+            ),
             id='main_cycle',
             name='Main scraping cycle',
             next_run_time=datetime.now() + timedelta(seconds=10)  # Start soon

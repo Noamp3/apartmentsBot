@@ -2,6 +2,7 @@
 """Listing matching logic with rule-based and AI-powered matching."""
 
 from typing import Dict, List, Optional, Tuple, Any
+from datetime import datetime
 
 from models.listing import EnrichedListing
 from models.search_rule import SearchRule, RuleType
@@ -33,7 +34,11 @@ class RulePreFilter:
             if rule.rule_type == RuleType.PRICE_MAX:
                 # Use effective price which includes broker fee if applicable
                 effective_price = enriched.effective_monthly_price
-                if effective_price and effective_price > int(rule.value):
+                
+                # STRICT VALIDATION: If price is missing, we can't ensure it's below max -> FAIL
+                if effective_price is None:
+                     failed_rules.append(f"חסר מחיר בדירה (לא ניתן לוודא מקסימום {int(rule.value):,}₪)")
+                elif effective_price > int(rule.value):
                     if enriched.has_broker_fee:
                         failed_rules.append(
                             f"מחיר אפקטיבי {effective_price:,}₪ > מקסימום {int(rule.value):,}₪ "
@@ -47,7 +52,11 @@ class RulePreFilter:
             elif rule.rule_type == RuleType.PRICE_MIN:
                 # For min price, use base price (no broker fee consideration)
                 price = enriched.extracted_price
-                if price and price < int(rule.value):
+                
+                # STRICT VALIDATION: If price is missing, we can't ensure it's above min -> FAIL
+                if price is None:
+                    failed_rules.append(f"חסר מחיר בדירה (לא ניתן לוודא מינימום {int(rule.value):,}₪)")
+                elif price < int(rule.value):
                     failed_rules.append(f"מחיר {price:,}₪ < מינימום {int(rule.value):,}₪")
             
             elif rule.rule_type == RuleType.BEDROOMS_MIN:
@@ -114,6 +123,12 @@ class ZeroAIUserMatcher:
         rejection_reasons = []
         
         log.debug(f"Evaluating listing {enriched.listing.id} against {len(rules)} rules")
+        
+        # Safety check: Matcher should not process old listings (older than 1 day)
+        if enriched.listing.posted_at:
+             age = datetime.now() - enriched.listing.posted_at
+             if age.days >= 1:
+                 return False, [f"דירה ישנה מדי (פורסמה לפני {age.days} ימים)"]
         
         # Phase 1: Check hard rules (price, bedrooms)
         passes_hard, hard_failures = self.pre_filter.passes_hard_rules(enriched, rules)

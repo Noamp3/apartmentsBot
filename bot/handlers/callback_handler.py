@@ -47,6 +47,22 @@ class CallbackHandler:
             await rule_repo.delete(rule_id)
             await query.edit_message_text("✅ הכלל נמחק בהצלחה")
             log.info("Rule deleted", user_id=user_id, rule_id=rule_id)
+            
+            # Check if deleting this rule enables new matches
+            processing_service = query.message.get_bot().application.bot_data.get("processing_service")
+            if processing_service:
+                from database.repositories import UserRepository, ListingRepository
+                user_repo = UserRepository(db)
+                listing_repo = ListingRepository(db)
+                
+                user = await user_repo.get_by_telegram_id(user_id)
+                recent_listings = await listing_repo.get_recent_enrichments(hours=24)
+                
+                if user and recent_listings:
+                    await query.message.reply_text("🔎 בודק אם מחיקת הכלל חשפה דירות חדשות...")
+                    matches = await processing_service.match_user_to_listings(user, recent_listings, is_manual_trigger=True)
+                    if matches > 0:
+                        await query.message.reply_text(f"✨ מצאתי {matches} דירות שפספסנו קודם!")
         else:
             await query.edit_message_text("❌ לא נמצא כלל למחיקה")
     

@@ -20,6 +20,7 @@ class Listing:
     
     price: Optional[int] = None
     bedrooms: Optional[int] = None
+    phone: Optional[str] = None  # Contact phone number
     images: List[str] = field(default_factory=list)
     posted_at: Optional[datetime] = None
     scraped_at: datetime = field(default_factory=datetime.now)
@@ -48,6 +49,7 @@ class EnrichedListing:
     extracted_bedrooms: Optional[int] = None
     extracted_location: str = ""
     extracted_neighborhood: str = ""
+    extracted_street: str = ""
     
     # Broker fee handling
     has_broker_fee: bool = False  # True if listing mentions תיווך

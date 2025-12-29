@@ -93,6 +93,34 @@ class AntiDetectionModule:
         except Exception as e:
             log.warning(f"Mouse movement failed: {e}")
     
+    async def human_like_typing(self, element, text: str) -> None:
+        """Simulate human-like typing patterns with random delays and pauses.
+        
+        Args:
+            element: Playwright element handle or locator
+            text: The text to type
+        """
+        try:
+            for char in text:
+                await element.type(char, delay=random.uniform(50, 150)) # builtin delay
+                
+                # Occasional extra delay between characters
+                if random.random() < 0.15:
+                    await self.human_like_delay(0.2, 0.5)
+                
+                # Very rare pause (as if thinking or correcting)
+                if random.random() < 0.05:
+                    await self.human_like_delay(0.8, 1.5)
+                
+            log.debug(f"Successfully typed text with human patterns")
+        except Exception as e:
+            log.warning(f"Human-like typing failed: {e}")
+            # Fallback to standard fill
+            try:
+                await element.fill(text)
+            except:
+                pass
+    
     def add_stealth_scripts(self) -> str:
         """JavaScript to inject for comprehensive stealth mode (2024 best practices).
         

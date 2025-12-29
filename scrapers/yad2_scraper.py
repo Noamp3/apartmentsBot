@@ -373,11 +373,11 @@ class Yad2Scraper(BaseScraper):
                     except ValueError:
                         continue
             
-            # Filter out old listings (older than 3 days)
+            # Filter out old listings (older than 1 day)
             if posted_at:
                 age = datetime.now() - posted_at
-                if age.days > 3:
-                    log.debug(f"Skipping old listing: {title} (age: {age.days} days)")
+                if age.days >= 1:
+                    log.debug(f"Skipping old listing: {title} (age: {age.days} days, posted: {posted_at})")
                     return None
             
             log.debug(f"Successfully parsed listing: {title} ({url})")

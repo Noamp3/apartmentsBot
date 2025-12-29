@@ -10,12 +10,29 @@ class ListingFormatter:
     """Formats listings and rejections for Telegram messages."""
     
     @staticmethod
-    def format_listing(enriched: EnrichedListing, bordering_note: str = "") -> str:
+    def format_listing(enriched: EnrichedListing, bordering_note: str = "", sass_intro: str = "") -> str:
         """Format an enriched listing for Telegram notification."""
+        from datetime import datetime
+        
         lines = []
         
-        # Title/header
-        lines.append("🏘️ *ערב טוב\\! מצאתי משהו:*")
+        # Time-aware greeting
+        hour = datetime.now().hour
+        if 5 <= hour < 12:
+            greeting = "בוקר טוב"
+        elif 12 <= hour < 17:
+            greeting = "צהריים טובים"
+        elif 17 <= hour < 21:
+            greeting = "ערב טוב"
+        else:
+            greeting = "לילה טוב"
+        
+        # Title/header with optional sass
+        if sass_intro:
+            lines.append(f"💅 *{ListingFormatter._escape_markdown(sass_intro)}*")
+            lines.append("")
+        
+        lines.append(f"🏘️ *{greeting}\\! מצאתי משהו:*")
         lines.append("")
         
         # Price (with broker fee note if applicable)
@@ -37,9 +54,17 @@ class ListingFormatter:
         
         # Location
         location = enriched.extracted_neighborhood or enriched.extracted_location
+        street = enriched.extracted_street
+        
         if location:
             loc_val = ListingFormatter._escape_markdown(location)
-            lines.append(f"📍 *מיקום:* {loc_val}")
+            loc_str = f"📍 *מיקום:* {loc_val}"
+            
+            if street:
+                street_val = ListingFormatter._escape_markdown(street)
+                loc_str += f", {street_val}"
+                
+            lines.append(loc_str)
         
         # Bordering neighborhood note
         if bordering_note:

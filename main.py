@@ -17,6 +17,7 @@ from database.repositories import (
 )
 from core.ai_engine import create_ai_engine, ListingEnricher, RateLimiter
 from core.matcher import ZeroAIUserMatcher
+from core.processing import ProcessingService
 from scrapers import FacebookScraper, Yad2Scraper, AntiDetectionModule
 from scrapers.scheduler import QuotaAwareScheduler
 from bot import ApartmentBot
@@ -37,6 +38,7 @@ class ApartmentBotApplication:
         self.rate_limiter: RateLimiter = None
         self.enricher: ListingEnricher = None
         self.matcher: ZeroAIUserMatcher = None
+        self.processing_service: ProcessingService = None
         
         # Scrapers
         self.facebook_scraper: FacebookScraper = None
@@ -112,8 +114,47 @@ class ApartmentBotApplication:
         )
         log.info("Scrapers initialized")
         
+        # Initialize Rate Limiter
+        self.rate_limiter = RateLimiter(
+            requests_per_minute=settings.AI_RATE_LIMIT,
+            daily_limit=settings.GEMINI_DAILY_LIMIT
+        )
+        
+        # Initialize Cache Repository
+        from database.repositories.cache_repository import CacheRepository
+        db_manager = await get_db()
+        cache_repo = CacheRepository(db_manager)
+        
+        # Reset persona cache if configured
+        if settings.RESET_PERSONA_CACHE_ON_STARTUP:
+            log.warning(f"⚠️ Clearing persona cache (Config value: {settings.RESET_PERSONA_CACHE_ON_STARTUP}). Check .env if this is unexpected.")
+            await cache_repo.clear_cache()
+            log.info("Persona cache cleared")
+        
+        # Initialize AI Engine with cache
+        self.ai_engine = create_ai_engine(
+            provider=settings.AI_PROVIDER,
+            api_key=settings.active_api_key, # Use generic property
+            model_name=settings.active_model, # Use generic property that handles list splitting
+            rate_limiter=self.rate_limiter,
+            cache_repo=cache_repo
+        )
+        # Warm up AI cache (loads from DB or generates if empty/reset)
+        await self.ai_engine.warm_up_cache()
+        log.info("AI engine initialized")
+        
+        self.enricher = ListingEnricher(self.ai_engine)
+        
+        # Initialize matcher
+        self.matcher = ZeroAIUserMatcher()
+        
         # Initialize Telegram bot
         self.bot = ApartmentBot(ai_engine=self.ai_engine)
+        
+        # Initialize Processing Service
+        self.processing_service = ProcessingService(self.bot, self.ai_engine)
+        self.bot.processing_service = self.processing_service  # Inject into bot
+        
         await self.bot.setup()
         log.info("Telegram bot initialized")
         
@@ -174,7 +215,12 @@ class ApartmentBotApplication:
         
         # Filter out already-seen listings
         new_listings = await seen_repo.filter_new(all_listings)
-        log.info(f"New listings: {len(new_listings)} of {len(all_listings)}")
+        duplicate_count = len(all_listings) - len(new_listings)
+        
+        if duplicate_count > 0:
+            log.info(f"Processing listings: {len(new_listings)} new, {duplicate_count} skipped (already seen)")
+        else:
+            log.info(f"Processing listings: {len(new_listings)} new (all fresh)")
         
         if not new_listings:
             return
@@ -186,65 +232,26 @@ class ApartmentBotApplication:
         await seen_repo.mark_many_seen(new_listings)
         
         # Cache enriched listings
+        saved_enriched_count = 0
+        valid_enriched_listings = []
+        
         for enriched in enriched_listings:
-            await listing_repo.save_enriched(enriched)
-        
-        # Phase 3: Match to all users
-        users = await user_repo.get_all_active()
-        log.info(f"Matching against {len(users)} users")
-        
-        for user in users:
-            try:
-                rules = await rule_repo.get_user_rules(user.telegram_id)
-                if not rules:
-                    continue
-                
-                # For new users, only send listings from the last 24 hours
-                # After first notification, they only receive truly new listings
-                listings_for_user = enriched_listings
-                if user.is_new_user:
-                    # Get recent listings for new user (max 24 hours old)
-                    listings_for_user = await listing_repo.get_recent_for_new_user(
-                        max_age_hours=24, limit=20
-                    )
-                    log.info(f"New user {user.telegram_id}: sending up to {len(listings_for_user)} recent listings")
-                
-                notifications_sent = 0
-                for enriched in listings_for_user:
-                    try:
-                        is_match, reasons = self.matcher.evaluate_listing(enriched, rules)
-                        
-                        if is_match:
-                            # Send notification
-                            await self.bot.send_listing_notification(
-                                chat_id=user.chat_id,
-                                enriched=enriched
-                            )
-                            notifications_sent += 1
-                        else:
-                            # Log rejection
-                            await rejection_repo.log_rejection(
-                                listing_id=enriched.listing.id,
-                                user_id=user.telegram_id,
-                                failed_rules=[r.value for r in rules if not is_match],
-                                reasons=reasons,
-                                listing_url=enriched.listing.url,
-                                listing_price=enriched.extracted_price,
-                                listing_location=enriched.extracted_location,
-                                match_method="attribute"
-                            )
-                    except Exception as e:
-                        log.error(f"Error processing listing {enriched.listing.id} for user {user.telegram_id}: {e}")
-                        continue
-                
-                # Mark first notification if any were sent
-                if notifications_sent > 0 and user.is_new_user:
-                    await user_repo.mark_first_notification(user.telegram_id)
-                    log.info(f"Marked first notification for user {user.telegram_id}")
-
-            except Exception as e:
-                log.error(f"Error processing user {user.telegram_id}: {e}")
+            # VALIDATION: Drop listings with no price
+            if enriched.extracted_price is None or enriched.extracted_price == 0:
+                log.warning(f"Dropping invalid listing (no price): {enriched.listing.title[:30]}...", 
+                           id=enriched.listing.id)
                 continue
+                
+            valid_enriched_listings.append(enriched)
+            await listing_repo.save_enriched(enriched)
+            saved_enriched_count += 1
+            
+        if not valid_enriched_listings:
+            log.info("No valid listings after enrichment (all dropped due to missing data)")
+            return
+        
+        # Phase 3: Match and Notify
+        await self.processing_service.process_cycle(valid_enriched_listings)
         
         log.info("Processing cycle complete")
     

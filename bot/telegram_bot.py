@@ -42,6 +42,13 @@ class ApartmentBot:
         # Build application
         self.application = Application.builder().token(self.token).build()
         
+        # Store AI engine in bot_data for handlers
+        self.application.bot_data["ai_engine"] = self.ai_engine
+        
+        # Store processing service in bot_data (injected from main.py)
+        if hasattr(self, "processing_service"):
+            self.application.bot_data["processing_service"] = self.processing_service
+        
         # Add command handlers
         self.application.add_handler(
             TGCommandHandler("start", self.command_handler.start)
@@ -63,6 +70,9 @@ class ApartmentBot:
         )
         self.application.add_handler(
             TGCommandHandler("matches", self.command_handler.matches)
+        )
+        self.application.add_handler(
+            TGCommandHandler("sass", self.command_handler.sass)
         )
         
         # Add message handler for natural language
@@ -102,14 +112,15 @@ class ApartmentBot:
         self, 
         chat_id: int, 
         enriched: 'EnrichedListing',
-        bordering_note: str = ""
+        bordering_note: str = "",
+        sass_intro: str = ""
     ):
         """Send a listing notification to a user."""
         if not self.application:
             log.error("Bot not initialized")
             return
         
-        message = self.formatter.format_listing(enriched, bordering_note)
+        message = self.formatter.format_listing(enriched, bordering_note, sass_intro)
         
         try:
             await self.application.bot.send_message(
@@ -124,6 +135,7 @@ class ApartmentBot:
         except Exception as e:
             log.error("Failed to send notification", 
                      chat_id=chat_id, error=str(e))
+            raise e
     
     async def send_message(self, chat_id: int, text: str):
         """Send a plain message to a user."""

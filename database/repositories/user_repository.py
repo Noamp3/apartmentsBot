@@ -99,3 +99,13 @@ class UserRepository:
             """,
             (datetime.now().isoformat(), telegram_id)
         )
+    
+    async def delete_user(self, telegram_id: int):
+        """Delete user and all associated data."""
+        # Delete related data manually first (since no CASCADE on foreign keys)
+        await self.db.execute("DELETE FROM search_rules WHERE user_id = ?", (telegram_id,))
+        await self.db.execute("DELETE FROM rejection_logs WHERE user_id = ?", (telegram_id,))
+        await self.db.execute("DELETE FROM sent_notifications WHERE user_id = ?", (telegram_id,))
+        
+        # Delete the user
+        await self.db.execute("DELETE FROM users WHERE telegram_id = ?", (telegram_id,))

@@ -32,40 +32,57 @@ class CommandHandler:
         # Generate dynamic welcome sass
         ai_engine = context.bot_data.get("ai_engine")
         dynamic_intro = ""
+        
+        if not ai_engine:
+            log.error("AI engine not found in bot_data!")
+            
         if ai_engine:
             try:
-                dynamic_intro = await ai_engine.generate_welcome_sass(user.first_name or "נשמה")
+                log.info(f"Generating full dynamic welcome for user {user.first_name}")
+                welcome_message = await ai_engine.generate_full_welcome(user.first_name or "נשמה")
+                log.info(f"Generated welcome: {welcome_message[:50]}...")
                 # Escape dynamic text for MarkdownV2
-                dynamic_intro = ListingFormatter._escape_markdown(dynamic_intro) 
+                welcome_message = ListingFormatter._escape_markdown(welcome_message) 
             except Exception as e:
-                log.error(f"Failed to generate welcome sass: {e}")
-                dynamic_intro = "💅 *אמאלה, מי הגיע\\! ברקוש כאן להרים* 🏳️‍🌈"
+                log.error(f"Failed to generate welcome: {e}")
+                welcome_message = """
+💅 *ברקוש כאן, והמוח שלי בחופשה (שגיאה)* 🏳️‍🌈
 
-        welcome_message = f"""
-{dynamic_intro}
+קרסתי, נשמה. אבל אני עדיין עובד:
 
-ברוכים הבאים לבוט הדירות היחיד שיודע להבדיל בין שיש קיסר לפורמייקה מתקלפת משנת 82'\\.
+*אז מה הלו"ז?*
+תכתבו לי דרישות (למשל "דירה בפלורנטין 3 חדרים").
 
-אני לא כאן כדי שתהיו נחמדים אליי, אני כאן כדי למצוא לכם דירה שתעיף לכם את הפוני \\(גם אם אין לכם\\)\\. אני אעבור על כל הזבל של יד2, אסתום את האף, ואשלח לכם רק את מה ששווה לצאת מהמיטה בשבילו\\.
+*פקודות:*
+/rules \\- חוקים
+/rejections \\- פסילות
+/clear \\- איפוס
+/help \\- עזרה
 
-*יאללה בוצ'ות שלי, מה הלירלור?*
-• "דירה בתל אביב עד 5000, ותהיו עדינים איתי"
-• "פלורנטין, 3 חדרים, שיהיה מקום לכל הדראג שלי"
-• "דירה ליד הים, חייב מרפסת להזמין את הגברים"
-
-*הוראות הפעלה \\(כי אתם לא הכי חדים\\):*
-/rules \\- הרשימה שלי \\(שלא תגידו שלא אמרתי\\)
-/rejections \\- כל הגועל נפש שסיננתי \\(ותגידו תודה\\)
-/clear \\- יאללה ביי, למחוק הכל
-/help \\- אחותי, הסתבכת?
-
-_נו, תכתבו משהו, הוודג' שלי לא ישרוד לנצח\\!_
+_תנסו שוב עוד מעט, אולי אני אתעורר על עצמי_
 """
+        else:
+             welcome_message = """
+💅 *ברקוש כאן* 🏳️‍🌈
+המערכת עולה... תכף איתכם.
+"""
+        
         await update.message.reply_text(welcome_message, parse_mode='MarkdownV2')
     
     async def help(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /help command."""
-        help_message = """
+        
+        # Get dynamic sass
+        ai_engine = context.bot_data.get("ai_engine")
+        sass_footer = "_יאללה, תשלחו לי משהו, אני מתייבש פה\\!_"
+        if ai_engine:
+             try:
+                sass = await ai_engine.get_random_sass()
+                sass_footer = f"_{ListingFormatter._escape_markdown(sass)}_"
+             except Exception:
+                pass
+
+        help_message = f"""
 📖 *הצילו, אני לא מבינה כלום*
 
 טוב תקשיבי נשמה, אני לא המורה הפרטית שלך, אבל יאללה בואי נתקתק את זה\\.
@@ -87,7 +104,7 @@ _נו, תכתבו משהו, הוודג' שלי לא ישרוד לנצח\\!_
 *טיפ של ברקוש:*
 אני מחשב "מחיר אפקטיבי" עם תיווך, כדי שלא יזיינו אתכם במחיר \\(זה התפקיד שלי\\)\\. סתם, נשמה, אני כאן לעזור\\!
 
-_יאללה, תשלחו לי משהו, אני מתייבש פה\\!_
+{sass_footer}
 """
         await update.message.reply_text(help_message, parse_mode='MarkdownV2')
     
@@ -123,8 +140,18 @@ _יאללה, תשלחו לי משהו, אני מתייבש פה\\!_
         
         log.info("User cleared all rules", user_id=user_id)
         
+        # Get dynamic sass
+        ai_engine = context.bot_data.get("ai_engine")
+        sass_extra = ""
+        if ai_engine:
+             try:
+                sass = await ai_engine.get_random_sass()
+                sass_extra = f"\n\n_{ListingFormatter._escape_markdown(sass)}_"
+             except Exception:
+                pass
+
         await update.message.reply_text(
-            "🗑️ כל כללי החיפוש שלך נמחקו\\.\n\nשלח הודעה חדשה כדי להתחיל מחדש\\!",
+            f"🗑️ כל כללי החיפוש שלך נמחקו\\.\n\nשלח הודעה חדשה כדי להתחיל מחדש\\!{sass_extra}",
             parse_mode='MarkdownV2'
         )
     
@@ -151,6 +178,21 @@ _יאללה, תשלחו לי משהו, אני מתייבש פה\\!_
 _הבוט פעיל וסורק דירות חדשות כל מספר דקות_
 """
         await update.message.reply_text(status_message, parse_mode='MarkdownV2')
+
+    async def sass(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /sass command - give me some attitude."""
+        ai_engine = context.bot_data.get("ai_engine")
+        
+        if ai_engine:
+            try:
+                sass = await ai_engine.get_random_sass()
+                sass = ListingFormatter._escape_markdown(sass)
+                await update.message.reply_text(f"💅 *{sass}*", parse_mode='MarkdownV2')
+                return
+            except Exception as e:
+                log.error(f"Failed to generate sass: {e}")
+        
+        await update.message.reply_text("💅 *אני עייפה מדי בשביל זה עכשיו*", parse_mode='MarkdownV2')
     
     async def matches(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /matches command - resend matches from last 24h."""
@@ -176,29 +218,28 @@ _הבוט פעיל וסורק דירות חדשות כל מספר דקות_
         # Get recent listings (last 24 hours)
         recent_listings = await listing_repo.get_recent_enrichments(hours=24)
         
-        matcher = ZeroAIUserMatcher()
-        matches_found = 0
+        processing_service = context.bot_data.get("processing_service")
         
-        for enriched in recent_listings:
-            is_match, _ = matcher.evaluate_listing(enriched, rules)
+        if not processing_service:
+            await update.message.reply_text("❌ שירות העיבוד לא זמין")
+            return
             
-            if is_match:
-                matches_found += 1
-                try:
-                    # Use formatter but send directly via context.bot to ensure proper async execution
-                    # independent of the main bot loop
-                    message = ListingFormatter.format_listing(
-                        enriched, 
-                        bordering_note=""  # Simplification: re-matches don't check bordering logic explicitly here yet
-                    )
-                    await context.bot.send_message(
-                        chat_id=chat_id,
-                        text=message,
-                        parse_mode='MarkdownV2',
-                        disable_web_page_preview=False
-                    )
-                except Exception as e:
-                    log.error(f"Failed to send match {enriched.listing.id}: {e}")
+        from database.repositories import UserRepository
+        user_repo = UserRepository(db)
+        user = await user_repo.get_by_telegram_id(user_id)
+        
+        if not user:
+             await update.message.reply_text("❌ משתמש לא נמצא")
+             return
+
+        # Use ProcessingService with include_sent=True
+        # This ensures we resend notifications even if they were sent before
+        matches_found = await processing_service.match_user_to_listings(
+            user, 
+            recent_listings, 
+            is_manual_trigger=True,
+            include_sent=True
+        )
         
         # Summary
         if matches_found > 0:

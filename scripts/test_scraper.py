@@ -83,12 +83,18 @@ async def test_facebook_scraper(save_to_db: bool = False):
         listings = await scraper.scrape()
         print(f"\n✅ Found {len(listings)} listings from Facebook")
         
-        for i, listing in enumerate(listings[:5], 1):
+        for i, listing in enumerate(listings[:10], 1): # Show more for verification
             print(f"\n--- Listing {i} ---")
             print(f"  ID: {listing.id}")
             print(f"  Title: {listing.title[:50]}...")
             print(f"  Price: {listing.price:,} ₪" if listing.price else "  Price: N/A")
-            print(f"  Location: {listing.location}")
+            print(f"  Bedrooms: {listing.bedrooms}" if listing.bedrooms else "  Bedrooms: N/A")
+            print(f"  Location: {listing.location or 'N/A'}")
+            print(f"  Phone: {listing.phone or 'N/A'}")
+            print(f"  Posted: {listing.posted_at.strftime('%Y-%m-%d %H:%M') if listing.posted_at else 'N/A'}")
+            print(f"  URL: {listing.url}")
+            
+            print(f"  Full Text:\n{'-'*20}\n{listing.description[:200]}...\n{'-'*20}")
         
         # Save to database if requested
         if save_to_db and listings:
@@ -229,7 +235,8 @@ async def main():
     print()
     
     # Test Yad2
-    yad2_listings = await test_yad2_scraper(save_to_db)
+    #yad2_listings = await test_yad2_scraper(save_to_db)
+    yad2_listings = []
     
     # Test Facebook (if configured)
     fb_listings = await test_facebook_scraper(save_to_db)
@@ -238,7 +245,7 @@ async def main():
     print("\n" + "="*50)
     print("📊 Summary")
     print("="*50)
-    print(f"  Yad2 listings: {len(yad2_listings)}")
+    print(f"  Yad2 listings: {len(yad2_listings)} (SKIPPED)")
     print(f"  Facebook listings: {len(fb_listings)}")
     print(f"  Total: {len(yad2_listings) + len(fb_listings)}")
     

@@ -79,12 +79,30 @@ CREATE TABLE IF NOT EXISTS rejection_logs (
     FOREIGN KEY (user_id) REFERENCES users(telegram_id)
 );
 
+-- AI Cache for persisting generated content
+CREATE TABLE IF NOT EXISTS ai_cache (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    cache_type TEXT NOT NULL,  -- 'welcome' or 'sass'
+    content TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Sent notifications (for preventing duplicates)
+CREATE TABLE IF NOT EXISTS sent_notifications (
+    user_id INTEGER NOT NULL,
+    listing_id TEXT NOT NULL,
+    sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, listing_id),
+    FOREIGN KEY (user_id) REFERENCES users(telegram_id)
+);
+
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_rules_user ON search_rules(user_id);
 CREATE INDEX IF NOT EXISTS idx_rules_active ON search_rules(user_id, is_active);
 CREATE INDEX IF NOT EXISTS idx_rejections_user ON rejection_logs(user_id);
 CREATE INDEX IF NOT EXISTS idx_rejections_listing ON rejection_logs(listing_id);
 CREATE INDEX IF NOT EXISTS idx_rejections_time ON rejection_logs(user_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_ai_cache_type ON ai_cache(cache_type);
 """
 
 

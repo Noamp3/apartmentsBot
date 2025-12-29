@@ -59,6 +59,9 @@ class MessageHandler:
         added_count = 0
         rules_to_add = []
         
+        # Get existing active rules to check for conflicts
+        existing_rules = await rule_repo.get_user_rules(user.id, active_only=True)
+        
         for rule_data in rules_list:
             rule_type = getattr(RuleType, rule_data["type"].upper(), RuleType.CUSTOM)
             
@@ -69,9 +72,31 @@ class MessageHandler:
                 original_text=rule_data["original_text"]
             )
             
-            await rule_repo.create(rule) # Changed from add_rule to create to match existing repo method
-            rules_to_add.append(rule)
-            added_count += 1
+            should_add = True
+            
+            # Conflict Resolution Logic:
+            
+            # 1. Hard Rules (Price, Bedrooms) - singleton per type
+            if rule.is_hard_rule:
+                for existing in existing_rules:
+                    if existing.rule_type == rule.rule_type and existing.is_active:
+                        log.info(f"Replacing existing rule {existing.id} ({existing.rule_type.name}) with new value")
+                        await rule_repo.delete(existing.id)
+            
+            # 2. Soft Rules (Area, Custom) - additive but check duplicates
+            elif rule.is_soft_rule:
+                for existing in existing_rules:
+                    if (existing.rule_type == rule.rule_type and 
+                        existing.is_active and 
+                        existing.value == rule.value):
+                        log.info(f"Duplicate rule found: {existing.value}, skipping addition")
+                        should_add = False
+                        break
+            
+            if should_add:
+                await rule_repo.create(rule)
+                rules_to_add.append(rule)
+                added_count += 1
         
         log.info(f"Added {added_count} rules for user {user.id}")
         
@@ -112,6 +137,37 @@ _{escaped_sass}_
 """
         
         await update.message.reply_text(response, parse_mode='MarkdownV2')
+        
+        # Immediate matching with new rules
+        processing_service = context.bot_data.get("processing_service")
+        if processing_service:
+            from database.repositories import ListingRepository
+            listing_repo = ListingRepository(db)
+            
+            # Get recent listings (last 24 hours)
+            recent_listings = await listing_repo.get_recent_enrichments(hours=24)
+            
+            if recent_listings:
+                await update.message.reply_text("🔎 בודק אם יש משהו רלוונטי מהיממה האחרונה...")
+                
+                # Run matching
+                # pass is_manual_trigger=True to avoid extra sass if not needed or to handle differently
+                # Get or create DB user to ensure we have the correct object
+                user_repo = UserRepository(db)
+                db_user = await user_repo.get_or_create(
+                    telegram_id=user.id,
+                    chat_id=update.effective_chat.id,
+                    username=user.username
+                )
+
+                matches_found = await processing_service.match_user_to_listings(
+                    db_user, 
+                    recent_listings, 
+                    is_manual_trigger=True
+                )
+                
+                if matches_found > 0:
+                    await update.message.reply_text(f"✨ מצאתי {matches_found} שידוכים קודמים שמתאימים לכללים החדשים!")
     
     def _get_rule_icon(self, rule_type: RuleType) -> str:
         """Get emoji icon for rule type."""
