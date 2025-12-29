@@ -53,11 +53,13 @@ class FacebookScraper(BaseScraper):
         self, 
         group_urls: List[str],
         anti_detection: AntiDetectionModule = None,
+        is_seen_callback: callable = None,
         cookies_file: str = None,
         storage_state_file: str = None
     ):
         self.group_urls = group_urls
         self.anti_detection = anti_detection or AntiDetectionModule()
+        self.is_seen_callback = is_seen_callback
         self.cookies_file = cookies_file or self.COOKIES_FILE
         self.storage_state_file = storage_state_file or self.STORAGE_STATE_FILE
         self._browser = None
@@ -556,6 +558,10 @@ class FacebookScraper(BaseScraper):
         # 2025 Facebook group post selectors (desktop)
         post_selector = 'div[role="article"]'
         
+        # For early termination: track first 6 posts
+        checked_count = 0
+        already_seen_in_db_count = 0
+        
         for i in range(scroll_count):
             # Collect current posts and extract data immediately
             try:
@@ -567,7 +573,7 @@ class FacebookScraper(BaseScraper):
                         if not box or box['height'] < 100:
                             continue
                         
-                        # Get text preview for deduplication
+                        # Get text preview for deduplication (in-memory during this crawl)
                         text_preview = await post.inner_text()
                         post_id = hash(text_preview[:300] if len(text_preview) > 300 else text_preview)
                         
@@ -579,6 +585,22 @@ class FacebookScraper(BaseScraper):
                             if raw_data:
                                 all_post_data.append(raw_data)
                                 log.debug(f"Extracted post: {raw_data.get('text', '')[:50]}...")
+                                
+                                # Early termination check
+                                if self.is_seen_callback and checked_count < 6:
+                                    checked_count += 1
+                                    listing_id = self._generate_id_from_raw(raw_data)
+                                    
+                                    # Use the provided callback to check DB
+                                    is_in_db = await self.is_seen_callback(listing_id)
+                                    if is_in_db:
+                                        already_seen_in_db_count += 1
+                                    
+                                    # If we reached 6 checked posts and ALL of them were already seen
+                                    if checked_count == 6 and already_seen_in_db_count == 6:
+                                        log.info("Terminating search in group early: first 6 posts are already seen in database")
+                                        return all_post_data
+
                     except Exception as e:
                         log.debug(f"Error extracting post: {e}")
                         continue
@@ -1055,8 +1077,7 @@ class FacebookScraper(BaseScraper):
         # NO FILTERING - capture all posts
         
         # Generate unique ID
-        id_seed = url if url and len(url) > 30 else f"{self.source_name}_{hashlib.md5(text[:200].encode()).hexdigest()}"
-        listing_id = self.generate_listing_id(id_seed)
+        listing_id = self._generate_id_from_raw(raw_data)
         
         # Extract structured data - use pre-extracted values from raw_data
         price = raw_data.get('price') or extract_price(text)
@@ -1094,6 +1115,14 @@ class FacebookScraper(BaseScraper):
             posted_at=posted_at,
             scraped_at=datetime.now(),
         )
+
+    def _generate_id_from_raw(self, raw_data: dict) -> str:
+        """Generate a unique ID for a listing based on raw data."""
+        url = raw_data.get('url', '')
+        text = raw_data.get('text', '') or ''
+        
+        id_seed = url if url and len(url) > 30 else f"{self.source_name}_{hashlib.md5(text[:200].encode()).hexdigest()}"
+        return self.generate_listing_id(id_seed)
     
     def _extract_location(self, text: str) -> str:
         """Try to extract location from text."""

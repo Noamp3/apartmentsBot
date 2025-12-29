@@ -104,9 +104,16 @@ class ApartmentBotApplication:
             max_delay=settings.MAX_DELAY_SECONDS
         )
         
+        # Initialize Cache Repository
+        from database.repositories.cache_repository import CacheRepository
+        db_manager = await get_db()
+        cache_repo = CacheRepository(db_manager)
+        seen_repo = SeenListingsRepository(db_manager)
+        
         self.facebook_scraper = FacebookScraper(
             group_urls=settings.facebook_groups,
-            anti_detection=anti_detection
+            anti_detection=anti_detection,
+            is_seen_callback=seen_repo.is_seen
         )
         
         self.yad2_scraper = Yad2Scraper(
@@ -119,11 +126,6 @@ class ApartmentBotApplication:
             requests_per_minute=settings.AI_RATE_LIMIT,
             daily_limit=settings.GEMINI_DAILY_LIMIT
         )
-        
-        # Initialize Cache Repository
-        from database.repositories.cache_repository import CacheRepository
-        db_manager = await get_db()
-        cache_repo = CacheRepository(db_manager)
         
         # Reset persona cache if configured
         if settings.RESET_PERSONA_CACHE_ON_STARTUP:
