@@ -44,6 +44,7 @@ class ApartmentBot:
         
         # Store AI engine in bot_data for handlers
         self.application.bot_data["ai_engine"] = self.ai_engine
+        self.application.bot_data["command_handler"] = self.command_handler
         
         # Store processing service in bot_data (injected from main.py)
         if hasattr(self, "processing_service"):

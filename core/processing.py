@@ -20,7 +20,7 @@ from models.user import User
 from bot.telegram_bot import ApartmentBot
 from utils.logger import Loggers
 
-log = Loggers.scheduler()
+log = Loggers.processor()
 
 
 class ProcessingService:

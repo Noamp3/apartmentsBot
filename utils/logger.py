@@ -184,3 +184,11 @@ class Loggers:
     @staticmethod
     def db() -> StructuredLogger:
         return LoggerFactory.get_specialized_logger("database")
+
+    @staticmethod
+    def app() -> StructuredLogger:
+        return LoggerFactory.get_specialized_logger("app")
+
+    @staticmethod
+    def processor() -> StructuredLogger:
+        return LoggerFactory.get_specialized_logger("processor")

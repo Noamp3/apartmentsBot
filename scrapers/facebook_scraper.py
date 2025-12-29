@@ -704,11 +704,16 @@ class FacebookScraper(BaseScraper):
         links = soup.find_all('a', href=True)
         for link in links:
             href = link['href']
-            if any(p in href for p in ['/posts/', '/permalink/', 'story_fbid']):
-                if not any(x in href for x in ['/members', '/about', '/media', '/join']):
+            # Improved matching for various Facebook post formats
+            if any(p in href for p in ['/posts/', '/permalink/', 'story_fbid', 'fbid=', '/groups/']):
+                if not any(x in href for x in ['/members', '/about', '/media', '/join', '/user/']):
                     if href.startswith('/'):
-                        return f"https://www.facebook.com{href.split('?')[0]}"
-                    return href.split('?')[0]
+                        # Handle relative URLs correctly
+                        if '?' in href:
+                             base = href.split('?')[0]
+                             return f"https://www.facebook.com{base}"
+                        return f"https://www.facebook.com{href}"
+                    return href.split('?')[0] if '?' in href else href
         
         return ""
     

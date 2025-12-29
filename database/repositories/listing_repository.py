@@ -66,7 +66,8 @@ class SeenListingsRepository:
                 skipped_ids.append(l.id)
         
         if skipped_ids:
-            log.debug(f"Skipping {len(skipped_ids)} seen listings: {skipped_ids[:5]}...")
+            unique_skipped = list(set(skipped_ids))
+            log.debug(f"Skipping {len(unique_skipped)} seen listings (found {len(skipped_ids)} in input): {unique_skipped[:5]}...")
             
         return new_listings
     

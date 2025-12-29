@@ -50,6 +50,11 @@ class MessageHandler:
                 "לא הבנתי כלום מאמי. נסה להיות יותר ספציפי (למשל: 'דירה בתל אביב ב-5000 שקל')",
                 parse_mode='MarkdownV2'
             )
+            
+            # Send help message if command handler is available
+            command_handler = context.bot_data.get("command_handler")
+            if command_handler:
+                await command_handler.help(update, context)
             return
 
         # Add rules to DB

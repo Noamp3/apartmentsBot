@@ -25,7 +25,7 @@ from models.listing import EnrichedListing
 
 # Initialize logging
 LoggerFactory.initialize(debug=settings.DEBUG)
-log = Loggers.scheduler()
+log = Loggers.app()
 
 
 class ApartmentBotApplication:
@@ -224,12 +224,23 @@ class ApartmentBotApplication:
         
         if not new_listings:
             return
+            
+        # Deduplicate results from different scrapers/pages
+        seen_in_cycle = set()
+        unique_new_listings = []
+        for l in new_listings:
+            if l.id not in seen_in_cycle:
+                unique_new_listings.append(l)
+                seen_in_cycle.add(l.id)
+                
+        if len(unique_new_listings) < len(new_listings):
+            log.info(f"Deduplicated cycle batch: {len(new_listings)} -> {len(unique_new_listings)}")
         
         # Phase 2: Enrich with AI (ONE batch call)
-        enriched_listings = await self.enricher.enrich_listings(new_listings)
+        enriched_listings = await self.enricher.enrich_listings(unique_new_listings)
         
         # Mark as seen
-        await seen_repo.mark_many_seen(new_listings)
+        await seen_repo.mark_many_seen(unique_new_listings)
         
         # Cache enriched listings
         saved_enriched_count = 0
