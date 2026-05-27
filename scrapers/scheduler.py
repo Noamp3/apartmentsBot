@@ -26,6 +26,11 @@ class ScrapingScheduler:
         self.process_callback = process_callback
         self.interval = interval_minutes or settings.SCRAPE_INTERVAL_MINUTES
         self._running = False
+        
+        # Blackout period state
+        self._blackout_jitter_start = 0
+        self._blackout_jitter_end = 0
+        self._jitter_day = None
     
     def start(self):
         """Start the scheduler."""
@@ -58,6 +63,9 @@ class ScrapingScheduler:
     
     async def _run_cycle(self):
         """Run a single processing cycle."""
+        if self._is_blackout_period():
+            return
+            
         log.info("Starting scraping cycle")
         start_time = datetime.now()
         
@@ -79,6 +87,52 @@ class ScrapingScheduler:
         """Trigger an immediate run."""
         asyncio.create_task(self._run_cycle())
         log.info("Manual cycle triggered")
+
+    def _is_blackout_period(self) -> bool:
+        """Check if current time is within the blackout period."""
+        now = datetime.now()
+        current_day = now.date()
+        
+        # Refresh jitter if it's a new day
+        if self._jitter_day != current_day:
+            self._refresh_blackout_jitter(current_day)
+            
+        # Calculate current blackout window with jitter
+        # We assume Israel time is system time (confirmed during planning)
+        start_hour = settings.BLACKOUT_START_HOUR
+        end_hour = settings.BLACKOUT_END_HOUR
+        
+        # Create datetime objects for the window
+        # Note: If start > end, it crosses midnight (e.g., 11 PM to 4 AM)
+        # But here it's 1 AM to 7 AM, so it's simple.
+        
+        blackout_start = now.replace(hour=start_hour, minute=0, second=0, microsecond=0) + \
+                        timedelta(minutes=self._blackout_jitter_start)
+                        
+        blackout_end = now.replace(hour=end_hour, minute=0, second=0, microsecond=0) + \
+                      timedelta(minutes=self._blackout_jitter_end)
+                      
+        if blackout_start <= now <= blackout_end:
+            log.info("Skipping cycle: Current time is within blackout period", 
+                     now=now.strftime("%H:%M"),
+                     blackout_start=blackout_start.strftime("%H:%M"),
+                     blackout_end=blackout_end.strftime("%H:%M"))
+            return True
+            
+        return False
+
+    def _refresh_blackout_jitter(self, day):
+        """Randomize blackout jitter for the given day."""
+        import random
+        max_jitter = settings.BLACKOUT_JITTER_MINUTES
+        self._blackout_jitter_start = random.randint(-max_jitter, max_jitter)
+        self._blackout_jitter_end = random.randint(-max_jitter, max_jitter)
+        self._jitter_day = day
+        
+        log.info("Refreshed blackout jitter for the day",
+                 day=day.isoformat(),
+                 start_jitter_mins=self._blackout_jitter_start,
+                 end_jitter_mins=self._blackout_jitter_end)
 
 
 class QuotaAwareScheduler(ScrapingScheduler):

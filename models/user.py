@@ -16,6 +16,7 @@ class User:
     created_at: datetime = field(default_factory=datetime.now)
     is_active: bool = True
     first_notified_at: Optional[datetime] = None  # When user first received a listing
+    persona: str = "barakush"
     
     @property
     def is_new_user(self) -> bool:

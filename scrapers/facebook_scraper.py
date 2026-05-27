@@ -21,6 +21,7 @@ from utils.israeli_locations import get_location_db
 import random
 
 from bs4 import BeautifulSoup
+from config import settings
 
 log = Loggers.scraper()
 
@@ -134,7 +135,7 @@ class FacebookScraper(BaseScraper):
             
             # Launch browser - non-headless mode is less detectable
             self._browser = await self._playwright.chromium.launch(
-                headless=False,
+                headless=settings.HEADLESS_MODE,
                 channel="msedge",  # Edge is less suspicious than Chrome
                 slow_mo=random.randint(30, 70),  # Randomize slow_mo too
                 args=[
@@ -462,6 +463,16 @@ class FacebookScraper(BaseScraper):
             # Dismiss any overlays/popups that might be blocking
             await self._dismiss_overlays(page)
             
+            # Detect if Facebook automatically redirected to /members or /about and navigate to base URL
+            current_url = page.url
+            if "/groups/" in current_url and ("/members" in current_url or "/about" in current_url):
+                tab_name = "/members" if "/members" in current_url else "/about"
+                discussion_url = current_url.split(tab_name)[0] + "/"
+                log.info(f"Detected auto-redirect to {tab_name} tab. Correcting course to base group URL: {discussion_url}")
+                await page.goto(discussion_url, wait_until='domcontentloaded', timeout=60000)
+                await self.anti_detection.human_like_delay(3, 5)
+                await self._dismiss_overlays(page)
+            
             # Scroll and collect post data immediately
             post_data_list = await self._scroll_and_collect_posts(page, scroll_count=10)
             
@@ -507,16 +518,16 @@ class FacebookScraper(BaseScraper):
         """Dismiss any overlays, popups, or dialogs blocking the page."""
         log.info("Dismissing any overlays...")
         
-        # Common close/dismiss selectors for Facebook popups
+        # Common close/dismiss selectors for Facebook popups (scoped to dialogs to avoid main page misclicks)
         dismiss_selectors = [
-            'div[aria-label="Close"]',
-            'div[aria-label="סגור"]',
-            'button[aria-label="Close"]',
-            'i.x1b0d499',  # Close X icon
-            'div[role="button"]:has-text("Not now")',
-            'div[role="button"]:has-text("לא עכשיו")',
-            'button:has-text("Not Now")',
-            'button:has-text("לא עכשיו")',
+            'div[role="dialog"] div[aria-label="Close"]',
+            'div[role="dialog"] div[aria-label="סגור"]',
+            'div[role="dialog"] button[aria-label="Close"]',
+            'div[role="dialog"] i.x1b0d499',  # Only click close X icons inside dialogs
+            'div[role="dialog"] div[role="button"]:has-text("Not now")',
+            'div[role="dialog"] div[role="button"]:has-text("לא עכשיו")',
+            'div[role="dialog"] button:has-text("Not Now")',
+            'div[role="dialog"] button:has-text("לא עכשיו")',
             'div[role="button"]:has-text("Decline optional cookies")',
             'button[data-cookiebanner="accept_button"]',
             'button:has-text("Allow all cookies")',
@@ -532,11 +543,11 @@ class FacebookScraper(BaseScraper):
             except:
                 continue
         
-        # Click in the middle of the page to ensure focus and dismiss any overlay
+        # Focus the page body rather than clicking in the middle (which can hit tabs like "Members")
         try:
-            await page.mouse.click(640, 400)
+            await page.focus('body')
             await self.anti_detection.human_like_delay(0.5, 1)
-            log.info("Clicked on page to focus")
+            log.info("Focused page body to ensure keyboard controls work")
         except:
             pass
         
@@ -587,7 +598,7 @@ class FacebookScraper(BaseScraper):
                                 log.debug(f"Extracted post: {raw_data.get('text', '')[:50]}...")
                                 
                                 # Early termination check
-                                if self.is_seen_callback and checked_count < 6:
+                                if self.is_seen_callback and checked_count < 10:
                                     checked_count += 1
                                     listing_id = self._generate_id_from_raw(raw_data)
                                     
@@ -596,9 +607,9 @@ class FacebookScraper(BaseScraper):
                                     if is_in_db:
                                         already_seen_in_db_count += 1
                                     
-                                    # If we reached 6 checked posts and ALL of them were already seen
-                                    if checked_count == 6 and already_seen_in_db_count == 6:
-                                        log.info("Terminating search in group early: first 6 posts are already seen in database")
+                                    # If we reached 10 checked posts and ALL of them were already seen
+                                    if checked_count == 10 and already_seen_in_db_count == 10:
+                                        log.info("Terminating search in group early: first 10 posts are already seen in database")
                                         return all_post_data
 
                     except Exception as e:
@@ -670,6 +681,38 @@ class FacebookScraper(BaseScraper):
             
             # Clean the text
             text = self._clean_text(full_text)
+            
+            # Filter out non-listing posts
+            # 1. "For Exchange" listings
+            if "להחלפה" in text:
+                log.debug("Skipping listing matching 'להחלפה'")
+                return None
+            
+            # 2. "Searching for apartment" posts (not offerings)
+            searching_patterns = [
+                "מחפש דירה", "מחפשת דירה", "מחפשים דירה",
+                "מחפש חדר", "מחפשת חדר", "מחפשים חדר",
+                "מחפש סאבלט", "מחפשת סאבלט",
+                "מחפש שותף", "מחפשת שותפה", "מחפשים שותפ",
+            ]
+            if any(pattern in text for pattern in searching_patterns):
+                log.debug("Skipping 'searching for apartment' post")
+                return None
+            
+            # 3. Admin/promotional posts (storage, moving services, ads)
+            promo_patterns = [
+                "מובילים", "אריזה ואחסנה", "מתחם אחסנה",
+                "שירותי הובלה", "הובלות", "אחסון",
+                "ריהוט לבית",  # Furniture company spam
+            ]
+            if any(pattern in text for pattern in promo_patterns):
+                log.debug("Skipping promotional/admin post")
+                return None
+            
+            # 4. Empty/broken posts
+            if len(text.strip()) < 30:
+                log.debug("Skipping empty/broken post")
+                return None
             
             # Extract author
             author = self._extract_author(soup)
@@ -760,6 +803,7 @@ class FacebookScraper(BaseScraper):
                 'a[role="link"] span',
                 'span[id^="jsc"]',
                 'abbr',
+                'span.x4k7w5x',  # Modern Facebook timestamp class
             ]
             
             timestamp_text = ""
@@ -771,12 +815,39 @@ class FacebookScraper(BaseScraper):
                     for elem in elements:
                         text = await elem.inner_text()
                         text = text.strip()
-                        # Look for time-like patterns
-                        if any(pattern in text.lower() for pattern in ['h', 'm', 's', 'd', 'ago', 'שעות', 'דקות', 'שניות', 'ימים', 'אתמול', 'yesterday', 'just now', 'עכשיו']):
+                        
+                        # Use specific regex patterns instead of single-letter checks
+                        # This prevents matching random text like "John Smith"
+                        timestamp_patterns = [
+                            r'^\d+h$',          # "2h" - hours
+                            r'^\d+\s*h$',       # "2 h"
+                            r'^\d+m$',          # "45m" - minutes  
+                            r'^\d+\s*m$',       # "45 m"
+                            r'^\d+d$',          # "1d" - days
+                            r'^\d+\s*d$',       # "1 d"
+                            r'^\d+w$',          # "2w" - weeks
+                            r'^\d+\s*שעות',     # Hebrew hours
+                            r'^\d+\s*שעה',      # Hebrew hour (singular)
+                            r'^\d+\s*דקות',     # Hebrew minutes
+                            r'^\d+\s*דקה',      # Hebrew minute
+                            r'^\d+\s*ימים',     # Hebrew days
+                            r'^\d+\s*יום',      # Hebrew day
+                            r'^אתמול',          # Hebrew yesterday
+                            r'^yesterday',      # Yesterday
+                            r'^just\s*now',     # Just now
+                            r'^עכשיו',          # Hebrew just now
+                            r'^\d+\s*hrs?',     # "2 hrs"
+                            r'^\d+\s*mins?',    # "5 min"
+                        ]
+                        
+                        text_lower = text.lower()
+                        if any(re.match(p, text_lower) for p in timestamp_patterns):
                             timestamp_text = text
+                            log.debug(f"Found timestamp text: '{text}'")
                             break
-                        # Or date patterns
-                        if re.match(r'^\d{1,2}[./]\d{1,2}', text) or re.search(r'(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|ינו|פבר|מרץ|אפר|מאי|יונ|יול|אוג|ספט|אוק|נוב|דצמ)', text.lower()):
+                            
+                        # Or date patterns (Dec 28, 28/12, etc.)
+                        if re.match(r'^\d{1,2}[./]\d{1,2}', text) or re.search(r'(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|ינו|פבר|מרץ|אפר|מאי|יונ|יול|אוג|ספט|אוק|נוב|דצמ)', text_lower):
                             timestamp_text = text
                             break
                 except:
@@ -1095,8 +1166,17 @@ class FacebookScraper(BaseScraper):
         first_line = text.split('\n')[0][:50].strip() or "דירה להשכרה"
         title = f"{author}: {first_line}" if author != "Unknown" else first_line
         
-        # Post date
+        # Post date - with fallbacks
         posted_at = raw_data.get('posted_at')
+        
+        # Fallback 1: Try to extract from text if element-based extraction failed
+        if not posted_at and text:
+            posted_at = self._extract_date_from_text(text)
+        
+        # Fallback 2: If still no date, use current time (we only scrape recent posts anyway)
+        if not posted_at:
+            posted_at = datetime.now()
+            log.debug(f"No date found for post, using current time as fallback")
         
         log.debug(f"Parsed: ID={listing_id[:8]}, URL={'[OK]' if url else '[MISSING]'}, Price={price}, Phone={phone}, Location={location}, Posted={posted_at}")
         
@@ -1111,10 +1191,46 @@ class FacebookScraper(BaseScraper):
             price=price,
             bedrooms=bedrooms,
             phone=phone,
+            author=author,
             images=raw_data.get('images', []),
             posted_at=posted_at,
             scraped_at=datetime.now(),
         )
+
+    def _extract_date_from_text(self, text: str) -> Optional[datetime]:
+        """Extract date from text when element-based extraction fails."""
+        import re
+        from datetime import timedelta
+        
+        now = datetime.now()
+        text = text.lower()
+        
+        try:
+            # Days ago
+            days_match = re.search(r'(\d+)\s*(?:d|ימים|יום)', text)
+            if days_match:
+                days = int(days_match.group(1))
+                return now - timedelta(days=days)
+            
+            # Hours ago  
+            hours_match = re.search(r'(\d+)\s*(?:h|שעות|שעה)', text)
+            if hours_match:
+                hours = int(hours_match.group(1))
+                return now - timedelta(hours=hours)
+
+            # Minutes ago
+            mins_match = re.search(r'(\d+)\s*(?:m|דקות|דקה)', text)
+            if mins_match:
+                mins = int(mins_match.group(1))
+                return now - timedelta(minutes=mins)
+                
+            # Yesterday
+            if 'yesterday' in text or 'אתמול' in text:
+                return now - timedelta(days=1)
+                
+            return None
+        except:
+            return None
 
     def _generate_id_from_raw(self, raw_data: dict) -> str:
         """Generate a unique ID for a listing based on raw data."""

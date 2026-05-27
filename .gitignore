@@ -16,8 +16,8 @@ __pycache__/
 *.db
 
 # Logs
-logs/
-*.log
+#logs/
+#*.log
 
 # IDE
 .vscode/

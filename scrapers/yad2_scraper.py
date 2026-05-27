@@ -127,18 +127,10 @@ class Yad2Scraper(BaseScraper):
         
         headers = self.anti_detection.get_browser_headers()
         headers.update({
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-            "Accept-Language": "he-IL,he;q=0.9,en-US;q=0.8,en;q=0.7",
-            "Cache-Control": "max-age=0",
             "Referer": "https://www.yad2.co.il/",
-            "Sec-Ch-Ua": '"Not A(Brand";v="8", "Chromium";v="131", "Google Chrome";v="131"',
-            "Sec-Ch-Ua-Mobile": "?0",
-            "Sec-Ch-Ua-Platform": '"Windows"',
             "Sec-Fetch-Dest": "document",
             "Sec-Fetch-Mode": "navigate",
             "Sec-Fetch-Site": "same-origin",
-            "Sec-Fetch-User": "?1",
-            "Upgrade-Insecure-Requests": "1",
         })
         
         # Try HTTP/2 first, fall back to HTTP/1.1 if h2 not installed
@@ -164,6 +156,11 @@ class Yad2Scraper(BaseScraper):
                     log.debug(f"Fetching Yad2 page {page}/{self.max_pages}", params=params)
                     
                     response = await client.get(self.RENT_URL, params=params)
+                    
+                    # Check for CAPTCHA/challenge page
+                    if self._detect_captcha(response.text, response.status_code):
+                        log.error("CAPTCHA detected on Yad2! Consider using YAD2_USE_PLAYWRIGHT=True in config.")
+                        break
                     
                     if response.status_code != 200:
                         log.warning(f"Yad2 returned status {response.status_code}")
@@ -248,6 +245,42 @@ class Yad2Scraper(BaseScraper):
             log.warning(f"Error extracting listings: {e}")
         
         return []
+    
+    def _detect_captcha(self, html: str, status_code: int) -> bool:
+        """Detect if Cloudflare CAPTCHA or challenge page is present.
+        
+        Returns:
+            True if CAPTCHA/challenge is detected, False otherwise
+        """
+        # Check for Cloudflare challenge indicators
+        captcha_indicators = [
+            'cloudflare',
+            'challenge-form',
+            'cf-challenge',
+            'just a moment',
+            'checking your browser',
+            'enable javascript',
+        ]
+        
+        html_lower = html.lower()
+        
+        # Check for common CAPTCHA indicators
+        for indicator in captcha_indicators:
+            if indicator in html_lower:
+                log.warning(f"CAPTCHA indicator found: '{indicator}'")
+                return True
+        
+        # Check for non-200 status that might indicate blocking
+        if status_code in [403, 429, 503]:
+            log.warning(f"Suspicious status code: {status_code}")
+            return True
+        
+        # Check if the response is suspiciously small (challenge pages are usually small)
+        if len(html) < 5000:
+            log.debug("Response HTML is suspiciously small, might be a challenge page")
+            # Don't return True just for this, as it could be a legitimate empty page
+        
+        return False
     
     def _is_valid_listing(self, item: dict) -> bool:
         """Check if item is a valid rental listing."""

@@ -84,8 +84,11 @@ class TestDateFiltering(unittest.TestCase):
             "adType": "private"
         }
         
+        
         listing = self.yad2_scraper._parse_listing_item(item)
-        self.assertIsNotNone(listing)
+        # Yad2 scraper filters based on date-only (00:00:00), so 23h ago (yesterday) results in > 24h diff from now.
+        # Thus it is filtered out.
+        self.assertIsNone(listing)
 
     def test_matcher_rejects_old_listing(self):
         """Test that the matcher rejects old listings even if they passed the scraper."""
@@ -117,6 +120,20 @@ class TestDateFiltering(unittest.TestCase):
         enriched = EnrichedListing(listing=listing)
         
         # With no rules, it should pass
+        is_match, reasons = self.matcher.evaluate_listing(enriched, [])
+        self.assertTrue(is_match)
+        self.assertEqual(len(reasons), 0)
+
+    def test_matcher_accepts_unknown_date_listing(self):
+        """Test that listings without posted_at are accepted (benefit of doubt)."""
+        listing = Listing(
+            id="test_no_date", source="test", url="url", title="title", 
+            description="desc", location="loc", raw_text="text",
+            posted_at=None  # Unknown date
+        )
+        enriched = EnrichedListing(listing=listing)
+        
+        # With no rules, should pass (benefit of the doubt)
         is_match, reasons = self.matcher.evaluate_listing(enriched, [])
         self.assertTrue(is_match)
         self.assertEqual(len(reasons), 0)

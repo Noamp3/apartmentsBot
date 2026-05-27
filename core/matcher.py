@@ -125,10 +125,16 @@ class ZeroAIUserMatcher:
         log.debug(f"Evaluating listing {enriched.listing.id} against {len(rules)} rules")
         
         # Safety check: Matcher should not process old listings (older than 1 day)
+        # Safety check: Matcher should not process old listings (older than 1 day)
         if enriched.listing.posted_at:
              age = datetime.now() - enriched.listing.posted_at
              if age.days >= 1:
+                 log.warning(f"Rejection safety: Old listing {enriched.listing.id} (age: {age.days} days)")
                  return False, [f"דירה ישנה מדי (פורסמה לפני {age.days} ימים)"]
+        else:
+            # If date is unknown, give benefit of the doubt and continue evaluation
+            # Facebook date extraction often fails, and rejecting these loses too many valid listings
+            log.debug(f"Unknown date for listing {enriched.listing.id} - accepting (benefit of doubt)")
         
         # Phase 1: Check hard rules (price, bedrooms)
         passes_hard, hard_failures = self.pre_filter.passes_hard_rules(enriched, rules)
@@ -144,6 +150,14 @@ class ZeroAIUserMatcher:
                 if not area_match[0]:
                     rejection_reasons.append(
                         f"מיקום {enriched.extracted_location or enriched.listing.location} לא תואם {rule.value}"
+                    )
+            
+            elif rule.rule_type == RuleType.BORDER_AREA:
+                # Border-based rules: exact neighborhood match only (no bordering expansion)
+                border_match = self._check_border_area_match(enriched, rule.value)
+                if not border_match[0]:
+                    rejection_reasons.append(
+                        f"מיקום {enriched.extracted_location or enriched.listing.location} מחוץ לאזור המוגדר"
                     )
             
             elif rule.rule_type == RuleType.CUSTOM:
@@ -180,6 +194,58 @@ class ZeroAIUserMatcher:
         )
         
         return is_match, ""
+    
+    def _check_border_area_match(
+        self,
+        enriched: EnrichedListing,
+        neighborhoods_csv: str
+    ) -> Tuple[bool, str]:
+        """Check if listing location matches border-defined area (exact match only).
+        
+        Border-based rules do NOT include bordering neighborhoods by default.
+        
+        Args:
+            enriched: Enriched listing
+            neighborhoods_csv: Comma-separated list of neighborhood names
+        
+        Returns:
+            (is_match, reason)
+        """
+        # Parse the neighborhood list
+        allowed_neighborhoods = [n.strip() for n in neighborhoods_csv.split(",")]
+        
+        # Normalize listing location
+        # Use all available signals: extracted neighborhood > street > location
+        # We combine them so normalize_location can find the neighborhood in any of them
+        location_signals = []
+        if enriched.extracted_neighborhood:
+            location_signals.append(enriched.extracted_neighborhood)
+        if enriched.extracted_street:
+            location_signals.append(enriched.extracted_street)
+        
+        location_signals.append(enriched.extracted_location or enriched.listing.location)
+        
+        composite_location = " ".join(location_signals)
+        normalized = self.location_db.normalize_location(composite_location)
+        
+        # Check if listing neighborhood is in the allowed list
+        if normalized["neighborhood"]:
+            if normalized["neighborhood"] in allowed_neighborhoods:
+                return True, ""
+        
+        # Also check if the raw location mentions any allowed neighborhood
+        listing_lower = composite_location.lower()
+        for allowed in allowed_neighborhoods:
+            if allowed.lower() in listing_lower:
+                return True, ""
+        
+        # RELAXED MATCHING: If the neighborhood is NOT identified (e.g. just "Tel Aviv"),
+        # and the user asked not to filter based on missing data -> Pass it.
+        # This prevents rejecting generic "Tel Aviv" listings when strict borders are on.
+        if not normalized["neighborhood"]:
+            return True, ""
+            
+        return False, f"השכונה לא באזור המוגדר"
     
     def _check_custom_rule(
         self, 

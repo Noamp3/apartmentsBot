@@ -191,11 +191,18 @@ class ListingFormatter:
                 "bedrooms_min": "🛏️",
                 "bedrooms_max": "🛏️",
                 "area": "📍",
+                "border_area": "📍",
                 "custom": "✨",
             }
             
             icon = type_icons.get(rule.rule_type.value, "•")
             text = rule.original_text or rule.value
+            
+            # For border rules, add neighborhood count
+            if rule.rule_type.value == "border_area" and rule.value and "," in rule.value:
+                count = len(rule.value.split(","))
+                text = f"{text} ({count} שכונות)"
+            
             # Escape rule text
             text = ListingFormatter._escape_markdown(text)
             lines.append(f"{i}\\. {icon} {text}")

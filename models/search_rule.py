@@ -14,7 +14,7 @@ class RuleType(Enum):
     - PRICE_MAX, PRICE_MIN, BEDROOMS_MIN, BEDROOMS_MAX
     
     Soft rules (require AI judgment):
-    - AREA, CUSTOM
+    - AREA, BORDER_AREA, CUSTOM
     """
     # Hard rules
     PRICE_MAX = "price_max"
@@ -24,6 +24,7 @@ class RuleType(Enum):
     
     # Soft rules
     AREA = "area"
+    BORDER_AREA = "border_area"  # Geographic border-based area (e.g., "west of Ayalon, north of Jaffa")
     CUSTOM = "custom"  # Catch-all for ANY user requirement
 
 
@@ -59,4 +60,4 @@ class SearchRule:
     @property
     def is_soft_rule(self) -> bool:
         """Check if this rule requires AI judgment."""
-        return self.rule_type in {RuleType.AREA, RuleType.CUSTOM}
+        return self.rule_type in {RuleType.AREA, RuleType.BORDER_AREA, RuleType.CUSTOM}

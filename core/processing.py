@@ -92,7 +92,8 @@ class ProcessingService:
                         # maybe skip on manual rules update to avoid spam?
                         # Actually keeping it adds personality.
                         try:
-                            sass_for_first = await self.ai_engine.get_random_sass()
+                            persona_name = user.persona if hasattr(user, 'persona') else 'barakush'
+                            sass_for_first = await self.ai_engine.get_random_sass(persona=persona_name)
                         except:
                             sass_for_first = ""
                             

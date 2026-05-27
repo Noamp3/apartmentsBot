@@ -21,6 +21,7 @@ class Listing:
     price: Optional[int] = None
     bedrooms: Optional[int] = None
     phone: Optional[str] = None  # Contact phone number
+    author: Optional[str] = None  # Name of person posting
     images: List[str] = field(default_factory=list)
     posted_at: Optional[datetime] = None
     scraped_at: datetime = field(default_factory=datetime.now)

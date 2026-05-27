@@ -13,6 +13,7 @@ class AIProvider(str, Enum):
     OPENAI = "openai"
     ANTHROPIC = "anthropic"
     OLLAMA = "ollama"  # For local models
+    GROQ = "groq"  # Fast inference with Llama/Mixtral
 
 
 class GeminiModel(str, Enum):
@@ -50,19 +51,33 @@ class Settings(BaseSettings):
     OLLAMA_BASE_URL: str = "http://localhost:11434"
     OLLAMA_MODEL: str = "llama3.2"
     
+    # Groq Settings (fast inference)
+    GROQ_API_KEY: str = ""
+    GROQ_MODEL: str = "llama-3.3-70b-versatile"
+    
     LOG_LEVEL: str = "INFO"
-    RESET_DB_ON_STARTUP: bool = False  # Resets listings, rejections, and seen history
-    RESET_USERS_ON_STARTUP: bool = False # Resets users AND their search rules
-    RESET_PERSONA_CACHE_ON_STARTUP: bool = False # Resets AI generated welcome/sass cache
+    RESET_DB_ON_STARTUP: bool = True  # Resets listings, rejections, and seen history
+    RESET_USERS_ON_STARTUP: bool = True # Resets users AND their search rules
+    RESET_PERSONA_CACHE_ON_STARTUP: bool = True # Resets AI generated welcome/sass cache
     
     # Database
     DATABASE_URL: str = "sqlite:///data/apartments.db"
     
     # Scraping Settings
-    SCRAPE_INTERVAL_MINUTES: int = 15
+    SCRAPE_INTERVAL_MINUTES: int = 30
     SCRAPE_JITTER_SECONDS: int = 120
     MIN_DELAY_SECONDS: float = 1.0
     MAX_DELAY_SECONDS: float = 5.0
+    
+    # Yad2 Scraper Settings
+    YAD2_USE_PLAYWRIGHT: bool = True  # Use Playwright (recommended) vs HTTP scraper
+    YAD2_CAPTCHA_RETRY_DELAY: int = 30  # Seconds to wait when CAPTCHA is detected
+    YAD2_MAX_CAPTCHA_RETRIES: int = 3  # Max number of retries on CAPTCHA
+    
+    # Blackout Period (Israel Time)
+    BLACKOUT_START_HOUR: int = 1  # 1 AM
+    BLACKOUT_END_HOUR: int = 7    # 7 AM
+    BLACKOUT_JITTER_MINUTES: int = 30
     
     # Facebook Group URLs (comma-separated in .env)
     FACEBOOK_GROUP_URLS: str = ""
@@ -73,6 +88,10 @@ class Settings(BaseSettings):
     
     # Debug Mode
     DEBUG: bool = True
+    
+    # Scraper Browser Mode
+    # Default to False (Headed) for better anti-detection
+    HEADLESS_MODE: bool = False
     
     @property
     def facebook_groups(self) -> List[str]:
@@ -96,6 +115,7 @@ class Settings(BaseSettings):
             AIProvider.OPENAI: self.OPENAI_API_KEY,
             AIProvider.ANTHROPIC: self.ANTHROPIC_API_KEY,
             AIProvider.OLLAMA: "",  # Ollama doesn't need an API key
+            AIProvider.GROQ: self.GROQ_API_KEY,
         }
         return keys.get(self.AI_PROVIDER, "")
     
@@ -107,6 +127,7 @@ class Settings(BaseSettings):
             AIProvider.OPENAI: self.OPENAI_MODEL,
             AIProvider.ANTHROPIC: self.ANTHROPIC_MODEL,
             AIProvider.OLLAMA: self.OLLAMA_MODEL,
+            AIProvider.GROQ: self.GROQ_MODEL,
         }
         return models.get(self.AI_PROVIDER, "")
     
@@ -114,9 +135,11 @@ class Settings(BaseSettings):
     # Gemini free tier: RPM limits vary by model, typically 10-15 RPM
     # Gemini 3 Flash Preview free tier: 20 RPD limit usually applies to paid/free distinction but user specifically requested 20 RPD.
     GEMINI_RPM_LIMIT: int = 10 
-    GEMINI_DAILY_LIMIT: int = 20  # As requested by user
+    GEMINI_DAILY_LIMIT: int = 500  # As requested by user
     OPENAI_RPM_LIMIT: int = 60
     ANTHROPIC_RPM_LIMIT: int = 60
+    GROQ_RPM_LIMIT: int = 30
+    GROQ_DAILY_LIMIT: int = 14400
     RATE_LIMIT_SAFETY_MARGIN: float = 1.0  # Trust exact numbers for now
     
     @property
@@ -127,12 +150,13 @@ class Settings(BaseSettings):
             AIProvider.OPENAI: self.OPENAI_RPM_LIMIT,
             AIProvider.ANTHROPIC: self.ANTHROPIC_RPM_LIMIT,
             AIProvider.OLLAMA: 100,  # High limit for local
+            AIProvider.GROQ: self.GROQ_RPM_LIMIT,
         }
         return int(limits.get(self.AI_PROVIDER, 10))
     
     # Batch Processing (prompt batching, NOT Batch API - works on free tier)
     # This controls how many listings we include in a single prompt
-    AI_BATCH_SIZE: int = 50
+    AI_BATCH_SIZE: int = 30
     AI_CALLS_PER_CYCLE_BUDGET: int = 7
     
     model_config = SettingsConfigDict(

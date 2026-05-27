@@ -34,6 +34,12 @@ class TestPriceExtraction:
     
     def test_no_price(self):
         assert extract_price("דירה יפה") is None
+    
+    def test_phone_not_price(self):
+        """Phone numbers should NOT be extracted as prices."""
+        assert extract_price("התקשרו 0522505694") is None
+        assert extract_price("טלפון 03-1234567") is None
+        assert extract_price("call 0501234567 now") is None
 
 
 class TestBedroomsExtraction:

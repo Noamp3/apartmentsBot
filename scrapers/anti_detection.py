@@ -10,13 +10,29 @@ from utils.logger import Loggers
 log = Loggers.scraper()
 
 
-# Real browser user agents
-USER_AGENTS = [
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0",
+# Real browser profiles (User-Agent + Client Hints)
+BROWSER_PROFILES = [
+    {
+        "name": "Chrome 120 (Win)",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "ch_ua": '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+        "ch_ua_platform": '"Windows"',
+        "ch_ua_mobile": "?0"
+    },
+    {
+        "name": "Chrome 120 (Mac)",
+        "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "ch_ua": '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+        "ch_ua_platform": '"macOS"',
+        "ch_ua_mobile": "?0"
+    },
+    {
+        "name": "Edge 120 (Win)",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0",
+        "ch_ua": '"Not_A Brand";v="8", "Chromium";v="120", "Microsoft Edge";v="120"',
+        "ch_ua_platform": '"Windows"',
+        "ch_ua_mobile": "?0"
+    }
 ]
 
 
@@ -30,11 +46,15 @@ class AntiDetectionModule:
     ):
         self.min_delay = min_delay
         self.max_delay = max_delay
-        self.user_agents = USER_AGENTS
+        self.profiles = BROWSER_PROFILES
     
+    def get_random_profile(self) -> dict:
+        """Get a random browser profile."""
+        return random.choice(self.profiles)
+
     def get_random_user_agent(self) -> str:
-        """Get a random real browser user agent."""
-        return random.choice(self.user_agents)
+        """Get a random real browser user agent (legacy support)."""
+        return self.get_random_profile()["user_agent"]
     
     async def human_like_delay(
         self, 
@@ -48,9 +68,11 @@ class AntiDetectionModule:
         await asyncio.sleep(delay)
     
     def get_browser_headers(self) -> dict:
-        """Get headers that look like a real browser."""
+        """Get headers that look like a real browser with consistent Client Hints."""
+        profile = self.get_random_profile()
+        
         return {
-            "User-Agent": self.get_random_user_agent(),
+            "User-Agent": profile["user_agent"],
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
             "Accept-Language": "he-IL,he;q=0.9,en-US;q=0.8,en;q=0.7",
             "Accept-Encoding": "gzip, deflate, br",
@@ -62,6 +84,10 @@ class AntiDetectionModule:
             "Sec-Fetch-Site": "none",
             "Sec-Fetch-User": "?1",
             "Cache-Control": "max-age=0",
+            # Client Hints consistent with User-Agent
+            "Sec-Ch-Ua": profile["ch_ua"],
+            "Sec-Ch-Ua-Mobile": profile["ch_ua_mobile"],
+            "Sec-Ch-Ua-Platform": profile["ch_ua_platform"],
         }
     
     async def random_scroll_behavior(self, page) -> None:

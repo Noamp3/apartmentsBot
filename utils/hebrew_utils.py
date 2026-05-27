@@ -24,12 +24,17 @@ CURRENCY_PATTERNS = [
     r"(\d+(?:,\d{3})*(?:\.\d+)?)\s*(?:ש[\"׳]?ח|שקל|₪)",  # 5000 ש"ח or 5000 ₪
     r"(\d+(?:,\d{3})*(?:\.\d+)?)\s*(?:שקלים?)",  # 5000 שקלים
     r"(?:ש[\"׳]?ח|₪)\s*(\d+(?:,\d{3})*(?:\.\d+)?)",  # ₪5000
+    r"(\d+(?:,\d{3})*)ש\"ח",  # 5000ש"ח (no space)
+    r"(\d+(?:,\d{3})*)\s*(?:לחודש|לח)",  # 5000 לחודש
+    r"(\d+(?:,\d{3})*)\s*NIS",  # 5000 NIS
+    r"(?:מחיר|שכ\"ד|שכירות)[:\s]+(\d+(?:,\d{3})*)",  # מחיר: 5000 or שכ"ד 5000
 ]
 
 # Thousands patterns
 THOUSANDS_PATTERNS = [
-    r"(\d+(?:\.\d+)?)\s*(?:אלף|א)",  # 5 אלף or 5א
+    r"(\d+(?:\.\d+)?)\s*(?:אלף|א')",  # 5 אלף or 5א'
     r"(\d+(?:\.\d+)?)\s*k",  # 5k
+    r"(\d+(?:\.\d+)?)\s*אלפים",  # 5 אלפים
 ]
 
 
@@ -61,10 +66,9 @@ def extract_price(text: str) -> Optional[int]:
             num = match.group(1).replace(",", "")
             return int(float(num))
     
-    # Try bare numbers (4+ digits likely to be price)
-    match = re.search(r"\b(\d{4,})\b", text)
-    if match:
-        return int(match.group(1))
+    # NOTE: We intentionally do NOT fall back to bare numbers here.
+    # Phone numbers like 0522505694 would be incorrectly parsed as prices.
+    # Only extract price when currency indicators are present.
     
     return None
 
@@ -76,12 +80,19 @@ def extract_bedrooms(text: str) -> Optional[int]:
     - 3 חדרים
     - שלושה חדרים
     - 3.5 חדרים (returns 3)
+    - 3 וחצי חדרים (returns 3)
+    - סטודיו (returns 1)
     """
     if not text:
         return None
     
+    # Studio = 1 room
+    if re.search(r"סטודיו|studio", text, re.IGNORECASE):
+        return 1
+    
     # Numeric patterns
     patterns = [
+        r"(\d+)\s*וחצי\s*חדר",  # 3 וחצי חדרים
         r"(\d+(?:\.\d)?)\s*חדר",  # 3 חדרים or 3.5 חדרים
         r"דירת\s*(\d+)",  # דירת 3
     ]
@@ -105,18 +116,40 @@ def extract_floor(text: str) -> Optional[int]:
     if not text:
         return None
     
-    patterns = [
-        r"קומה\s*(\d+)",  # קומה 5
-        r"קומת\s+קרקע",  # קומת קרקע = 0
-        r"(\d+)\s*קומה",  # 5 קומה
-    ]
-    
-    # Ground floor
-    if re.search(r"קומת\s+קרקע|קומה\s*0", text):
+    # Ground floor patterns
+    if re.search(r"קומת\s+קרקע|קומה\s*0|קומה\s+ראשונה|ground\s*floor", text, re.IGNORECASE):
         return 0
     
-    for pattern in patterns[:2]:  # Skip ground floor pattern
-        match = re.search(pattern, text)
+    # Penthouse = high floor indicator (return None, let AI determine)
+    if re.search(r"פנטהאוז|penthouse|גג", text, re.IGNORECASE):
+        return None  # Can't determine exact floor
+    
+    # Hebrew word floor numbers
+    floor_words = {
+        "שנייה": 2, "שניה": 2,
+        "שלישית": 3,
+        "רביעית": 4,
+        "חמישית": 5,
+        "שישית": 6,
+        "שביעית": 7,
+        "שמינית": 8,
+        "תשיעית": 9,
+        "עשירית": 10,
+    }
+    
+    for word, floor_num in floor_words.items():
+        if re.search(rf"קומה\s+{word}", text):
+            return floor_num
+    
+    # Numeric patterns
+    patterns = [
+        r"קומה\s*(\d+)",  # קומה 5
+        r"(\d+)\s*קומה",  # 5 קומה
+        r"floor\s*(\d+)",  # floor 5
+    ]
+    
+    for pattern in patterns:
+        match = re.search(pattern, text, re.IGNORECASE)
         if match:
             return int(match.group(1))
     
@@ -149,6 +182,11 @@ def is_direct_from_owner(text: str) -> bool:
         r"ישירות\s*מ?בעל\s*הדירה",
         r"פרטי",
         r"לא\s*תיווך",
+        r"0%?\s*תיווך",  # 0% תיווך or 0 תיווך
+        r"תיווך\s*0%?",  # תיווך 0%
+        r"ללא\s*עמלה",   # no commission
+        r"ללא\s*דמי",    # no fees
+        r"חינם",          # free (no fees)
     ]
     
     return any(re.search(p, text) for p in patterns)
@@ -199,3 +237,40 @@ def extract_contact_info(text: str) -> dict:
         info["email"] = email_match.group(0)
     
     return info
+
+
+def extract_sqm(text: str) -> Optional[int]:
+    """Extract apartment size in square meters from text."""
+    if not text:
+        return None
+    
+    patterns = [
+        r"(\d+)\s*(?:מ\"ר|מטר|מ׳|sqm|m2|מ\"מ)",  # 80 מ"ר
+        r"(\d+)\s*(?:מטרים?\s*רבועים?)",  # 80 מטרים רבועים
+        r"שטח[:\s]+(\d+)",  # שטח: 80
+    ]
+    
+    for pattern in patterns:
+        match = re.search(pattern, text, re.IGNORECASE)
+        if match:
+            sqm = int(match.group(1))
+            # Sanity check: apartments are typically 20-500 sqm
+            if 15 <= sqm <= 500:
+                return sqm
+    
+    return None
+
+
+def has_immediate_entry(text: str) -> bool:
+    """Check if listing offers immediate entry/availability."""
+    patterns = [
+        r"כניסה\s*מיידית",
+        r"פנוי\s*(?:מיד|עכשיו|להיום)",
+        r"פנויה\s*(?:מיד|עכשיו|להיום)",
+        r"available\s*(?:now|immediately)",
+        r"מיידי",
+        r"פנוי\s*לאלתר",
+    ]
+    
+    return any(re.search(p, text, re.IGNORECASE) for p in patterns)
+

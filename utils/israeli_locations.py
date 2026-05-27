@@ -16,6 +16,18 @@ class Neighborhood:
     area_type: str  # "central", "north", "south", "east", "jaffa", "coast"
 
 
+@dataclass
+class TelAvivBorder:
+    """Represents a geographic border in Tel Aviv."""
+    name: str
+    aliases: List[str]
+    neighborhoods_west: List[str]  # Neighborhoods to the west of this border
+    neighborhoods_east: List[str]  # Neighborhoods to the east of this border
+    neighborhoods_north: List[str]  # Neighborhoods to the north of this border
+    neighborhoods_south: List[str]  # Neighborhoods to the south of this border
+    border_type: str  # "street", "highway", "natural" (beach/sea)
+
+
 class IsraeliLocationDatabase:
     """Database of Israeli cities and neighborhoods with relationships.
     
@@ -340,6 +352,106 @@ class IsraeliLocationDatabase:
             "מזרח תל אביב": ["יד אליהו", "נווה שרת", "קריית שלום", "הארגזים", "קרית שאול"],
         }
         
+        # Tel Aviv geographic borders
+        self.tel_aviv_borders: Dict[str, TelAvivBorder] = {
+            "איילון": TelAvivBorder(
+                name="איילון",
+                aliases=["ayalon", "כביש איילון", "נהר איילון"],
+                neighborhoods_west=[
+                    # Central/West TLV
+                    "לב העיר", "רוטשילד", "הבימה", "כרם התימנים", "נווה צדק",
+                    "פלורנטין", "מונטיפיורי", "נחלת בנימין", "אחוזת בית", "שוק הכרמל",
+                    "דיזנגוף", "בן יהודה", "אלנבי", "הצפון הישן", "הצפון החדש",
+                    "בבלי", "כוכב הצפון", "רמת אביב", "רמת אביב ג'", "נווה אביבים",
+                    "אפקה", "נמל תל אביב", "הירקון", "גורדון", "פרישמן", "בוגרשוב",
+                    # South TLV
+                    "שפירא", "התקווה", "נווה שאנן", "כפר שלם", "עזרא",
+                    # Jaffa
+                    "יפו", "עג'מי", "יפו ג'", "יפו ד'", "גבעת עלייה"
+                ],
+                neighborhoods_east=[
+                    "רמת החייל", "תל ברוך", "יד אליהו", "נווה שרת",
+                    "קריית שלום", "הארגזים", "קרית שאול", "תל ברוך צפון"
+                ],
+                neighborhoods_north=[],  # Not really a N/S divider
+                neighborhoods_south=[],
+                border_type="highway"
+            ),
+            "יפו": TelAvivBorder(
+                name="יפו",
+                aliases=["jaffa", "רחוב יפו", "יפו הישנה"],
+                neighborhoods_west=[],  # Sea/Jaffa area to the west
+                neighborhoods_east=[],
+                neighborhoods_north=[
+                    # Everything north of Jaffa street
+                    "לב העיר", "רוטשילד", "הבימה", "כרם התימנים", "נווה צדק",
+                    "מונטיפיורי", "נחלת בנימין", "אחוזת בית", "שוק הכרמל",
+                    "דיזנגוף", "בן יהודה", "אלנבי", "הצפון הישן", "הצפון החדש",
+                    "בבלי", "כוכב הצפון", "רמת אביב", "רמת אביב ג'", "נווה אביבים",
+                    "אפקה", "רמת החייל", "תל ברוך", "נמל תל אביב", "הירקון",
+                    "גורדון", "פרישמן", "בוגרשוב", "יד אליהו", "נווה שרת",
+                    "קרית שאול", "תל ברוך צפון", "פלורנטין"
+                ],
+                neighborhoods_south=[
+                    # Jaffa and southern areas
+                    "יפו", "עג'מי", "יפו ג'", "יפו ד'", "גבעת עלייה",
+                    "שפירא", "התקווה", "נווה שאנן", "כפר שלם", "עזרא",
+                    "קריית שלום", "הארגזים"
+                ],
+                border_type="street"
+            ),
+            "ארלוזורוב": TelAvivBorder(
+                name="ארלוזורוב",
+                aliases=["arlozorov", "ארלוזורוב סנטר", "רחוב ארלוזורוב"],
+                neighborhoods_west=[],
+                neighborhoods_east=[],
+                neighborhoods_north=[
+                    "רמת אביב", "רמת אביב ג'", "נווה אביבים", "אפקה",
+                    "רמת החייל", "תל ברוך", "תל ברוך צפון", "נמל תל אביב",
+                    "כוכב הצפון", "הצפון החדש"
+                ],
+                neighborhoods_south=[
+                    "לב העיר", "רוטשילד", "הבימה", "כרם התימנים", "נווה צדק",
+                    "פלורנטין", "מונטיפיורי", "נחלת בנימין", "אחוזת בית", "שוק הכרמל",
+                    "דיזנגוף", "בן יהודה", "אלנבי", "הצפון הישן", "בבלי",
+                    "שפירא", "התקווה", "נווה שאנן", "כפר שלם", "עזרא",
+                    "יפו", "עג'מי", "יפו ג'", "יפו ד'", "גבעת עלייה",
+                    "יד אליהו", "נווה שרת", "קריית שלום", "הארגזים",
+                    "קרית שאול", "הירקון", "גורדון", "פרישמן", "בוגרשוב"
+                ],
+                border_type="street"
+            ),
+            "דיזנגוף": TelAvivBorder(
+                name="דיזנגוף",
+                aliases=["dizengoff", "רחוב דיזנגוף", "דיזינגוף"],
+                neighborhoods_west=[
+                    "נמל תל אביב", "הירקון", "גורדון", "פרישמן", "בוגרשוב",
+                    "בן יהודה"
+                ],
+                neighborhoods_east=[
+                    "הצפון הישן", "הצפון החדש", "בבלי", "לב העיר",
+                    "רמת אביב", "כוכב הצפון"
+                ],
+                neighborhoods_north=[],
+                neighborhoods_south=[],
+                border_type="street"
+            ),
+            "ים": TelAvivBorder(
+                name="ים",
+                aliases=["sea", "beach", "חוף", "הים", "ים התיכון"],
+                neighborhoods_west=[],  # Open sea
+                neighborhoods_east=[
+                    # Everything is east of the sea
+                    "נמל תל אביב", "הירקון", "גורדון", "פרישמן", "בוגרשוב",
+                    "בן יהודה", "הצפון הישן", "הצפון החדש", "לב העיר",
+                    "נווה צדק", "יפו", "עג'מי"
+                ],
+                neighborhoods_north=[],
+                neighborhoods_south=[],
+                border_type="natural"
+            ),
+        }
+        
         # Build reverse lookup maps
         self._build_lookups()
     
@@ -472,6 +584,61 @@ class IsraeliLocationDatabase:
                 results.update(cities)
         
         return list(results)
+    
+    def get_neighborhoods_within_borders(
+        self,
+        constraints: Dict[str, str]
+    ) -> List[str]:
+        """Get neighborhoods that satisfy all border constraints.
+        
+        Args:
+            constraints: Dict with keys like 'west_of', 'east_of', 'north_of', 'south_of'
+                        and values being border names (e.g., {'west_of': 'איילון', 'north_of': 'יפו'})
+        
+        Returns:
+            List of neighborhood names that satisfy ALL constraints
+        """
+        # Start with all Tel Aviv neighborhoods
+        all_neighborhoods = set(self.tel_aviv_neighborhoods.keys())
+        
+        # Apply each constraint
+        for constraint_type, border_name in constraints.items():
+            border = self._find_border(border_name)
+            if not border:
+                continue
+            
+            if constraint_type == 'west_of':
+                # Everything west of this border
+                all_neighborhoods &= set(border.neighborhoods_west)
+            elif constraint_type == 'east_of':
+                # Everything east of this border
+                all_neighborhoods &= set(border.neighborhoods_east)
+            elif constraint_type == 'north_of':
+                # Everything north of this border
+                all_neighborhoods &= set(border.neighborhoods_north)
+            elif constraint_type == 'south_of':
+                # Everything south of this border
+                all_neighborhoods &= set(border.neighborhoods_south)
+        
+        return list(all_neighborhoods)
+    
+    def _find_border(self, border_name: str) -> Optional[TelAvivBorder]:
+        """Find a border by name or alias."""
+        border_lower = border_name.strip().lower()
+        
+        # Direct match
+        if border_lower in self.tel_aviv_borders:
+            return self.tel_aviv_borders[border_lower]
+        
+        # Check aliases
+        for border in self.tel_aviv_borders.values():
+            if border_lower == border.name.lower():
+                return border
+            for alias in border.aliases:
+                if border_lower == alias.lower():
+                    return border
+        
+        return None
 
 
 # Singleton instance

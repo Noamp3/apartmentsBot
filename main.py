@@ -19,6 +19,7 @@ from core.ai_engine import create_ai_engine, ListingEnricher, RateLimiter
 from core.matcher import ZeroAIUserMatcher
 from core.processing import ProcessingService
 from scrapers import FacebookScraper, Yad2Scraper, AntiDetectionModule
+from scrapers.yad2_playwright_scraper import Yad2PlaywrightScraper
 from scrapers.scheduler import QuotaAwareScheduler
 from bot import ApartmentBot
 from models.listing import EnrichedListing
@@ -116,9 +117,17 @@ class ApartmentBotApplication:
             is_seen_callback=seen_repo.is_seen
         )
         
-        self.yad2_scraper = Yad2Scraper(
-            anti_detection=anti_detection
-        )
+        # Initialize Yad2 scraper (Playwright or HTTP based on config)
+        if settings.YAD2_USE_PLAYWRIGHT:
+            log.info("Using Playwright-based Yad2 scraper (recommended)")
+            self.yad2_scraper = Yad2PlaywrightScraper(
+                anti_detection=anti_detection
+            )
+        else:
+            log.info("Using HTTP-based Yad2 scraper (might encounter CAPTCHAs)")
+            self.yad2_scraper = Yad2Scraper(
+                anti_detection=anti_detection
+            )
         log.info("Scrapers initialized")
         
         # Initialize Rate Limiter
@@ -141,9 +150,9 @@ class ApartmentBotApplication:
             rate_limiter=self.rate_limiter,
             cache_repo=cache_repo
         )
-        # Warm up AI cache (loads from DB or generates if empty/reset)
-        await self.ai_engine.warm_up_cache()
-        log.info("AI engine initialized")
+        # Warm up AI cache in the background so the app won't wait for it
+        asyncio.create_task(self.ai_engine.warm_up_cache())
+        log.info("AI engine initialized (cache warming up in background)")
         
         self.enricher = ListingEnricher(self.ai_engine)
         
@@ -226,17 +235,51 @@ class ApartmentBotApplication:
         
         if not new_listings:
             return
+        
+        # Check for cross-source duplicates using fingerprints
+        non_duplicate_listings = []
+        cross_source_duplicates = 0
+        
+        for listing in new_listings:
+            # Check if this listing duplicates an existing one from another source
+            duplicate_info = await seen_repo.find_duplicate_by_fingerprint(listing)
+            
+            if duplicate_info:
+                duplicate_id, matched_fields = duplicate_info
+                cross_source_duplicates += 1
+                log.info(
+                    f"Cross-source duplicate detected",
+                    current_listing_id=listing.id[:8],
+                    current_source=listing.source,
+                    current_author=listing.author[:20] if listing.author else None,
+                    current_phone=listing.phone,
+                    current_price=listing.price,
+                    current_bedrooms=listing.bedrooms,
+                    matched_listing_id=duplicate_id[:8],
+                    matched_fields=matched_fields,
+                )
+                # Mark as seen to avoid reprocessing
+                await seen_repo.mark_seen(listing)
+            else:
+                non_duplicate_listings.append(listing)
+        
+        if cross_source_duplicates > 0:
+            log.info(f"Filtered {cross_source_duplicates} cross-source duplicate(s)")
+        
+        if not non_duplicate_listings:
+            log.info("All listings were duplicates, ending cycle")
+            return
             
         # Deduplicate results from different scrapers/pages
         seen_in_cycle = set()
         unique_new_listings = []
-        for l in new_listings:
+        for l in non_duplicate_listings:
             if l.id not in seen_in_cycle:
                 unique_new_listings.append(l)
                 seen_in_cycle.add(l.id)
                 
-        if len(unique_new_listings) < len(new_listings):
-            log.info(f"Deduplicated cycle batch: {len(new_listings)} -> {len(unique_new_listings)}")
+        if len(unique_new_listings) < len(non_duplicate_listings):
+            log.info(f"Deduplicated cycle batch: {len(non_duplicate_listings)} -> {len(unique_new_listings)}")
         
         # Phase 2: Enrich with AI (ONE batch call)
         enriched_listings = await self.enricher.enrich_listings(unique_new_listings)
@@ -244,19 +287,28 @@ class ApartmentBotApplication:
         # Mark as seen
         await seen_repo.mark_many_seen(unique_new_listings)
         
-        # Cache enriched listings
+        # Cache enriched listings and save fingerprints
         saved_enriched_count = 0
         valid_enriched_listings = []
         
         for enriched in enriched_listings:
             # VALIDATION: Drop listings with no price
             if enriched.extracted_price is None or enriched.extracted_price == 0:
-                log.warning(f"Dropping invalid listing (no price): {enriched.listing.title[:30]}...", 
-                           id=enriched.listing.id)
+                raw_preview = enriched.listing.raw_text[:200].replace('\n', ' ') if enriched.listing.raw_text else 'N/A'
+                log.warning(
+                    f"Dropping invalid listing (no price): {enriched.listing.title[:30]}...", 
+                    id=enriched.listing.id,
+                    scraped_price=enriched.listing.price,
+                    ai_price=enriched.extracted_price,
+                    raw_text_preview=raw_preview
+                )
                 continue
                 
             valid_enriched_listings.append(enriched)
             await listing_repo.save_enriched(enriched)
+            
+            # Save fingerprint for future duplicate detection
+            await seen_repo.save_fingerprint(enriched.listing, enriched)
             saved_enriched_count += 1
             
         if not valid_enriched_listings:

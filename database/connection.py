@@ -18,7 +18,8 @@ CREATE TABLE IF NOT EXISTS users (
     username TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     is_active BOOLEAN DEFAULT TRUE,
-    first_notified_at TIMESTAMP
+    first_notified_at TIMESTAMP,
+    persona TEXT DEFAULT 'barakush'
 );
 
 -- Search rules table
@@ -83,6 +84,7 @@ CREATE TABLE IF NOT EXISTS rejection_logs (
 CREATE TABLE IF NOT EXISTS ai_cache (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     cache_type TEXT NOT NULL,  -- 'welcome' or 'sass'
+    persona TEXT NOT NULL DEFAULT 'barakush',
     content TEXT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -96,6 +98,20 @@ CREATE TABLE IF NOT EXISTS sent_notifications (
     FOREIGN KEY (user_id) REFERENCES users(telegram_id)
 );
 
+-- Listing fingerprints (for cross-source duplicate detection)
+CREATE TABLE IF NOT EXISTS listing_fingerprints (
+    listing_id TEXT PRIMARY KEY,
+    author TEXT,
+    phone TEXT,
+    price INTEGER,
+    bedrooms INTEGER,
+    street TEXT,
+    neighborhood TEXT,
+    source TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (listing_id) REFERENCES seen_listings(listing_id)
+);
+
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_rules_user ON search_rules(user_id);
 CREATE INDEX IF NOT EXISTS idx_rules_active ON search_rules(user_id, is_active);
@@ -103,6 +119,10 @@ CREATE INDEX IF NOT EXISTS idx_rejections_user ON rejection_logs(user_id);
 CREATE INDEX IF NOT EXISTS idx_rejections_listing ON rejection_logs(listing_id);
 CREATE INDEX IF NOT EXISTS idx_rejections_time ON rejection_logs(user_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_ai_cache_type ON ai_cache(cache_type);
+CREATE INDEX IF NOT EXISTS idx_fingerprint_phone ON listing_fingerprints(phone);
+CREATE INDEX IF NOT EXISTS idx_fingerprint_price ON listing_fingerprints(price);
+CREATE INDEX IF NOT EXISTS idx_fingerprint_street ON listing_fingerprints(street);
+CREATE INDEX IF NOT EXISTS idx_fingerprint_author ON listing_fingerprints(author);
 """
 
 
@@ -126,6 +146,25 @@ class DatabaseManager:
         self._connection.row_factory = aiosqlite.Row
         await self._connection.executescript(SCHEMA)
         await self._connection.commit()
+        
+        # Safe migration: Add 'persona' column if it doesn't exist
+        try:
+            await self._connection.execute("ALTER TABLE users ADD COLUMN persona TEXT DEFAULT 'barakush'")
+            await self._connection.commit()
+        except aiosqlite.OperationalError:
+            pass
+            
+        try:
+            await self._connection.execute("ALTER TABLE ai_cache ADD COLUMN persona TEXT DEFAULT 'barakush'")
+            await self._connection.commit()
+        except aiosqlite.OperationalError:
+            pass
+            
+        try:
+            await self._connection.execute("CREATE INDEX IF NOT EXISTS idx_ai_cache_persona ON ai_cache(cache_type, persona)")
+            await self._connection.commit()
+        except aiosqlite.OperationalError:
+            pass
     
     async def close(self):
         """Close database connection."""
