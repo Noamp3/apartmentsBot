@@ -197,6 +197,10 @@ class ApartmentBotApplication:
         await self.bot.setup()
         log.info("Telegram bot initialized")
         
+        # Inject bot into Facebook scraper for Telegram-based logins
+        if self.facebook_scraper:
+            self.facebook_scraper.bot = self.bot
+        
         # Initialize scheduler
         self.scheduler = QuotaAwareScheduler(
             process_callback=self.run_processing_cycle,

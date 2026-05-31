@@ -51,6 +51,21 @@ class MessageHandler:
         
         if not text:
             return
+
+        # Intercept 2FA verification response if bot is waiting for a Facebook login code
+        if context.bot_data.get("fb_login_waiting_for_2fa") == user.id:
+            code = text.strip()
+            log.info("Intercepting 2FA response message from admin", user_id=user.id, code=code)
+            
+            # Send immediate feedback
+            await update.message.reply_text(f"🔑 קוד 2FA התקבל: `{code}`.\nמגיש כעת לפייסבוק, אנא המתן...")
+            
+            # Set the future result and clear state
+            future = context.bot_data.get("fb_login_future")
+            if future and not future.done():
+                future.set_result(code)
+            context.bot_data["fb_login_waiting_for_2fa"] = None
+            return
         
         log.info("User message received", user_id=user.id, text=text[:50])
         

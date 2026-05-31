@@ -99,6 +99,9 @@ class ApartmentBot:
         self.application.add_handler(
             TGCommandHandler("admin_scrape", self.command_handler.admin_scrape)
         )
+        self.application.add_handler(
+            TGCommandHandler("admin_fb_login", self.command_handler.admin_fb_login)
+        )
         
         # Add message handler for natural language
         self.application.add_handler(

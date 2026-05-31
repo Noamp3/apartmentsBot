@@ -22,3 +22,16 @@ __pycache__/
 # IDE
 .vscode/
 .idea/
+/remote_restart.bat
+/remote_restart.sh
+/remote_start.bat
+/remote_start.sh
+/remote_stop.bat
+/remote_stop.sh
+/restart_bot.sh
+/stop_bot.sh
+logs/app.log
+logs/errors.log
+logs/healing_attribute_post_date.png
+apartment_bot.db-wal
+apartment_bot.db-wal

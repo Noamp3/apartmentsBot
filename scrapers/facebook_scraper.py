@@ -129,19 +129,26 @@ class FacebookScraper(BaseScraper):
             # === RANDOMIZED VIEWPORT SIZES (looks more human) ===
             viewports = [
                 {'width': 1920, 'height': 1080},
-                {'width': 1366, 'height': 768},
+                {'width': 1600, 'height': 900},
                 {'width': 1536, 'height': 864},
                 {'width': 1440, 'height': 900},
-                {'width': 1280, 'height': 800},
-                {'width': 1600, 'height': 900},
             ]
             viewport = random.choice(viewports)
             log.info(f"Using randomized viewport: {viewport['width']}x{viewport['height']}")
             
             # Launch browser - non-headless mode is less detectable
+            import platform
+            is_arm = platform.machine().lower() in ['arm64', 'aarch64']
+            is_linux = platform.system().lower() == 'linux'
+            browser_channel = "msedge" if not (is_arm and is_linux) else None
+            if browser_channel:
+                log.info(f"Launching browser with channel: {browser_channel}")
+            else:
+                log.info("Launching standard Chromium browser (no channel specified)")
+
             self._browser = await self._playwright.chromium.launch(
                 headless=settings.HEADLESS_MODE,
-                channel="msedge",  # Edge is less suspicious than Chrome
+                channel=browser_channel,  # Edge is less suspicious than Chrome
                 slow_mo=random.randint(30, 70),  # Randomize slow_mo too
                 args=[
                     '--disable-blink-features=AutomationControlled',
@@ -188,7 +195,7 @@ class FacebookScraper(BaseScraper):
                 storage_state=storage_state,
                 # Realistic screen parameters
                 screen={'width': viewport['width'], 'height': viewport['height']},
-                device_scale_factor=random.choice([1, 1.25, 1.5]),  # Random DPI
+                device_scale_factor=1.0,  # Ensure full desktop layout scale
                 has_touch=False,
                 is_mobile=False,
                 color_scheme='light',
@@ -276,6 +283,22 @@ class FacebookScraper(BaseScraper):
         try:
             log.info("Logging into Facebook...")
             
+            # Send alert to Telegram admin
+            admin_chat_id = None
+            if hasattr(self, 'bot') and self.bot:
+                try:
+                    from database import get_db
+                    db = await get_db()
+                    admin_row = await db.fetch_one("SELECT chat_id FROM users WHERE is_admin = 1")
+                    if admin_row:
+                        admin_chat_id = admin_row["chat_id"]
+                        await self.bot.send_message(
+                            chat_id=admin_chat_id, 
+                            text="🔐 *זיהיתי שפייסבוק דורש התחברות!*\nמתחיל כעת התחברות אוטומטית מהשרת (Playwright)..."
+                        )
+                except Exception as alert_err:
+                    log.error(f"Failed to alert admin about login start: {alert_err}")
+            
             await page.goto(self.LOGIN_URL, wait_until='networkidle', timeout=30000)
             await self.anti_detection.human_like_delay(2, 3)
             
@@ -317,6 +340,174 @@ class FacebookScraper(BaseScraper):
             except:
                 pass
             
+            # Check for 2FA verification
+            two_factor_selectors = [
+                'input#approvals_code',
+                'input[name="approvals_code"]',
+                'input[type="text"]',
+            ]
+            
+            # If approvals code input is not visible yet, click "Start" / "התחל" / "המשך" to trigger code dispatch
+            import time
+            log.info("Polling for up to 30 seconds for checkpoint start button or 2FA approvals input...")
+            start_time = time.time()
+            two_fa_input = None
+            click_count = 0
+            
+            start_selectors = [
+                '#checkpointSubmitButton',
+                'button#checkpointSubmitButton',
+                'button[type="submit"]',
+                '[role="button"]:has-text("התחל")',
+                '[role="button"]:has-text("המשך")',
+                '[role="button"]:has-text("שליחת קוד")',
+                '[role="button"]:has-text("שלח קוד")',
+                '[role="button"]:has-text("הבא")',
+                '[role="button"]:has-text("אישור")',
+                '[role="button"]:has-text("Continue")',
+                '[role="button"]:has-text("Get Started")',
+                '[role="button"]:has-text("Send Code")',
+                '[role="button"]:has-text("Next")',
+                'button:has-text("התחל")',
+                'button:has-text("המשך")',
+                'button:has-text("שליחת קוד")',
+                'button:has-text("שלח קוד")',
+                'button:has-text("הבא")',
+                'button:has-text("אישור")',
+                'button:has-text("Continue")',
+                'button:has-text("Get Started")',
+                'button:has-text("Send Code")',
+                'button:has-text("Next")',
+                'a:has-text("התחל")',
+                'a:has-text("המשך")',
+                'a:has-text("הבא")',
+            ]
+            
+            # Add input[name="code"] as another potential 2FA code entry field
+            if 'input[name="code"]' not in two_factor_selectors:
+                two_factor_selectors.append('input[name="code"]')
+            
+            while time.time() - start_time < 30 and click_count < 5:
+                # 1. Check if 2FA input is visible
+                for selector in two_factor_selectors:
+                    try:
+                        elem = await page.query_selector(selector)
+                        if elem and await elem.is_visible():
+                            two_fa_input = elem
+                            break
+                    except Exception:
+                        pass
+                
+                if two_fa_input:
+                    log.info("Approvals code input is now visible!")
+                    break
+                
+                # 2. Check for buttons inside all frames (iframes)
+                button_clicked = False
+                for frame in page.frames:
+                    try:
+                        elements = await frame.query_selector_all('button, [role="button"], a, input[type="submit"]')
+                        for elem in elements:
+                            try:
+                                if await elem.is_visible():
+                                    text_content = await elem.inner_text()
+                                    text_content = text_content.strip()
+                                    if any(t in text_content for t in ["התחל", "המשך", "שליחת קוד", "שלח קוד", "הבא", "אישור", "Start", "Continue", "Get Started", "Send Code", "Next", "Submit"]):
+                                        log.info(f"Found and clicking button inside iframe: '{text_content}'")
+                                        await elem.click()
+                                        button_clicked = True
+                                        click_count += 1
+                                        await page.wait_for_timeout(5000) # Wait 5s for action to process
+                                        break
+                            except Exception:
+                                pass
+                        if button_clicked:
+                            break
+                    except Exception as frame_err:
+                        pass
+                        
+                if button_clicked:
+                    continue # Re-evaluate condition (since we clicked a button)
+                
+                # 3. Check for buttons on the main page
+                for selector in start_selectors:
+                    try:
+                        btn = await page.query_selector(selector)
+                        if btn and await btn.is_visible():
+                            btn_text = await btn.inner_text()
+                            log.info(f"Found and clicking button on main page: '{btn_text.strip()}' (selector: {selector})")
+                            await btn.click()
+                            button_clicked = True
+                            click_count += 1
+                            await page.wait_for_timeout(5000) # Wait 5s for action to process
+                            break
+                    except Exception:
+                        pass
+                        
+                if button_clicked:
+                    continue
+                
+                # Sleep a little before checking again
+                await page.wait_for_timeout(1500)
+            
+            # Re-check for 2FA input
+            two_fa_input = None
+            for selector in two_factor_selectors:
+                two_fa_input = await page.query_selector(selector)
+                if two_fa_input and await two_fa_input.is_visible():
+                    break
+                    
+            has_2fa = (two_fa_input is not None)
+            
+            current_url = page.url
+            if has_2fa or "two_step_verification" in current_url or "checkpoint" in current_url:
+                log.warning("2FA Verification prompt detected during background login!")
+                
+                # If we have the Telegram bot and admin chat ID, ask for 2FA!
+                if admin_chat_id and hasattr(self, 'bot') and self.bot:
+                    try:
+                        os.makedirs("logs", exist_ok=True)
+                        await page.screenshot(path="logs/2fa_prompt.png")
+                        
+                        # Send photo of 2FA screen
+                        with open("logs/2fa_prompt.png", "rb") as f:
+                            await self.bot.application.bot.send_photo(
+                                chat_id=admin_chat_id,
+                                photo=f,
+                                caption="⚠️ **נדרש אימות דו-שלבי (2FA) לפייסבוק!**\nהזן את קוד האימות שקיבלת כתגובה להודעה זו (הקלד רק את הקוד, למשל: 123456):"
+                            )
+                            
+                        # Set up Future to receive response from admin
+                        bot_data = self.bot.application.bot_data
+                        bot_data["fb_login_waiting_for_2fa"] = admin_chat_id
+                        bot_data["fb_login_future"] = asyncio.Future()
+                        
+                        try:
+                            # Wait for 120 seconds
+                            code = await asyncio.wait_for(bot_data["fb_login_future"], timeout=120.0)
+                            
+                            # Refind input field
+                            if not two_fa_input:
+                                for selector in two_factor_selectors:
+                                    two_fa_input = await page.query_selector(selector)
+                                    if two_fa_input:
+                                        break
+                                        
+                            if two_fa_input:
+                                await two_fa_input.fill(code)
+                                await asyncio.sleep(1)
+                                await self.bot.send_message(chat_id=admin_chat_id, text="🚀 קוד 2FA נשלח לפייסבוק...")
+                                await page.keyboard.press("Enter")
+                                await asyncio.sleep(6)
+                            else:
+                                await self.bot.send_message(chat_id=admin_chat_id, text="❌ שגיאה: לא נמצאה תיבת קלט לקוד 2FA.")
+                        except asyncio.TimeoutError:
+                            bot_data["fb_login_waiting_for_2fa"] = None
+                            await self.bot.send_message(chat_id=admin_chat_id, text="❌ פג תוקף הזמן להזנת הקוד (2 דקות). סריקת פייסבוק בבוט מבוטלת.")
+                            return False
+                    except Exception as telegram_err:
+                        log.error(f"Failed to handle interactive 2FA prompt: {telegram_err}")
+
             # Handle post-login checkpoints
             await self._handle_checkpoints(page)
             
@@ -330,6 +521,10 @@ class FacebookScraper(BaseScraper):
                 
                 # Save session state
                 await self._save_session(page)
+                
+                if admin_chat_id and hasattr(self, 'bot') and self.bot:
+                    await self.bot.send_message(chat_id=admin_chat_id, text="🎉 **ההתחברות לפייסבוק בוצעה בהצלחה!**\nהקוקיז ומצב הדפדפן נשמרו. ממשיך בסריקה...")
+                
                 return True
             else:
                 log.warning("Facebook login may have failed")
@@ -874,41 +1069,69 @@ class FacebookScraper(BaseScraper):
                 try:
                     elements = await post_element.query_selector_all(selector)
                     for elem in elements:
-                        text = await elem.inner_text()
-                        text = text.strip()
-                        
-                        # Use specific regex patterns instead of single-letter checks
-                        timestamp_patterns = [
-                            r'^\d+h$',          # "2h" - hours
-                            r'^\d+\s*h$',       # "2 h"
-                            r'^\d+m$',          # "45m" - minutes  
-                            r'^\d+\s*m$',       # "45 m"
-                            r'^\d+d$',          # "1d" - days
-                            r'^\d+\s*d$',       # "1 d"
-                            r'^\d+w$',          # "2w" - weeks
-                            r'^\d+\s*שעות',     # Hebrew hours
-                            r'^\d+\s*שעה',      # Hebrew hour (singular)
-                            r'^\d+\s*דקות',     # Hebrew minutes
-                            r'^\d+\s*דקה',      # Hebrew minute
-                            r'^\d+\s*ימים',     # Hebrew days
-                            r'^\d+\s*יום',      # Hebrew day
-                            r'^אתמול',          # Hebrew yesterday
-                            r'^yesterday',      # Yesterday
-                            r'^just\s*now',     # Just now
-                            r'^עכשיו',          # Hebrew just now
-                            r'^\d+\s*hrs?',     # "2 hrs"
-                            r'^\d+\s*mins?',    # "5 min"
-                        ]
-                        
-                        text_lower = text.lower()
-                        if any(re.match(p, text_lower) for p in timestamp_patterns):
-                            timestamp_text = text
-                            log.debug(f"Found timestamp text: '{text}'")
-                            break
+                        # Try inner_text, aria-label, and title
+                        text_options = []
+                        inner_t = await elem.inner_text()
+                        if inner_t:
+                            text_options.append(inner_t.strip())
+                        aria_l = await elem.get_attribute("aria-label")
+                        if aria_l:
+                            text_options.append(aria_l.strip())
+                        title_attr = await elem.get_attribute("title")
+                        if title_attr:
+                            text_options.append(title_attr.strip())
                             
-                        # Or date patterns (Dec 28, 28/12, etc.)
-                        if re.match(r'^\d{1,2}[./]\d{1,2}', text) or re.search(r'(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|ינו|פבר|מרץ|אפר|מאי|יונ|יול|אוג|ספט|אוק|נוב|דצמ)', text_lower):
-                            timestamp_text = text
+                        # Also check nested elements if inner_t was empty (e.g. nested spans/abbr)
+                        if not inner_t:
+                            nested_abbr = await elem.query_selector("abbr")
+                            if nested_abbr:
+                                abbr_t = await nested_abbr.inner_text()
+                                if abbr_t:
+                                    text_options.append(abbr_t.strip())
+                                abbr_title = await nested_abbr.get_attribute("title")
+                                if abbr_title:
+                                    text_options.append(abbr_title.strip())
+                        
+                        found_text = None
+                        for text in text_options:
+                            # Clean invisible RTL/LTR markers and control characters
+                            text = re.sub(r'^[\u200e\u200f\u202a-\u202e\u2066-\u2069\s]+', '', text)
+                            # Use specific regex patterns instead of single-letter checks
+                            timestamp_patterns = [
+                                r'^\d+h$',          # "2h" - hours
+                                r'^\d+\s*h$',       # "2 h"
+                                r'^\d+m$',          # "45m" - minutes  
+                                r'^\d+\s*m$',       # "45 m"
+                                r'^\d+d$',          # "1d" - days
+                                r'^\d+\s*d$',       # "1 d"
+                                r'^\d+w$',          # "2w" - weeks
+                                r'^\d+\s*שעות',     # Hebrew hours
+                                r'^\d+\s*שעה',      # Hebrew hour (singular)
+                                r'^\d+\s*דקות',     # Hebrew minutes
+                                r'^\d+\s*דקה',      # Hebrew minute
+                                r'^\d+\s*ימים',     # Hebrew days
+                                r'^\d+\s*יום',      # Hebrew day
+                                r'^אתמול',          # Hebrew yesterday
+                                r'^yesterday',      # Yesterday
+                                r'^just\s*now',     # Just now
+                                r'^עכשיו',          # Hebrew just now
+                                r'^\d+\s*hrs?',     # "2 hrs"
+                                r'^\d+\s*mins?',    # "5 min"
+                            ]
+                            
+                            text_lower = text.lower()
+                            if any(re.match(p, text_lower) for p in timestamp_patterns):
+                                found_text = text
+                                log.debug(f"Found timestamp text: '{text}'")
+                                break
+                                
+                            # Or date patterns (Dec 28, 28/12, etc.)
+                            if re.match(r'^\d{1,2}[./]\d{1,2}', text) or re.search(r'(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|ינו|פבר|מרץ|אפר|מאי|יונ|יול|אוג|ספט|אוק|נוב|דצמ)', text_lower):
+                                found_text = text
+                                break
+                                
+                        if found_text:
+                            timestamp_text = found_text
                             break
                 except:
                     continue

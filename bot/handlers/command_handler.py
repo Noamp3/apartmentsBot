@@ -639,3 +639,191 @@ _הבוט פעיל וסורק דירות חדשות כל מספר דקות_
         except Exception as e:
             log.error(f"Manual scrape failed: {e}", exc_info=True)
             await update.message.reply_text(f"❌ הרצת הסריקה נכשלה: {e}")
+
+    @ensure_user_exists
+    @admin_required
+    async def admin_fb_login(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Manually trigger a Facebook login flow to authenticate session and capture 2FA code."""
+        import asyncio
+        
+        chat_id = update.effective_chat.id
+        
+        # Check if there is already an active session running
+        if context.bot_data.get("fb_login_waiting_for_2fa") is not None:
+            await update.message.reply_text("❌ יש כבר תהליך התחברות פעיל שממתין לקוד 2FA!")
+            return
+            
+        await update.message.reply_text("🔐 *מתחיל תהליך התחברות לפייסבוק...*\nהדפדפן מופעל כעת. אנא המתן...")
+        
+        # Launch background task for Facebook login
+        asyncio.create_task(self._run_facebook_login_task(chat_id, context))
+
+    async def _run_facebook_login_task(self, chat_id: int, context: ContextTypes.DEFAULT_TYPE):
+        """Background task that runs the Playwright Facebook login and interacts with Telegram for 2FA."""
+        import asyncio
+        import os
+        import json
+        import random
+        from playwright.async_api import async_playwright
+        from playwright_stealth import Stealth
+        from config import settings
+        
+        email = settings.FACEBOOK_EMAIL
+        password = settings.FACEBOOK_PASSWORD
+        
+        if not email or not password:
+            await context.bot.send_message(chat_id=chat_id, text="❌ שגיאה: FACEBOOK_EMAIL ו-FACEBOOK_PASSWORD אינם מוגדרים ב-.env!")
+            return
+            
+        browser = None
+        playwright = None
+        
+        try:
+            playwright = await async_playwright().start()
+            
+            # Launch browser in headed mode (will run in Xvfb on remote)
+            log.info("Telegram-triggered Facebook login starting browser...")
+            browser = await playwright.chromium.launch(
+                headless=False,
+                args=[
+                    '--disable-blink-features=AutomationControlled',
+                    '--disable-dev-shm-usage',
+                    '--no-sandbox',
+                    '--lang=he-IL',
+                ]
+            )
+            
+            browser_context = await browser.new_context(
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+                locale='he-IL',
+                timezone_id='Asia/Jerusalem',
+            )
+            
+            stealth = Stealth(
+                navigator_languages_override=('he-IL', 'he', 'en-US', 'en'),
+                init_scripts_only=False,
+            )
+            await stealth.apply_stealth_async(browser_context)
+            
+            page = await browser_context.new_page()
+            
+            await context.bot.send_message(chat_id=chat_id, text="🌐 מנווט לדף ההתחברות של פייסבוק...")
+            await page.goto("https://www.facebook.com/login", wait_until="domcontentloaded", timeout=45000)
+            await asyncio.sleep(3)
+            
+            # Handle cookie consent
+            try:
+                consent = await page.query_selector('button[data-cookiebanner="accept_button"], button:has-text("Allow all cookies"), button:has-text("אישור הכל")')
+                if consent and await consent.is_visible():
+                    await consent.click()
+                    await asyncio.sleep(1)
+            except:
+                pass
+                
+            email_input = await page.query_selector('input#email, input[name="email"]')
+            if email_input:
+                await email_input.fill(email)
+                
+            pass_input = await page.query_selector('input#pass, input[name="pass"], input[type="password"]')
+            if pass_input:
+                await pass_input.fill(password)
+                
+            await context.bot.send_message(chat_id=chat_id, text="🔑 מגיש פרטי התחברות...")
+            await page.keyboard.press("Enter")
+            await asyncio.sleep(6)
+            
+            current_url = page.url
+            log.info(f"URL after login submit: {current_url}")
+            
+            # Check for 2FA
+            two_factor_selectors = [
+                'input#approvals_code',
+                'input[name="approvals_code"]',
+                'input[type="text"]',
+            ]
+            
+            has_2fa = False
+            two_fa_input = None
+            for selector in two_factor_selectors:
+                two_fa_input = await page.query_selector(selector)
+                if two_fa_input and await two_fa_input.is_visible():
+                    has_2fa = True
+                    break
+                    
+            if has_2fa or "two_step_verification" in current_url or "checkpoint" in current_url:
+                os.makedirs("logs", exist_ok=True)
+                await page.screenshot(path="logs/2fa_prompt.png")
+                
+                # Send screenshot to admin chat
+                with open("logs/2fa_prompt.png", "rb") as photo_file:
+                    await context.bot.send_photo(
+                        chat_id=chat_id,
+                        photo=photo_file,
+                        caption="⚠️ נדרש אימות דו-שלבי (2FA)!\nאנא השב להודעה זו (או הקלד כאן בשיחה) את קוד האימות שקיבלת (למשל: 123456):"
+                    )
+                
+                # Set up the Future for the 2FA code
+                context.bot_data["fb_login_waiting_for_2fa"] = chat_id
+                context.bot_data["fb_login_future"] = asyncio.Future()
+                
+                try:
+                    # Wait for 2FA code from the admin (timeout 2 minutes)
+                    code = await asyncio.wait_for(context.bot_data["fb_login_future"], timeout=120.0)
+                except asyncio.TimeoutError:
+                    context.bot_data["fb_login_waiting_for_2fa"] = None
+                    await context.bot.send_message(chat_id=chat_id, text="❌ פג תוקף הזמן להזנת הקוד (2 דקות). תהליך ההתחברות בוטל.")
+                    await browser.close()
+                    return
+                
+                # Fill in the code
+                if not two_fa_input:
+                    for selector in two_factor_selectors:
+                        two_fa_input = await page.query_selector(selector)
+                        if two_fa_input:
+                            break
+                
+                if two_fa_input:
+                    await two_fa_input.fill(code)
+                    await asyncio.sleep(1)
+                    await context.bot.send_message(chat_id=chat_id, text="🚀 קוד 2FA נשלח לפייסבוק...")
+                    await page.keyboard.press("Enter")
+                    await asyncio.sleep(6)
+                else:
+                    await context.bot.send_message(chat_id=chat_id, text="❌ שגיאה: לא נמצאה תיבת הזנת הקוד בדף. בודק מחדש.")
+                    await browser.close()
+                    return
+            
+            # Handle "Trust browser" checkpoint
+            try:
+                trust_btn = await page.query_selector('button#checkpointSubmitButton, button[type="submit"]')
+                if trust_btn and await trust_btn.is_visible():
+                    log.info("Handling 'Trust Browser' checkpoint in Telegram task...")
+                    await trust_btn.click()
+                    await asyncio.sleep(5)
+            except Exception as e:
+                log.warning(f"Checkpoint click exception: {e}")
+                
+            current_url = page.url
+            log.info(f"Final URL: {current_url}")
+            
+            # Save session
+            os.makedirs("data", exist_ok=True)
+            await browser_context.storage_state(path="data/fb_storage_state.json")
+            cookies = await browser_context.cookies()
+            with open("data/fb_cookies.json", "w") as f:
+                json.dump(cookies, f)
+                
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text="🎉 **ההתחברות לפייסבוק הושלמה בהצלחה!**\nהקוקיז ומצב הדפדפן נשמרו.\nהסורק יתחבר אוטומטית במחזור הבא!"
+            )
+            
+        except Exception as e:
+            log.error(f"Telegram-triggered Facebook login failed: {e}", exc_info=True)
+            await context.bot.send_message(chat_id=chat_id, text=f"❌ שגיאה במהלך ההתחברות: {e}")
+        finally:
+            context.bot_data["fb_login_waiting_for_2fa"] = None
+            if browser:
+                await browser.close()
+            if playwright:
+                await playwright.stop()

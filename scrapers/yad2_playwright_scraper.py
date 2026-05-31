@@ -144,10 +144,19 @@ class Yad2PlaywrightScraper(BaseScraper):
             log.info(f"Using viewport: {viewport['width']}x{viewport['height']}")
             
             # Launch browser
+            import platform
+            is_arm = platform.machine().lower() in ['arm64', 'aarch64']
+            is_linux = platform.system().lower() == 'linux'
+            browser_channel = "msedge" if not (is_arm and is_linux) else None
+            if browser_channel:
+                log.info(f"Launching browser with channel: {browser_channel}")
+            else:
+                log.info("Launching standard Chromium browser (no channel specified)")
+
             from config import settings
             self._browser = await self._playwright.chromium.launch(
                 headless=settings.HEADLESS_MODE,
-                channel="msedge",
+                channel=browser_channel,
                 slow_mo=random.randint(30, 70),
                 args=[
                     '--disable-blink-features=AutomationControlled',
