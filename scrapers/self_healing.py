@@ -173,6 +173,15 @@ class SelfHealingManager:
 
             cleaned_html = self.clean_html(raw_html, max_chars=25000)
 
+            # Query rich execution context metadata
+            from datetime import datetime
+            page_url = page.url
+            try:
+                page_title = await page.title()
+            except Exception:
+                page_title = "Unknown Page Title"
+            current_time_str = datetime.now().strftime("%A, %B %d, %Y, %I:%M %p")
+
             failed_selectors = []
             max_attempts = 10
 
@@ -193,6 +202,15 @@ We are scraping Facebook group posts using Playwright in Python.
 The current CSS selector to find individual post containers is `{current_selector}`.
 However, this selector failed to find any elements on the current page.
 {failed_instruction}
+
+--- RICH SCRAPER EXECUTION CONTEXT ---
+- Scraper Source: {self.source}
+- Current Page URL: {page_url}
+- Current Page Title: {page_title}
+- Execution Local Time: {current_time_str}
+- Failed Selector: `{current_selector}` (returned 0 matching elements)
+--------------------------------------
+
 Here is a cleaned, structural version of the HTML DOM:
 ---
 {cleaned_html}
@@ -275,9 +293,23 @@ CRITICAL: Return ONLY a valid, raw JSON block. Your entire response must start w
             log.warning(f"Could not capture screenshot before healing attribute: {se}")
 
         try:
-            # 1. Grab element HTML
+            # 1. Grab element HTML and text contents
             raw_html = await post_element.inner_html()
             cleaned_html = self.clean_html(raw_html, max_chars=8000)
+
+            try:
+                post_text_preview = await post_element.inner_text()
+            except Exception:
+                post_text_preview = "Could not extract inner text content"
+
+            # Query rich execution context metadata
+            from datetime import datetime
+            page_url = page.url
+            try:
+                page_title = await page.title()
+            except Exception:
+                page_title = "Unknown Page Title"
+            current_time_str = datetime.now().strftime("%A, %B %d, %Y, %I:%M %p")
 
             failed_selectors = []
             max_attempts = 10
@@ -298,6 +330,20 @@ CRITICAL: Return ONLY a valid, raw JSON block. Your entire response must start w
 We are scraping Facebook group posts using Playwright in Python.
 We have located the post container, but we failed to extract the '{attribute_name}' attribute using the current selectors: `{current_selectors}`.
 {failed_instruction}
+
+--- RICH SCRAPER EXECUTION CONTEXT ---
+- Scraper Source: {self.source}
+- Current Page URL: {page_url}
+- Current Page Title: {page_title}
+- Execution Local Time: {current_time_str}
+- Target Attribute to Heal: '{attribute_name}'
+- Current Failed Selector(s) for this attribute: `{current_selectors}`
+- Full Plaintext Content of the Post Container (highly useful to match names, dates, text, and structure):
+---
+{post_text_preview}
+---
+--------------------------------------
+
 Here is the cleaned, structural inner HTML of a single post container element:
 ---
 {cleaned_html}
