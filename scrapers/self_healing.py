@@ -173,11 +173,26 @@ class SelfHealingManager:
 
             cleaned_html = self.clean_html(raw_html, max_chars=25000)
 
-            prompt = f"""
+            failed_selectors = []
+            max_attempts = 10
+
+            for attempt in range(1, max_attempts + 1):
+                log.info(f"Attempt {attempt}/{max_attempts} to heal post_container selector...")
+
+                failed_instruction = ""
+                if failed_selectors:
+                    failed_instruction = (
+                        f"\nIMPORTANT: The following selectors were already tried and FAILED verification "
+                        f"(they returned 0 elements or were invalid CSS on the current page):\n"
+                        + "\n".join(f"- `{sel}`" for sel in failed_selectors)
+                        + "\nPlease analyze the HTML again and suggest a DIFFERENT, valid selector.\n"
+                    )
+
+                prompt = f"""
 We are scraping Facebook group posts using Playwright in Python.
 The current CSS selector to find individual post containers is `{current_selector}`.
 However, this selector failed to find any elements on the current page.
-
+{failed_instruction}
 Here is a cleaned, structural version of the HTML DOM:
 ---
 {cleaned_html}
@@ -187,6 +202,11 @@ Your task:
 1. Analyze this HTML and find a robust CSS selector that matches the outermost element representing each individual post container in the group feed.
 2. In Facebook, feed posts are repeating structural nodes (usually a wrapper element containing the post author, text, timestamp links, etc.). Look for repeating class patterns, role="article", or structural div structures that represent a single post item.
 3. Keep the selector robust but simple (e.g. 'div[role="article"]', 'div.x1yztbdb', or dynamic class lists if standard tags are gone). Avoid over-specific nth-child selectors.
+4. Structural Landmarks: A correct post container is a recurring parent card/box that typically encloses:
+   - The post author/username near the top of its descendants.
+   - An elapsed relative age string (e.g. '2h', 'Yesterday', 'אתמול', 'שעות', 'ימים').
+   - The main listing description text in Hebrew (containing words like 'חדרים', 'להשכרה', and price markers).
+   - Anchor links (`<a>`) pointing to the post permalinks.
 
 Return a JSON object matching this schema:
 {{
@@ -194,30 +214,36 @@ Return a JSON object matching this schema:
     "reason": "Brief explanation of why you chose this based on the DOM structure."
 }}
 
-CRITICAL: Return ONLY a valid, raw JSON block. Your entire response must start with '{' and end with '}' and be directly parsable by json.loads(). Do NOT include any conversational preamble, warnings, or explanatory text before or after the JSON.
+CRITICAL: Return ONLY a valid, raw JSON block. Your entire response must start with '{' and end with '}' and be directly parsesable by json.loads(). Do NOT include any conversational preamble, warnings, or explanatory text before or after the JSON.
 """
 
-            log.info("Sending DOM structure to LLM for container healing...")
-            response = await self.ai_engine.generate_content(prompt, image_path=screenshot_path)
-            result = self.ai_engine._parse_json_response(response)
+                log.info(f"Sending DOM structure to LLM for container healing (attempt {attempt})...")
+                response = await self.ai_engine.generate_content(prompt, image_path=screenshot_path)
+                result = self.ai_engine._parse_json_response(response)
 
-            healed_selector = result.get("selector")
-            reason = result.get("reason", "No reason provided")
+                healed_selector = result.get("selector")
+                reason = result.get("reason", "No reason provided")
 
-            if healed_selector:
-                log.info(f"LLM suggested healed container selector: '{healed_selector}' (Reason: {reason})")
+                if healed_selector:
+                    log.info(f"LLM suggested healed container selector on attempt {attempt}: '{healed_selector}' (Reason: {reason})")
 
-                # Verify the selector in Playwright
-                is_valid = await self._verify_selector(page, healed_selector)
-                if is_valid:
-                    log.info(f"[SUCCESS] Verified healed container selector: '{healed_selector}'")
-                    self.healed_selectors["post_container"] = healed_selector
-                    self.save_healed_selectors()
-                    return healed_selector
+                    # Verify the selector in Playwright
+                    is_valid = await self._verify_selector(page, healed_selector)
+                    if is_valid:
+                        log.info(f"[SUCCESS] Verified healed container selector on attempt {attempt}: '{healed_selector}'")
+                        self.healed_selectors["post_container"] = healed_selector
+                        self.save_healed_selectors()
+                        return healed_selector
+                    else:
+                        log.warning(f"[FAILED] Suggested selector '{healed_selector}' failed verification on attempt {attempt} (found 0 elements or was invalid CSS)")
+                        failed_selectors.append(healed_selector)
                 else:
-                    log.warning(f"[FAILED] Suggested selector '{healed_selector}' failed verification (found 0 elements or was invalid CSS)")
-            else:
-                log.error("LLM did not return a selector in JSON response", response=response[:300])
+                    log.error(f"LLM did not return a selector in JSON response on attempt {attempt}", response=response[:300])
+
+            # Exhausted all attempts
+            err_msg = f"Self-healing ERROR: Failed to heal post_container selector after {max_attempts} attempts. Checked {len(failed_selectors)} selectors: {failed_selectors}"
+            log.error(err_msg)
+            print(err_msg)
 
         except Exception as e:
             log.error(f"Error during post container self-healing: {e}")
@@ -253,10 +279,25 @@ CRITICAL: Return ONLY a valid, raw JSON block. Your entire response must start w
             raw_html = await post_element.inner_html()
             cleaned_html = self.clean_html(raw_html, max_chars=8000)
 
-            prompt = f"""
+            failed_selectors = []
+            max_attempts = 10
+
+            for attempt in range(1, max_attempts + 1):
+                log.info(f"Attempt {attempt}/{max_attempts} to heal attribute '{attribute_name}' selector...")
+
+                failed_instruction = ""
+                if failed_selectors:
+                    failed_instruction = (
+                        f"\nIMPORTANT: The following selectors were already tried and FAILED verification "
+                        f"(they returned 0 elements, failed date validation, or were invalid CSS inside the post container):\n"
+                        + "\n".join(f"- `{sel}`" for sel in failed_selectors)
+                        + "\nPlease analyze the HTML again and suggest a DIFFERENT, valid selector.\n"
+                    )
+
+                prompt = f"""
 We are scraping Facebook group posts using Playwright in Python.
 We have located the post container, but we failed to extract the '{attribute_name}' attribute using the current selectors: `{current_selectors}`.
-
+{failed_instruction}
 Here is the cleaned, structural inner HTML of a single post container element:
 ---
 {cleaned_html}
@@ -278,86 +319,95 @@ Return a JSON object matching this schema:
 }}
 
 CRITICAL: The JSON object must have exactly two root-level keys: "selector" and "reason". Do NOT nest the keys inside any other outer key (such as "post_url", "post_date", or "post_text"). 
-Return ONLY a valid, raw JSON block. Your entire response must start with '{' and end with '}' and be directly parsable by json.loads(). Do NOT include any conversational preamble or explanatory text outside the JSON.
+Return ONLY a valid, raw JSON block. Your entire response must start with '{' and end with '}' and be directly parsesable by json.loads(). Do NOT include any conversational preamble or explanatory text outside the JSON.
 """
 
-            log.info(f"Sending element DOM to LLM for attribute '{attribute_name}' healing...")
-            response = await self.ai_engine.generate_content(prompt, image_path=screenshot_path)
-            result = self.ai_engine._parse_json_response(response)
+                log.info(f"Sending element DOM to LLM for attribute '{attribute_name}' healing (attempt {attempt})...")
+                response = await self.ai_engine.generate_content(prompt, image_path=screenshot_path)
+                result = self.ai_engine._parse_json_response(response)
 
-            healed_selector = result.get("selector")
-            reason = result.get("reason", "No reason provided")
+                healed_selector = result.get("selector")
+                reason = result.get("reason", "No reason provided")
 
-            if healed_selector:
-                log.info(f"LLM suggested healed selector for '{attribute_name}': '{healed_selector}' (Reason: {reason})")
+                if healed_selector:
+                    log.info(f"LLM suggested healed selector for '{attribute_name}' on attempt {attempt}: '{healed_selector}' (Reason: {reason})")
 
-                # Verify the selector on the element
-                try:
-                    found = await post_element.query_selector(healed_selector)
-                    if found:
-                        is_valid = True
-                        if attribute_name == "post_date":
-                            # Bypass validation if we are dealing with unittest mocks
-                            try:
-                                from unittest.mock import Mock, AsyncMock
-                                is_mock = isinstance(found, (Mock, AsyncMock))
-                            except ImportError:
-                                is_mock = False
-                                
-                            if not is_mock:
-                                import re
-                                text_options = []
-                                inner_t = await found.inner_text()
-                                if isinstance(inner_t, str) and inner_t:
-                                    text_options.append(inner_t.strip())
-                                aria_l = await found.get_attribute("aria-label")
-                                if isinstance(aria_l, str) and aria_l:
-                                    text_options.append(aria_l.strip())
-                                title_attr = await found.get_attribute("title")
-                                if isinstance(title_attr, str) and title_attr:
-                                    text_options.append(title_attr.strip())
-                                
-                                # Check nested elements (like abbr)
-                                nested_abbr = await found.query_selector("abbr")
-                                if nested_abbr and not isinstance(nested_abbr, (Mock, AsyncMock)):
-                                    abbr_t = await nested_abbr.inner_text()
-                                    if isinstance(abbr_t, str) and abbr_t:
-                                        text_options.append(abbr_t.strip())
-                                    abbr_title = await nested_abbr.get_attribute("title")
-                                    if isinstance(abbr_title, str) and abbr_title:
-                                        text_options.append(abbr_title.strip())
+                    # Verify the selector on the element
+                    try:
+                        found = await post_element.query_selector(healed_selector)
+                        if found:
+                            is_valid = True
+                            if attribute_name == "post_date":
+                                # Bypass validation if we are dealing with unittest mocks
+                                try:
+                                    from unittest.mock import Mock, AsyncMock
+                                    is_mock = isinstance(found, (Mock, AsyncMock))
+                                except ImportError:
+                                    is_mock = False
+                                    
+                                if not is_mock:
+                                    import re
+                                    text_options = []
+                                    inner_t = await found.inner_text()
+                                    if isinstance(inner_t, str) and inner_t:
+                                        text_options.append(inner_t.strip())
+                                    aria_l = await found.get_attribute("aria-label")
+                                    if isinstance(aria_l, str) and aria_l:
+                                        text_options.append(aria_l.strip())
+                                    title_attr = await found.get_attribute("title")
+                                    if isinstance(title_attr, str) and title_attr:
+                                        text_options.append(title_attr.strip())
+                                    
+                                    # Check nested elements (like abbr)
+                                    nested_abbr = await found.query_selector("abbr")
+                                    if nested_abbr and not isinstance(nested_abbr, (Mock, AsyncMock)):
+                                        abbr_t = await nested_abbr.inner_text()
+                                        if isinstance(abbr_t, str) and abbr_t:
+                                            text_options.append(abbr_t.strip())
+                                        abbr_title = await nested_abbr.get_attribute("title")
+                                        if isinstance(abbr_title, str) and abbr_title:
+                                            text_options.append(abbr_title.strip())
 
-                                # Check if any matches the timestamp patterns
-                                timestamp_patterns = [
-                                    r'\d+\s*(?:h|m|d|w|שעות|שעה|דקות|דקה|ימים|יום|שבועות|שבוע|hrs?|mins?)',
-                                    r'אתמול|עכשיו|yesterday|just\s*now|now|לפני\s+שעה|לפני\s+יום',
-                                    r'\d{1,2}[./]\d{1,2}',
-                                    r'(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|ינו|פבר|מרץ|אפר|מאי|יונ|יול|אוג|ספט|אוק|נוב|דצמ)'
-                                ]
-                                
-                                date_found = False
-                                for txt in text_options:
-                                    if isinstance(txt, str):
-                                        txt_lower = txt.lower()
-                                        if any(re.search(p, txt_lower) for p in timestamp_patterns):
-                                            date_found = True
-                                            break
-                                
-                                if not date_found:
-                                    is_valid = False
-                                    log.warning(f"[FAILED] Suggested selector '{healed_selector}' for 'post_date' was rejected because its text/attributes {text_options} do not look like a date.")
-                        
-                        if is_valid:
-                            log.info(f"[SUCCESS] Verified healed selector for '{attribute_name}': '{healed_selector}'")
-                            self.healed_selectors[attribute_name] = healed_selector
-                            self.save_healed_selectors()
-                            return healed_selector
-                    else:
-                        log.warning(f"[FAILED] Suggested selector '{healed_selector}' did not find any descendant inside the post element")
-                except Exception as ex:
-                    log.warning(f"[FAILED] Suggested selector '{healed_selector}' threw error during verification: {ex}")
-            else:
-                log.error("LLM did not return a selector in JSON response", response=response[:300])
+                                    # Check if any matches the timestamp patterns
+                                    timestamp_patterns = [
+                                        r'\d+\s*(?:h|m|d|w|שעות|שעה|דקות|דקה|ימים|יום|שבועות|שבוע|hrs?|mins?)',
+                                        r'אתמול|עכשיו|yesterday|just\s*now|now|לפני\s+שעה|לפני\s+יום',
+                                        r'\d{1,2}[./]\d{1,2}',
+                                        r'(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|ינו|פבר|מרץ|אפר|מאי|יונ|יול|אוג|ספט|אוק|נוב|דצמ)'
+                                    ]
+                                    
+                                    date_found = False
+                                    for txt in text_options:
+                                        if isinstance(txt, str):
+                                            txt_lower = txt.lower()
+                                            if any(re.search(p, txt_lower) for p in timestamp_patterns):
+                                                date_found = True
+                                                break
+                                    
+                                    if not date_found:
+                                        is_valid = False
+                                        log.warning(f"[FAILED] Suggested selector '{healed_selector}' for 'post_date' was rejected because its text/attributes {text_options} do not look like a date on attempt {attempt}.")
+                            
+                            if is_valid:
+                                log.info(f"[SUCCESS] Verified healed selector for '{attribute_name}' on attempt {attempt}: '{healed_selector}'")
+                                self.healed_selectors[attribute_name] = healed_selector
+                                self.save_healed_selectors()
+                                return healed_selector
+                            else:
+                                failed_selectors.append(healed_selector)
+                        else:
+                            log.warning(f"[FAILED] Suggested selector '{healed_selector}' did not find any descendant inside the post element on attempt {attempt}")
+                            failed_selectors.append(healed_selector)
+                    except Exception as ex:
+                        log.warning(f"[FAILED] Suggested selector '{healed_selector}' threw error during verification on attempt {attempt}: {ex}")
+                        failed_selectors.append(healed_selector)
+                else:
+                    log.error(f"LLM did not return a selector in JSON response on attempt {attempt}", response=response[:300])
+
+            # Exhausted all attempts
+            err_msg = f"Self-healing ERROR: Failed to heal attribute '{attribute_name}' selector after {max_attempts} attempts. Checked {len(failed_selectors)} selectors: {failed_selectors}"
+            log.error(err_msg)
+            print(err_msg)
 
         except Exception as e:
             log.error(f"Error during attribute self-healing: {e}")

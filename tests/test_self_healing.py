@@ -127,3 +127,111 @@ async def test_heal_attribute(mock_ai_engine, temp_cache_path):
     # Reload from cache path to verify persistence
     reloaded = SelfHealingManager(persist_path=temp_cache_path)
     assert reloaded.get_selector("post_date") == "span.healed-timestamp"
+
+
+@pytest.mark.asyncio
+async def test_heal_post_container_retries_and_succeeds(mock_ai_engine, temp_cache_path):
+    """Test that post container healing retries when verification fails and succeeds eventually."""
+    # LLM returns failing selectors first, then a working one
+    responses = [
+        '{"selector": "fail-1", "reason": "First try"}',
+        '{"selector": "fail-2", "reason": "Second try"}',
+        '{"selector": "div.healed-post-class", "reason": "Third time is the charm"}'
+    ]
+    mock_ai_engine.generate_content.side_effect = responses
+
+    manager = SelfHealingManager(ai_engine=mock_ai_engine, persist_path=temp_cache_path)
+
+    # Mock Playwright Page
+    mock_page = AsyncMock()
+    mock_page.content.return_value = "<html><body><div class='healed-post-class'>Post</div></body></html>"
+
+    # Only return elements for the valid selector
+    async def query_selector_all_side_effect(sel):
+        if sel == "div.healed-post-class":
+            return [AsyncMock()]
+        return []
+    mock_page.query_selector_all.side_effect = query_selector_all_side_effect
+
+    healed = await manager.heal_post_container(mock_page, "div[role='article']")
+
+    assert healed == "div.healed-post-class"
+    assert mock_ai_engine.generate_content.call_count == 3
+
+    # Verify that failed selectors were passed into the prompt history in subsequent calls
+    history_call_2 = mock_ai_engine.generate_content.call_args_list[1][0][0]
+    assert "fail-1" in history_call_2
+
+    history_call_3 = mock_ai_engine.generate_content.call_args_list[2][0][0]
+    assert "fail-1" in history_call_3
+    assert "fail-2" in history_call_3
+
+
+@pytest.mark.asyncio
+async def test_heal_post_container_fails_after_10_tries(mock_ai_engine, temp_cache_path):
+    """Test that post container healing gives up after 10 failed tries."""
+    mock_ai_engine.generate_content.return_value = '{"selector": "always-fail", "reason": "Stubborn LLM"}'
+
+    manager = SelfHealingManager(ai_engine=mock_ai_engine, persist_path=temp_cache_path)
+
+    mock_page = AsyncMock()
+    mock_page.content.return_value = "<html><body>No match</body></html>"
+    # Never find elements for selectors
+    mock_page.query_selector_all.return_value = []
+
+    healed = await manager.heal_post_container(mock_page, "div[role='article']")
+
+    assert healed is None
+    assert mock_ai_engine.generate_content.call_count == 10
+
+
+@pytest.mark.asyncio
+async def test_heal_attribute_retries_and_succeeds(mock_ai_engine, temp_cache_path):
+    """Test that attribute healing retries on failure and eventually succeeds."""
+    responses = [
+        '{"selector": "fail-attr-1", "reason": "Try 1"}',
+        '{"selector": "fail-attr-2", "reason": "Try 2"}',
+        '{"selector": "span.healed-timestamp", "reason": "Try 3"}'
+    ]
+    mock_ai_engine.generate_content.side_effect = responses
+
+    manager = SelfHealingManager(ai_engine=mock_ai_engine, persist_path=temp_cache_path)
+
+    # Mock Playwright ElementHandle representing a post
+    mock_element = AsyncMock()
+    mock_element.inner_html.return_value = "<div><span class='healed-timestamp'>2h</span></div>"
+
+    # Only return element for correct selector
+    async def query_selector_side_effect(sel):
+        if sel == "span.healed-timestamp":
+            return AsyncMock()
+        return None
+    mock_element.query_selector.side_effect = query_selector_side_effect
+
+    healed = await manager.heal_attribute(AsyncMock(), mock_element, "post_date", "abbr")
+
+    assert healed == "span.healed-timestamp"
+    assert mock_ai_engine.generate_content.call_count == 3
+
+    # Verify failed selectors are listed in the prompt history
+    history_call_3 = mock_ai_engine.generate_content.call_args_list[2][0][0]
+    assert "fail-attr-1" in history_call_3
+    assert "fail-attr-2" in history_call_3
+
+
+@pytest.mark.asyncio
+async def test_heal_attribute_fails_after_10_tries(mock_ai_engine, temp_cache_path):
+    """Test that attribute healing stops and returns None after 10 failed tries."""
+    mock_ai_engine.generate_content.return_value = '{"selector": "always-fail-attr", "reason": "Stubborn LLM"}'
+
+    manager = SelfHealingManager(ai_engine=mock_ai_engine, persist_path=temp_cache_path)
+
+    mock_element = AsyncMock()
+    mock_element.inner_html.return_value = "<div>No match</div>"
+    mock_element.query_selector.return_value = None
+
+    healed = await manager.heal_attribute(AsyncMock(), mock_element, "post_date", "abbr")
+
+    assert healed is None
+    assert mock_ai_engine.generate_content.call_count == 10
+
