@@ -56,7 +56,7 @@ class Settings(BaseSettings):
     GROQ_MODEL: str = "llama-3.3-70b-versatile"
     
     LOG_LEVEL: str = "INFO"
-    RESET_DB_ON_STARTUP: bool = True  # Resets listings, rejections, and seen history
+    RESET_DB_ON_STARTUP: bool = False  # Resets listings, rejections, and seen history
     RESET_USERS_ON_STARTUP: bool = True # Resets users AND their search rules
     RESET_PERSONA_CACHE_ON_STARTUP: bool = False # Resets AI generated welcome/sass cache
     
@@ -75,7 +75,7 @@ class Settings(BaseSettings):
     YAD2_MAX_CAPTCHA_RETRIES: int = 3  # Max number of retries on CAPTCHA
     
     # Blackout Period (Israel Time)
-    BLACKOUT_START_HOUR: int = 1  # 1 AM
+    BLACKOUT_START_HOUR: int = 23  # 1 AM
     BLACKOUT_END_HOUR: int = 7    # 7 AM
     BLACKOUT_JITTER_MINUTES: int = 30
     

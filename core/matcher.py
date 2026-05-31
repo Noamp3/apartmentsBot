@@ -12,6 +12,15 @@ from utils.logger import Loggers
 log = Loggers.matcher()
 
 
+def _parse_int_rule_value(value: str) -> int:
+    """Safely parse a numeric rule value that might be float-formatted (e.g., '2.0')."""
+    try:
+        return int(float(value))
+    except (ValueError, TypeError) as e:
+        log.error(f"Failed to parse rule value '{value}' as numeric: {e}")
+        raise
+
+
 class RulePreFilter:
     """Filter listings using deterministic rules BEFORE calling AI."""
     
@@ -37,16 +46,16 @@ class RulePreFilter:
                 
                 # STRICT VALIDATION: If price is missing, we can't ensure it's below max -> FAIL
                 if effective_price is None:
-                     failed_rules.append(f"חסר מחיר בדירה (לא ניתן לוודא מקסימום {int(rule.value):,}₪)")
-                elif effective_price > int(rule.value):
+                     failed_rules.append(f"חסר מחיר בדירה (לא ניתן לוודא מקסימום {_parse_int_rule_value(rule.value):,}₪)")
+                elif effective_price > _parse_int_rule_value(rule.value):
                     if enriched.has_broker_fee:
                         failed_rules.append(
-                            f"מחיר אפקטיבי {effective_price:,}₪ > מקסימום {int(rule.value):,}₪ "
+                            f"מחיר אפקטיבי {effective_price:,}₪ > מקסימום {_parse_int_rule_value(rule.value):,}₪ "
                             f"(שכ\"ד {enriched.extracted_price:,}₪ + תיווך מפורס)"
                         )
                     else:
                         failed_rules.append(
-                            f"מחיר {effective_price:,}₪ > מקסימום {int(rule.value):,}₪"
+                            f"מחיר {effective_price:,}₪ > מקסימום {_parse_int_rule_value(rule.value):,}₪"
                         )
             
             elif rule.rule_type == RuleType.PRICE_MIN:
@@ -55,19 +64,19 @@ class RulePreFilter:
                 
                 # STRICT VALIDATION: If price is missing, we can't ensure it's above min -> FAIL
                 if price is None:
-                    failed_rules.append(f"חסר מחיר בדירה (לא ניתן לוודא מינימום {int(rule.value):,}₪)")
-                elif price < int(rule.value):
-                    failed_rules.append(f"מחיר {price:,}₪ < מינימום {int(rule.value):,}₪")
+                    failed_rules.append(f"חסר מחיר בדירה (לא ניתן לוודא מינימום {_parse_int_rule_value(rule.value):,}₪)")
+                elif price < _parse_int_rule_value(rule.value):
+                    failed_rules.append(f"מחיר {price:,}₪ < מינימום {_parse_int_rule_value(rule.value):,}₪")
             
             elif rule.rule_type == RuleType.BEDROOMS_MIN:
                 bedrooms = enriched.extracted_bedrooms
-                if bedrooms and bedrooms < int(rule.value):
-                    failed_rules.append(f"חדרים {bedrooms} < מינימום {rule.value}")
+                if bedrooms and bedrooms < _parse_int_rule_value(rule.value):
+                    failed_rules.append(f"חדרים {bedrooms} < מינימום {_parse_int_rule_value(rule.value)}")
             
             elif rule.rule_type == RuleType.BEDROOMS_MAX:
                 bedrooms = enriched.extracted_bedrooms
-                if bedrooms and bedrooms > int(rule.value):
-                    failed_rules.append(f"חדרים {bedrooms} > מקסימום {rule.value}")
+                if bedrooms and bedrooms > _parse_int_rule_value(rule.value):
+                    failed_rules.append(f"חדרים {bedrooms} > מקסימום {_parse_int_rule_value(rule.value)}")
         
         if failed_rules:
             log.debug(f"Hard rules failed for {enriched.listing.title[:30]}...: {failed_rules}")
