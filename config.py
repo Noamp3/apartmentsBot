@@ -56,15 +56,15 @@ class Settings(BaseSettings):
     GROQ_MODEL: str = "llama-3.3-70b-versatile"
     
     LOG_LEVEL: str = "INFO"
-    RESET_DB_ON_STARTUP: bool = False  # Resets listings, rejections, and seen history
-    RESET_USERS_ON_STARTUP: bool = False # Resets users AND their search rules
+    RESET_DB_ON_STARTUP: bool = True  # Resets listings, rejections, and seen history
+    RESET_USERS_ON_STARTUP: bool = True # Resets users AND their search rules
     RESET_PERSONA_CACHE_ON_STARTUP: bool = False # Resets AI generated welcome/sass cache
     
     # Database
     DATABASE_URL: str = "sqlite:///data/apartments.db"
     
     # Scraping Settings
-    SCRAPE_INTERVAL_MINUTES: int = 30
+    SCRAPE_INTERVAL_MINUTES: int = 60
     SCRAPE_JITTER_SECONDS: int = 120
     MIN_DELAY_SECONDS: float = 1.0
     MAX_DELAY_SECONDS: float = 5.0

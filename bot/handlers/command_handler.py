@@ -61,9 +61,36 @@ class CommandHandler:
         db = await get_db()
         user_repo = UserRepository(db)
         user_obj = await user_repo.get_or_create(user.id, chat_id, user.username)
+        
+        # Check if user needs onboarding (no active search rules or currently in onboarding step)
+        rule_repo = RuleRepository(db)
+        user_rules = await rule_repo.get_user_rules(user.id, active_only=True)
+        
+        is_onboarding_needed = (user_obj.onboarding_step is not None) or (not user_rules)
+        
+        if is_onboarding_needed:
+            # Set state to choose_persona
+            await user_repo.update_onboarding_step(user.id, "choose_persona")
+            
+            # Show the persona selection keyboard
+            from core.personas import PERSONAS
+            keyboard = []
+            msg = f"היי *{ListingFormatter._escape_markdown(user.first_name or 'נשמה')}*\\! 🏠 ברוכים הבאים לבוט הדירות שלכם\\!\nאני אסרוק עבורכם את יד2 וקבוצות פייסבוק כל כמה דקות ואשלח לכם רק את הדירות שמתאימות לכם בול\\.\n\nלפני שנתחיל, מי הנציג שאתה רוצה שילווה אותך בחיפוש?"
+            for name, p in PERSONAS.items():
+                keyboard.append([
+                    InlineKeyboardButton(f"{p.emoji} {p.display_name}", callback_data=f"set_persona:{name}")
+                ])
+            await self._safe_reply_text(
+                update,
+                msg,
+                parse_mode='MarkdownV2',
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
+            return
+            
         persona_name = user_obj.persona if hasattr(user_obj, 'persona') else 'barakush'
         
-        # Generate dynamic welcome sass
+        # Generate dynamic welcome sass for onboarded user
         ai_engine = context.bot_data.get("ai_engine")
         
         if not ai_engine:
@@ -168,27 +195,24 @@ class CommandHandler:
         
         log.info("User cleared all rules", user_id=user_id)
         
-        # Get user persona
-        db_manager = await get_db()
-        user_repo = UserRepository(db_manager)
-        user_obj = await user_repo.get_by_telegram_id(user_id)
-        persona_name = user_obj.persona if user_obj else 'barakush'
+        # Reset onboarding step to choose_persona
+        user_repo = UserRepository(db)
+        await user_repo.update_onboarding_step(user_id, "choose_persona")
         
-        # Get dynamic sass
-        ai_engine = context.bot_data.get("ai_engine")
-        sass_extra = ""
-        if ai_engine:
-             try:
-                sass = await ai_engine.get_random_sass(persona=persona_name)
-                sass_extra = f"\n\n_{ListingFormatter._escape_markdown(sass)}_"
-             except Exception:
-                pass
-
+        # Prompt for persona selection to start over
+        from core.personas import PERSONAS
+        keyboard = []
+        msg = "🗑️ *כל כללי החיפוש שלך נמחקו\\.*\nבוא נגדיר את החיפוש מחדש\\! מי הנציג שאתה רוצה שילווה אותך?"
+        for name, p in PERSONAS.items():
+            keyboard.append([
+                InlineKeyboardButton(f"{p.emoji} {p.display_name}", callback_data=f"set_persona:{name}")
+            ])
+            
         await self._safe_reply_text(
             update,
-            f"🗑️ כל כללי החיפוש שלך נמחקו\\.\n\nשלח הודעה חדשה כדי להתחיל מחדש\\!{sass_extra}",
+            msg,
             parse_mode='MarkdownV2',
-            reply_markup=get_main_menu_keyboard()
+            reply_markup=InlineKeyboardMarkup(keyboard)
         )
     
     @ensure_user_exists

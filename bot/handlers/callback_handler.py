@@ -137,17 +137,23 @@ class CallbackHandler:
         
         log.info("User cleared all rules via button", user_id=user_id)
         
-        # Get user persona
+        # Reset onboarding step to choose_persona
         user_repo = UserRepository(db)
-        user_obj = await user_repo.get_by_telegram_id(user_id)
-        persona_name = user_obj.persona if user_obj else 'barakush'
+        await user_repo.update_onboarding_step(user_id, "choose_persona")
         
-        from core.personas import get_persona
-        persona_def = get_persona(persona_name)
-        
+        # Prompt for persona selection to start over
+        from core.personas import PERSONAS
+        keyboard = []
+        msg = "🗑️ *כל כללי החיפוש שלך נמחקו\\.*\nבוא נגדיר את החיפוש מחדש\\! מי הנציג שאתה רוצה שילווה אותך?"
+        for name, p in PERSONAS.items():
+            keyboard.append([
+                InlineKeyboardButton(f"{p.emoji} {p.display_name}", callback_data=f"set_persona:{name}")
+            ])
+            
         await query.edit_message_text(
-            f"🗑️ כל כללי החיפוש שלך נמחקו\\.\n\nשלח הודעה חדשה כדי להתחיל מחדש\\!",
-            parse_mode='MarkdownV2'
+            msg,
+            parse_mode='MarkdownV2',
+            reply_markup=InlineKeyboardMarkup(keyboard)
         )
     
     @staticmethod
@@ -313,7 +319,18 @@ class CallbackHandler:
         from core.personas import get_persona
         persona_def = get_persona(persona_name)
         
-        escaped_msg = self._escape_markdown(persona_def.switch_confirmation)
+        user_obj = await user_repo.get_by_telegram_id(user_id)
+        is_onboarding = user_obj and user_obj.onboarding_step == "choose_persona"
+        
+        if is_onboarding:
+            await user_repo.update_onboarding_step(user_id, "ask_location")
+            context.user_data['onboarding_rules'] = []
+            
+            # Since these static templates are already perfectly pre-escaped in personas.py,
+            # we send them directly without dynamic escaping to preserve rich bold/italic formatting.
+            escaped_msg = f"{persona_def.switch_confirmation}\n\n{persona_def.onboarding_welcome}"
+        else:
+            escaped_msg = persona_def.switch_confirmation
         
         await query.edit_message_text(
             escaped_msg,

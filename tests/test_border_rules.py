@@ -174,6 +174,67 @@ def test_border_lookup():
     print()
 
 
+@pytest.mark.asyncio
+async def test_conversational_rule_modification():
+    """Test that users can reply to modify the pending rules by adding/removing neighborhoods."""
+    print("\n=== Testing Conversational Rule Modification ===\n")
+    
+    # 1. Setup a pending rules state in a mock context
+    from models.search_rule import SearchRule, RuleType
+    
+    pending_rule = SearchRule(
+        user_id=123,
+        rule_type=RuleType.BORDER_AREA,
+        value="בבלי,הצפון הישן,לב העיר",
+        original_text="מערבית לאיילון"
+    )
+    
+    mock_context = AsyncMock()
+    mock_context.user_data = {
+        'pending_rule_confirmation': {
+            'user_id': 123,
+            'all_pending_rules': [pending_rule],
+            'border_rules_data': []
+        }
+    }
+    
+    # 2. Setup a mock update for the message text "בלי בבלי ותוסיף את פלורנטין"
+    mock_update = AsyncMock()
+    mock_update.effective_user.id = 123
+    mock_update.message.text = "בלי בבלי ותוסיף את פלורנטין"
+    
+    # Mock safe_reply_text
+    handler = MessageHandler()
+    handler._safe_reply_text = AsyncMock()
+    
+    # 3. Call handle_message
+    await handler.handle_message(mock_update, mock_context)
+    
+    # 4. Assertions
+    # Verify the pending rule in context was modified:
+    # "בבלי" should be removed, "פלורנטין" should be added.
+    updated_rules = mock_context.user_data['pending_rule_confirmation']['all_pending_rules']
+    assert len(updated_rules) == 1
+    updated_rule = updated_rules[0]
+    
+    current_neighborhoods = updated_rule.value.split(",")
+    assert "בבלי" not in current_neighborhoods, "Bavli should have been removed"
+    assert "פלורנטין" in current_neighborhoods, "Florentin should have been added"
+    assert "לב העיר" in current_neighborhoods, "Lev HaIr should have been kept"
+    
+    # Check that safe_reply_text was called with the modified confirmation
+    handler._safe_reply_text.assert_called_once()
+    call_args = handler._safe_reply_text.call_args[0]
+    reply_text = call_args[1]
+    
+    assert "עדכנתי את האזור לבקשתך" in reply_text
+    assert "הסרתי את: בבלי" in reply_text
+    assert "הוספתי את: פלורנטין" in reply_text
+    
+    print("✓ Conversational rule modification test passed successfully!")
+    print()
+
+
 def main():
     """Run all tests."""
     print("="*60)
@@ -187,6 +248,7 @@ def main():
         # Run async tests
         asyncio.run(test_border_parsing())
         asyncio.run(test_llm_fallback())
+        asyncio.run(test_conversational_rule_modification())
         
         print("\n" + "="*60)
         print("All tests completed successfully!")

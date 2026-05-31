@@ -167,6 +167,13 @@ class DatabaseManager:
         except aiosqlite.OperationalError:
             pass
             
+        # Safe migration: Add 'onboarding_step' column if it doesn't exist
+        try:
+            await self._connection.execute("ALTER TABLE users ADD COLUMN onboarding_step TEXT DEFAULT NULL")
+            await self._connection.commit()
+        except aiosqlite.OperationalError:
+            pass
+            
         # Safe migration: Add 'is_admin' column if it doesn't exist
         try:
             await self._connection.execute("ALTER TABLE users ADD COLUMN is_admin BOOLEAN DEFAULT FALSE")

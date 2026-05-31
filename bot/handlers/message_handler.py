@@ -51,6 +51,16 @@ class MessageHandler:
         
         if not text:
             return
+            
+        # Get user object to check onboarding step
+        db = await get_db()
+        user_repo = UserRepository(db)
+        user_obj = await user_repo.get_by_telegram_id(user.id)
+        
+        # Intercept if user is in onboarding
+        if user_obj and user_obj.onboarding_step:
+            await self.handle_onboarding_step(update, context, user_obj, text)
+            return
 
         # Intercept 2FA verification response if bot is waiting for a Facebook login code
         if context.bot_data.get("fb_login_waiting_for_2fa") == user.id:
@@ -68,6 +78,109 @@ class MessageHandler:
             return
         
         log.info("User message received", user_id=user.id, text=text[:50])
+        
+        # Check if we have a pending rule confirmation and the user is modifying the neighborhoods
+        pending_data = context.user_data.get('pending_rule_confirmation')
+        if pending_data:
+            import re
+            
+            remove_patterns = [
+                r'(?:^|\s)(?:ת)?סיר(?:י)?\s+(?:את\s+)?([א-ת\s\d\'-]+)',
+                r'(?:^|\s)בלי\s+([א-ת\s\d\'-]+)',
+                r'(?:^|\s)ללא\s+([א-ת\s\d\'-]+)',
+                r'(?:^|\s)להסיר\s+(?:את\s+)?([א-ת\s\d\'-]+)',
+                r'(?:^|\s)מחק\s+(?:את\s+)?([א-ת\s\d\'-]+)',
+            ]
+            
+            add_patterns = [
+                r'(?:^|\s)(?:ת)?וסי[פף](?:י)?\s+(?:את\s+)?([א-ת\s\d\'-]+)',
+                r'(?:^|\s)להוסיף\s+(?:את\s+)?([א-ת\s\d\'-]+)',
+                r'(?:^|\s)עם\s+([א-ת\s\d\'-]+)',
+            ]
+            
+            location_db = get_location_db()
+            
+            removed_neighborhoods = []
+            added_neighborhoods = []
+            is_modification = False
+            
+            # Removals
+            for pattern in remove_patterns:
+                matches = re.findall(pattern, text)
+                for m in matches:
+                    n_name = m.strip()
+                    parts = re.split(r'\s+ו|\s+(?:או)\s+|\s*,\s*', n_name)
+                    for part in parts:
+                        normalized = location_db.normalize_location(part)["neighborhood"]
+                        if normalized:
+                            removed_neighborhoods.append(normalized)
+                            is_modification = True
+                            
+            # Additions
+            for pattern in add_patterns:
+                matches = re.findall(pattern, text)
+                for m in matches:
+                    n_name = m.strip()
+                    parts = re.split(r'\s+ו|\s+(?:או)\s+|\s*,\s*', n_name)
+                    for part in parts:
+                        normalized = location_db.normalize_location(part)["neighborhood"]
+                        if normalized:
+                            added_neighborhoods.append(normalized)
+                            is_modification = True
+                            
+            # Remove duplicates
+            removed_neighborhoods = list(set(removed_neighborhoods))
+            added_neighborhoods = list(set(added_neighborhoods))
+            
+            if is_modification:
+                all_pending_rules = pending_data.get('all_pending_rules', [])
+                border_rules_adjusted = False
+                
+                # Apply changes to any BORDER_AREA rules
+                for rule in all_pending_rules:
+                    if rule.rule_type == RuleType.BORDER_AREA:
+                        current = [n.strip() for n in rule.value.split(",") if n.strip()]
+                        
+                        # Apply removals
+                        for r_name in removed_neighborhoods:
+                            if r_name in current:
+                                current.remove(r_name)
+                                
+                        # Apply additions
+                        for a_name in added_neighborhoods:
+                            if a_name not in current:
+                                current.append(a_name)
+                                
+                        # Save updated list
+                        rule.value = ",".join(current)
+                        border_rules_adjusted = True
+                
+                if border_rules_adjusted:
+                    log.info("Updated pending border area rules with user adjustments", user_id=user.id)
+                    
+                    # Re-format confirmation message
+                    confirmation_msg = self._format_rules_confirmation_message(all_pending_rules, pending_data.get('border_rules_data'))
+                    
+                    # Highlight what was changed
+                    mod_actions = []
+                    if removed_neighborhoods:
+                        mod_actions.append(f"❌ הסרתי את: {', '.join(removed_neighborhoods)}")
+                    if added_neighborhoods:
+                        mod_actions.append(f"➕ הוספתי את: {', '.join(added_neighborhoods)}")
+                        
+                    escaped_mod = self._escape_markdown("\n".join(mod_actions))
+                    full_message = f"✍️ *עדכנתי את האזור לבקשתך\\!*\n{escaped_mod}\n\n{confirmation_msg}"
+                    
+                    from bot.handlers.callback_handler import CallbackHandler
+                    keyboard = CallbackHandler.create_rules_confirmation_keyboard()
+                    
+                    await self._safe_reply_text(
+                        update,
+                        full_message,
+                        reply_markup=keyboard,
+                        parse_mode='MarkdownV2'
+                    )
+                    return
         
         # Check if text matches any of our persistent reply keyboard options
         menu_mappings = {
@@ -311,16 +424,16 @@ class MessageHandler:
             type_label = type_names.get(rule.rule_type, "• כלל")
             escaped_text = self._escape_markdown(rule.original_text)
             
-            # For border rules, add neighborhood count
-            if rule.rule_type == RuleType.BORDER_AREA and border_rules_data:
-                for b_data in border_rules_data:
-                    # Match by original_text because rule.value is now the CSV list
-                    if b_data['original_text'] == rule.original_text:
-                        neighborhood_count = len(b_data.get('neighborhoods', []))
-                        rules_text_lines.append(f"{type_label}: {escaped_text} \\({neighborhood_count} שכונות\\)")
-                        break
-                else: # This else belongs to the for loop, meaning no match was found
-                    rules_text_lines.append(f"{type_label}: {escaped_text}")
+            # For border rules, show the exact list of selected neighborhoods
+            if rule.rule_type == RuleType.BORDER_AREA:
+                neighborhoods = [n.strip() for n in rule.value.split(",") if n.strip()]
+                neighborhood_count = len(neighborhoods)
+                neighborhoods_list_str = ", ".join(neighborhoods)
+                escaped_list = self._escape_markdown(neighborhoods_list_str)
+                rules_text_lines.append(
+                    f"{type_label}: {escaped_text} \\({neighborhood_count} שכונות\\)\n"
+                    f"  └ *שכונות שנבחרו:* {escaped_list}"
+                )
             else:
                 rules_text_lines.append(f"{type_label}: {escaped_text}")
         
@@ -332,6 +445,11 @@ class MessageHandler:
 {rules_text}
 
 *זה נכון?*
+
+💡 *טיפ:* את\\(ה\\) יכול\\(ה\\) להגיב ישירות להודעה זו כדי להוסיף או להסיר שכונות מהרשימה\\!
+לדוגמה:
+• _"להסיר את בבלי"_ או _"בלי בבלי"_
+• _"להוסיף את פלורנטין"_ או _"תוסיף את פלורנטין"_
 """
         return message
     
@@ -475,3 +593,230 @@ class MessageHandler:
             log.info(f"Border constraints {constraints} matched {len(neighborhoods)} neighborhoods: {', '.join(neighborhoods)}")
         
         return neighborhoods
+
+    async def handle_onboarding_step(self, update: Update, context: ContextTypes.DEFAULT_TYPE, user_obj: object, text: str):
+        """Handle active onboarding step."""
+        from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+        user_id = user_obj.telegram_id
+        db = await get_db()
+        user_repo = UserRepository(db)
+        persona_name = user_obj.persona or 'barakush'
+        
+        from core.personas import get_persona
+        persona_def = get_persona(persona_name)
+        
+        step = user_obj.onboarding_step
+        log.info("Processing onboarding step", user_id=user_id, step=step, text=text[:50])
+        
+        if step == "choose_persona":
+            from core.personas import PERSONAS
+            keyboard = []
+            msg = "היי! 🏠 ברוכים הבאים לבוט הדירות שלכם! אני אסרוק עבורכם את יד2 וקבוצות פייסבוק כל כמה דקות ואשלח לכם רק את הדירות שמתאימות לכם בול.\n\nלפני שמתחילים, מי הנציג שאתם רוצים שילווה אתכם בחיפוש?"
+            for name, p in PERSONAS.items():
+                keyboard.append([
+                    InlineKeyboardButton(f"{p.emoji} {p.display_name}", callback_data=f"set_persona:{name}")
+                ])
+            await self._safe_reply_text(
+                update,
+                msg,
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
+            return
+            
+        elif step == "ask_location":
+            from utils.israeli_locations import get_location_db
+            location_db = get_location_db()
+            
+            import re
+            has_directions = any(x in text for x in ["מערב", "מזרח", "צפון", "דרום"])
+            
+            rules_to_save = []
+            
+            if has_directions:
+                neighborhoods = await self._parse_border_constraints(text)
+                if neighborhoods:
+                    rules_to_save.append({
+                        "type": "border_area",
+                        "value": ",".join(neighborhoods),
+                        "original_text": text
+                    })
+                else:
+                    rules_to_save.append({
+                        "type": "area",
+                        "value": text,
+                        "original_text": text
+                    })
+            else:
+                parts = re.split(r'\s+ו|\s+(?:או)\s+|\s*,\s*', text)
+                for part in parts:
+                    part_stripped = part.strip()
+                    if not part_stripped:
+                        continue
+                    normalized = location_db.normalize_location(part_stripped)
+                    rules_to_save.append({
+                        "type": "area",
+                        "value": normalized["neighborhood"] if normalized["neighborhood"] else part_stripped,
+                        "original_text": part_stripped
+                    })
+            
+            context.user_data['onboarding_rules'] = rules_to_save
+            
+            await user_repo.update_onboarding_step(user_id, "ask_budget")
+            
+            await self._safe_reply_text(
+                update,
+                persona_def.onboarding_ask_budget,
+                parse_mode='MarkdownV2'
+            )
+            
+        elif step == "ask_budget":
+            import re
+            digits = re.findall(r'\d+', text.replace(',', '').replace('.', ''))
+            if not digits:
+                error_msg = "אופס, לא מצאתי מספר בתשובה שלך. אנא הזן תקציב במספר בלבד (למשל: 5000):"
+                if persona_name == "barakush":
+                    error_msg = "מאמי, אני צריכה מספרים, לא סיפורים 💅 תביאי לי רק את המחיר (למשל: 5000):"
+                elif persona_name == "yekke":
+                    error_msg = "שגיאה: קלט לא חוקי. נא להזין ערך מספרי בלבד לתקציב המרבי (למשל: 5000):"
+                elif persona_name == "mom":
+                    error_msg = "אוי, לא הבנתי כמה כסף זה! תכתוב לי רק את המספר בבקשה נשמה שלי (למשל: 5000):"
+                elif persona_name == "stoner":
+                    error_msg = "לא הכי זרם לי המספר אחי, תביא לי רק ספרות גבר (למשל: 5000):"
+                
+                await self._safe_reply_text(update, error_msg)
+                return
+            
+            budget_val = int(digits[0])
+            
+            onboarding_rules = context.user_data.get('onboarding_rules', [])
+            onboarding_rules.append({
+                "type": "price_max",
+                "value": budget_val,
+                "original_text": f"עד {budget_val}₪"
+            })
+            context.user_data['onboarding_rules'] = onboarding_rules
+            
+            await user_repo.update_onboarding_step(user_id, "ask_bedrooms")
+            
+            await self._safe_reply_text(
+                update,
+                persona_def.onboarding_ask_bedrooms,
+                parse_mode='MarkdownV2'
+            )
+            
+        elif step == "ask_bedrooms":
+            import re
+            digits = [float(d) for d in re.findall(r'\d+(?:\.\d+)?', text)]
+            
+            min_beds = None
+            max_beds = None
+            
+            if len(digits) >= 2:
+                min_beds = min(digits)
+                max_beds = max(digits)
+            elif len(digits) == 1:
+                min_beds = digits[0]
+                if any(x in text for x in ["עד", "מקסימום"]):
+                    max_beds = min_beds
+                    min_beds = 1.0
+                else:
+                    min_beds = digits[0]
+                    max_beds = min_beds + 3.0
+            else:
+                min_beds = 2.0
+                max_beds = 5.0
+                
+            onboarding_rules = context.user_data.get('onboarding_rules', [])
+            
+            onboarding_rules.append({
+                "type": "bedrooms_min",
+                "value": min_beds,
+                "original_text": f"מינימום {min_beds} חדרים"
+            })
+            
+            onboarding_rules.append({
+                "type": "bedrooms_max",
+                "value": max_beds,
+                "original_text": f"מקסימום {max_beds} חדרים"
+            })
+            
+            await user_repo.update_onboarding_step(user_id, None)
+            
+            from database.repositories import RuleRepository
+            from models.search_rule import SearchRule, RuleType
+            rule_repo = RuleRepository(db)
+            
+            search_rules_list = []
+            
+            for r_data in onboarding_rules:
+                rule_type = getattr(RuleType, r_data["type"].upper(), RuleType.CUSTOM)
+                rule = SearchRule(
+                    user_id=user_id,
+                    rule_type=rule_type,
+                    value=str(r_data["value"]),
+                    original_text=r_data["original_text"]
+                )
+                await rule_repo.create(rule)
+                search_rules_list.append(rule)
+                
+            context.user_data.pop('onboarding_rules', None)
+            
+            sass_extra = ""
+            if self.ai_engine:
+                try:
+                    sass = await self.ai_engine.get_random_sass(persona=persona_name)
+                    sass_extra = f"\n\n_{self._escape_markdown(sass)}_"
+                except Exception:
+                    pass
+            
+            rules_summary = []
+            type_names = {
+                RuleType.PRICE_MAX: "💰 מחיר מקסימלי",
+                RuleType.PRICE_MIN: "💰 מחיר מינימלי",
+                RuleType.BEDROOMS_MIN: "🛏️ מינימום חדרים",
+                RuleType.BEDROOMS_MAX: "🛏️ מקסימום חדרים",
+                RuleType.AREA: "📍 מיקום",
+                RuleType.BORDER_AREA: "🗺️ אזור לפי גבולות",
+                RuleType.CUSTOM: "✨ דרישה מותאמת",
+            }
+            
+            for rule in search_rules_list:
+                type_label = type_names.get(rule.rule_type, "• כלל")
+                escaped_text = self._escape_markdown(rule.original_text)
+                rules_summary.append(f"{type_label}: {escaped_text}")
+                
+            rules_summary_str = "\n".join(rules_summary)
+            
+            welcome_template = """
+🎉 *מזל טוב\\! סיימנו להגדיר את החיפוש שלך\\!* 🚀
+
+הנה הכללים ששמרתי בשבילך:
+{rules_summary_str}
+
+מכאן והלאה אני רץ כל כמה דקות על כל הפרסומים ביד2 ובקבוצות הפייסבוק הכי שוות, מסנן את כל הזבל ומביא לך רק מה שמתאים בול\\!{sass_extra}
+"""
+            
+            from bot.handlers.command_handler import get_main_menu_keyboard
+            await self._safe_reply_text(
+                update,
+                welcome_template.format(
+                    rules_summary_str=rules_summary_str,
+                    sass_extra=sass_extra
+                ),
+                parse_mode='MarkdownV2',
+                reply_markup=get_main_menu_keyboard()
+            )
+            
+            processing_service = context.bot_data.get("processing_service")
+            if processing_service:
+                from database.repositories import ListingRepository
+                listing_repo = ListingRepository(db)
+                
+                recent_listings = await listing_repo.get_recent_enrichments(hours=24)
+                if recent_listings:
+                    await update.message.reply_text("🔎 בודק אם יש משהו רלוונטי מהיממה האחרונה...")
+                    matches = await processing_service.match_user_to_listings(
+                        user_obj, recent_listings, is_manual_trigger=True
+                    )
+                    if matches > 0:
+                        await update.message.reply_text(f"✨ מצאתי {matches} דירות מתאימות מהיממה האחרונה!")

@@ -18,13 +18,13 @@ class UserRepository:
         """Create a new user record."""
         await self.db.execute(
             """
-            INSERT OR REPLACE INTO users (telegram_id, chat_id, username, created_at, is_active, first_notified_at, persona, is_admin)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT OR REPLACE INTO users (telegram_id, chat_id, username, created_at, is_active, first_notified_at, persona, is_admin, onboarding_step)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (user.telegram_id, user.chat_id, user.username, 
              user.created_at.isoformat(), user.is_active,
              user.first_notified_at.isoformat() if user.first_notified_at else None,
-             user.persona, user.is_admin)
+             user.persona, user.is_admin, user.onboarding_step)
         )
         return user
     
@@ -85,7 +85,8 @@ class UserRepository:
             telegram_id=telegram_id,
             chat_id=chat_id,
             username=username,
-            is_admin=is_first_user
+            is_admin=is_first_user,
+            onboarding_step="choose_persona"  # Setup onboarding for new users
         )
         return await self.create(new_user)
     
@@ -109,6 +110,12 @@ class UserRepository:
         except (KeyError, IndexError, TypeError):
             pass
             
+        onboarding_step = None
+        try:
+            onboarding_step = row["onboarding_step"]
+        except (KeyError, IndexError, TypeError):
+            pass
+            
         return User(
             telegram_id=row["telegram_id"],
             chat_id=row["chat_id"],
@@ -118,6 +125,7 @@ class UserRepository:
             first_notified_at=first_notified,
             persona=persona,
             is_admin=is_admin,
+            onboarding_step=onboarding_step,
         )
         
     async def update_persona(self, telegram_id: int, persona: str):
@@ -125,6 +133,13 @@ class UserRepository:
         await self.db.execute(
             "UPDATE users SET persona = ? WHERE telegram_id = ?",
             (persona, telegram_id)
+        )
+        
+    async def update_onboarding_step(self, telegram_id: int, onboarding_step: Optional[str]):
+        """Update a user's onboarding step."""
+        await self.db.execute(
+            "UPDATE users SET onboarding_step = ? WHERE telegram_id = ?",
+            (onboarding_step, telegram_id)
         )
     
     async def mark_first_notification(self, telegram_id: int):
