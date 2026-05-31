@@ -35,3 +35,5 @@ logs/errors.log
 logs/healing_attribute_post_date.png
 apartment_bot.db-wal
 apartment_bot.db-wal
+remote_pull.bat
+remote_pull.sh

@@ -330,7 +330,7 @@ Return ONLY a valid, raw JSON block. Your entire response must start with '{' an
                                 # Check if any matches the timestamp patterns
                                 timestamp_patterns = [
                                     r'\d+\s*(?:h|m|d|w|שעות|שעה|דקות|דקה|ימים|יום|שבועות|שבוע|hrs?|mins?)',
-                                    r'אתמול|עכשיו|yesterday|just\s*now|now',
+                                    r'אתמול|עכשיו|yesterday|just\s*now|now|לפני\s+שעה|לפני\s+יום',
                                     r'\d{1,2}[./]\d{1,2}',
                                     r'(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|ינו|פבר|מרץ|אפר|מאי|יונ|יול|אוג|ספט|אוק|נוב|דצמ)'
                                 ]

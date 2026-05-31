@@ -1098,25 +1098,27 @@ class FacebookScraper(BaseScraper):
                             text = re.sub(r'^[\u200e\u200f\u202a-\u202e\u2066-\u2069\s]+', '', text)
                             # Use specific regex patterns instead of single-letter checks
                             timestamp_patterns = [
-                                r'^\d+h$',          # "2h" - hours
-                                r'^\d+\s*h$',       # "2 h"
-                                r'^\d+m$',          # "45m" - minutes  
-                                r'^\d+\s*m$',       # "45 m"
-                                r'^\d+d$',          # "1d" - days
-                                r'^\d+\s*d$',       # "1 d"
-                                r'^\d+w$',          # "2w" - weeks
-                                r'^\d+\s*שעות',     # Hebrew hours
-                                r'^\d+\s*שעה',      # Hebrew hour (singular)
-                                r'^\d+\s*דקות',     # Hebrew minutes
-                                r'^\d+\s*דקה',      # Hebrew minute
-                                r'^\d+\s*ימים',     # Hebrew days
-                                r'^\d+\s*יום',      # Hebrew day
+                                r'^(?:about\s+)?\d+h$',          # "2h" - hours
+                                r'^(?:about\s+)?\d+\s*h$',       # "2 h"
+                                r'^(?:about\s+)?\d+m$',          # "45m" - minutes  
+                                r'^(?:about\s+)?\d+\s*m$',       # "45 m"
+                                r'^(?:about\s+)?\d+d$',          # "1d" - days
+                                r'^(?:about\s+)?\d+\s*d$',       # "1 d"
+                                r'^(?:about\s+)?\d+w$',          # "2w" - weeks
+                                r'^(?:לפני\s+)?\d+\s*שעות',     # Hebrew hours
+                                r'^(?:לפני\s+)?\d+\s*שעה',      # Hebrew hour (singular)
+                                r'^(?:לפני\s+)?\d+\s*דקות',     # Hebrew minutes
+                                r'^(?:לפני\s+)?\d+\s*דקה',      # Hebrew minute
+                                r'^(?:לפני\s+)?\d+\s*ימים',     # Hebrew days
+                                r'^(?:לפני\s+)?\d+\s*יום',      # Hebrew day
+                                r'^(?:לפני\s+)?שעה$',            # "hour ago"
+                                r'^(?:לפני\s+)?יום$',            # "day ago"
                                 r'^אתמול',          # Hebrew yesterday
                                 r'^yesterday',      # Yesterday
                                 r'^just\s*now',     # Just now
                                 r'^עכשיו',          # Hebrew just now
-                                r'^\d+\s*hrs?',     # "2 hrs"
-                                r'^\d+\s*mins?',    # "5 min"
+                                r'^(?:about\s+)?\d+\s*hrs?',     # "2 hrs"
+                                r'^(?:about\s+)?\d+\s*mins?',    # "5 min"
                             ]
                             
                             text_lower = text.lower()
@@ -1161,6 +1163,12 @@ class FacebookScraper(BaseScraper):
             
             timestamp_text = timestamp_text.lower().strip()
             
+            # Check for text-based "hour ago" or "day ago" without digits
+            if 'שעה' in timestamp_text and 'שעות' not in timestamp_text and not re.search(r'\d', timestamp_text):
+                return now - timedelta(hours=1)
+            if 'יום' in timestamp_text and 'ימים' not in timestamp_text and not re.search(r'\d', timestamp_text):
+                return now - timedelta(days=1)
+                
             # Parse relative times
             # Hours ago
             hours_match = re.search(r'(\d+)\s*(?:h|שעות|שעה)', timestamp_text)
