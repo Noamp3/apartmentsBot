@@ -359,6 +359,33 @@ class BaseAIEngine(ABC):
                     
         return rules, result.get("sass_response", "")
 
+    async def resolve_neighborhoods_via_llm(self, hebrew_text: str, supported_neighborhoods: List[str]) -> List[str]:
+        """Resolve border/geographic constraints into specific neighborhoods using LLM."""
+        prompt = f"""You are a Tel Aviv geography and real-estate expert.
+A user wants to find apartments within certain geographic borders/constraints in Tel Aviv.
+User request: "{hebrew_text}"
+
+Below is the list of all supported neighborhoods in Tel Aviv. Identify and select ALL neighborhoods from this list that satisfy the user's geographic constraints.
+Note: You must only select exact neighborhood names from this list. If a neighborhood is on the boundary or partially in, include it. Be thorough but accurate.
+
+List of supported neighborhoods:
+{", ".join(supported_neighborhoods)}
+
+Respond ONLY with a JSON object containing a 'neighborhoods' key with the list of matching neighborhood names.
+Do not include any explanation or markdown formatting outside the JSON code block.
+
+Example output:
+{{
+  "neighborhoods": ["לב העיר", "רוטשילד"]
+}}"""
+        try:
+            response = await self.generate_content(prompt)
+            data = self._parse_json_response(response)
+            return data.get("neighborhoods", [])
+        except Exception as e:
+            log.error(f"Failed to resolve neighborhoods via LLM: {e}")
+            return []
+
     async def generate_full_welcome(self, user_name: str, persona: str = "barakush") -> str:
         """Generate a complete, dynamic sassy welcome message (cached in DB)."""
         # Load cache from DB on first access

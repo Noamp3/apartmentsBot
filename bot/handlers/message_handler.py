@@ -185,7 +185,7 @@ class MessageHandler:
             
             # Process BORDER_AREA rules: convert border descriptions to neighborhoods
             if rule_type == RuleType.BORDER_AREA:
-                neighborhoods = self._parse_border_constraints(rule_value)
+                neighborhoods = await self._parse_border_constraints(rule_value)
                 if neighborhoods:
                     # Store as comma-separated list of neighborhoods
                     neighborhood_list = ",".join(neighborhoods)
@@ -413,7 +413,7 @@ class MessageHandler:
         
         return message
     
-    def _parse_border_constraints(self, border_text: str) -> list:
+    async def _parse_border_constraints(self, border_text: str) -> list:
         """Parse border constraint text to determine matching neighborhoods.
         
         Args:
@@ -423,6 +423,16 @@ class MessageHandler:
             List of neighborhood names that satisfy all constraints
         """
         import re
+        
+        # Preprocess: Ensure directional keywords (using roots to handle final letters)
+        # are separated by commas if not already, so regexes capture them correctly.
+        # This handles inputs without commas like "מערב לאיילון צפונית ליפו ודרומית לארלוזורוב".
+        normalized_text = border_text
+        normalized_text = re.sub(
+            r'(?<!,)\s+(צפו|דרו|מזרח|מערב)[א-ת]*', 
+            lambda m: f", {m.group(0).strip()}", 
+            normalized_text
+        )
         
         constraints = {}
         location_db = get_location_db()
@@ -437,7 +447,7 @@ class MessageHandler:
         }
         
         for constraint_type, pattern in patterns.items():
-            matches = re.findall(pattern, border_text)
+            matches = re.findall(pattern, normalized_text)
             if matches:
                 # Get the first (and typically only) border name for this direction
                 border_name = matches[0].strip()
@@ -448,8 +458,20 @@ class MessageHandler:
             log.warning(f"No border constraints found in: {border_text}")
             return []
         
-        # Get neighborhoods that match all constraints
+        # 1. Deterministic/Predefined matching
         neighborhoods = location_db.get_neighborhoods_within_borders(constraints)
-        log.info(f"Border constraints {constraints} matched {len(neighborhoods)} neighborhoods: {', '.join(neighborhoods)}")
+        
+        # 2. LLM Fallback: If deterministic matching returned no neighborhoods and AI is available,
+        # fallback to LLM resolution so that unrecognized or custom borders are resolved intelligently!
+        if not neighborhoods and self.ai_engine:
+            log.info(f"Deterministic matching returned no neighborhoods for '{border_text}'. Falling back to LLM resolution.")
+            supported = list(location_db.tel_aviv_neighborhoods.keys())
+            neighborhoods = await self.ai_engine.resolve_neighborhoods_via_llm(border_text, supported)
+            
+            # Post-process: Filter to ensure only valid, supported neighborhoods are matched
+            neighborhoods = [n for n in neighborhoods if n in location_db.tel_aviv_neighborhoods]
+            log.info(f"LLM fallback matched {len(neighborhoods)} neighborhoods: {', '.join(neighborhoods)}")
+        else:
+            log.info(f"Border constraints {constraints} matched {len(neighborhoods)} neighborhoods: {', '.join(neighborhoods)}")
         
         return neighborhoods

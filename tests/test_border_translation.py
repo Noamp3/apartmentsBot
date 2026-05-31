@@ -3,6 +3,8 @@
 
 import sys
 import os
+import asyncio
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from bot.handlers.message_handler import MessageHandler
@@ -17,7 +19,7 @@ def test_border_translation():
     
     print(f"Input: {border_text}\n")
     
-    neighborhoods = handler._parse_border_constraints(border_text)
+    neighborhoods = asyncio.run(handler._parse_border_constraints(border_text))
     
     print(f"Translated to {len(neighborhoods)} neighborhoods:")
     for i, n in enumerate(neighborhoods, 1):
