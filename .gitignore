@@ -11,29 +11,27 @@ __pycache__/
 *.pyc
 *.pyo
 .pytest_cache/
+venv/
+.venv/
 
 # Database
 *.db
+*.db-shm
+*.db-wal
+*.db-journal
 
 # Logs
-#logs/
-#*.log
+logs/
+*.log
+*.png
+*.html
 
-# IDE
+# IDE & local utils
 .vscode/
 .idea/
-/remote_restart.bat
-/remote_restart.sh
-/remote_start.bat
-/remote_start.sh
-/remote_stop.bat
-/remote_stop.sh
+/remote_restart.*
+/remote_start.*
+/remote_stop.*
+/remote_pull.*
 /restart_bot.sh
 /stop_bot.sh
-logs/app.log
-logs/errors.log
-logs/healing_attribute_post_date.png
-apartment_bot.db-wal
-apartment_bot.db-wal
-remote_pull.bat
-remote_pull.sh
