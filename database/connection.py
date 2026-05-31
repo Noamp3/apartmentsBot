@@ -19,7 +19,8 @@ CREATE TABLE IF NOT EXISTS users (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     is_active BOOLEAN DEFAULT TRUE,
     first_notified_at TIMESTAMP,
-    persona TEXT DEFAULT 'barakush'
+    persona TEXT DEFAULT 'barakush',
+    is_admin BOOLEAN DEFAULT FALSE
 );
 
 -- Search rules table
@@ -142,14 +143,33 @@ class DatabaseManager:
     
     async def initialize(self):
         """Initialize database connection and create schema."""
-        self._connection = await aiosqlite.connect(self._db_path)
+        self._connection = await aiosqlite.connect(self._db_path, timeout=10.0)
         self._connection.row_factory = aiosqlite.Row
+        
+        # Enable WAL mode and other optimizations for concurrent reads/writes
+        try:
+            await self._connection.execute("PRAGMA journal_mode=WAL")
+            await self._connection.execute("PRAGMA synchronous=NORMAL")
+            await self._connection.execute("PRAGMA busy_timeout=10000")
+        except aiosqlite.OperationalError as e:
+            # If the database is locked (e.g. another process is running under rollback mode),
+            # log a warning and continue using the existing journal mode.
+            from utils.logger import Loggers
+            Loggers.db().warning(f"Could not configure database performance PRAGMAs: {e}")
+        
         await self._connection.executescript(SCHEMA)
         await self._connection.commit()
         
         # Safe migration: Add 'persona' column if it doesn't exist
         try:
             await self._connection.execute("ALTER TABLE users ADD COLUMN persona TEXT DEFAULT 'barakush'")
+            await self._connection.commit()
+        except aiosqlite.OperationalError:
+            pass
+            
+        # Safe migration: Add 'is_admin' column if it doesn't exist
+        try:
+            await self._connection.execute("ALTER TABLE users ADD COLUMN is_admin BOOLEAN DEFAULT FALSE")
             await self._connection.commit()
         except aiosqlite.OperationalError:
             pass

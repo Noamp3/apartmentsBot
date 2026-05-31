@@ -312,8 +312,8 @@ class BaseAIEngine(ABC):
             return None
     
     @abstractmethod
-    async def generate_content(self, prompt: str, max_retries: int = 3) -> str:
-        """Generate content from a prompt."""
+    async def generate_content(self, prompt: str, image_path: Optional[str] = None, max_retries: int = 3) -> str:
+        """Generate content from a prompt, optionally including a screenshot path."""
         pass
     
     def _parse_json_response(self, text: str) -> dict:
@@ -344,7 +344,20 @@ class BaseAIEngine(ABC):
         
         response = await self.generate_content(prompt)
         result = self._parse_json_response(response)
-        return result.get("rules", []), result.get("sass_response", "")
+        
+        rules = result.get("rules", [])
+        # Normalization fallback: If LLM returned border_area but no directional cue was present in the value or text,
+        # it is actually an exact neighborhood or city name list. Re-classify it as a standard 'area' rule.
+        for r in rules:
+            if r.get("type") == "border_area":
+                val = r.get("value", "") or ""
+                orig = r.get("original_text", "") or ""
+                has_directions = any(x in str(val) or x in str(orig) for x in ["מערב", "מזרח", "צפון", "דרום"])
+                if not has_directions:
+                    log.info(f"Normalizing misclassified border_area rule '{val}' to 'area'")
+                    r["type"] = "area"
+                    
+        return rules, result.get("sass_response", "")
 
     async def generate_full_welcome(self, user_name: str, persona: str = "barakush") -> str:
         """Generate a complete, dynamic sassy welcome message (cached in DB)."""
@@ -441,35 +454,16 @@ class BaseAIEngine(ABC):
         custom_rules: List[str],
         persona: str = "barakush"
     ) -> Tuple[bool, List[str]]:
-        """Evaluate listing against custom requirements."""
-        if not custom_rules:
-            return True, []
+        """Evaluate listing against custom requirements.
         
-        rules_text = "\n".join([f"- {rule}" for rule in custom_rules])
-        
-        persona_def = get_persona(persona)
-        
-        prompt = persona_def.custom_rules_prompt.format(
-            title=listing.title,
-            description=listing.description,
-            location=listing.location,
-            price=listing.price,
-            bedrooms=listing.bedrooms,
-            rules_text=rules_text
-        )
-        
-        log.debug(f"Evaluating custom rules for '{listing.title}' with persona '{persona}'")
-        response = await self.generate_content(prompt)
-        log.debug(f"Custom rules response: {response}")
-        result = self._parse_json_response(response)
-        
-        failed = [
-            f"{e['rule']}: {e['reason']}" 
-            for e in result.get('evaluation', []) 
-            if not e.get('passes', True)
-        ]
-        
-        return result.get('passes_all', True), failed
+        DEPRECATED / CANCELLED: The semantic rule evaluation was cancelled in favor of
+        the 100% Zero-AI dynamic keyword-to-attribute mapping engine (ZeroAIUserMatcher).
+        To prevent unexpected failures, this method now immediately returns success
+        (benefit of the doubt) without consuming any external tokens.
+        """
+        log.warning("Call to deprecated evaluate_custom_rules (semantic evaluation cancelled) - returning success by default.")
+        return True, []
+
 class GeminiAIEngine(BaseAIEngine):
     """Gemini AI engine with automatic model rotation."""
     
@@ -528,8 +522,8 @@ class GeminiAIEngine(BaseAIEngine):
     def current_model(self) -> str:
         return self.models[self.current_model_index]
     
-    async def generate_content(self, prompt: str, max_retries: int = 3) -> str:
-        """Generate content with model rotation on rate limits."""
+    async def generate_content(self, prompt: str, image_path: Optional[str] = None, max_retries: int = 3) -> str:
+        """Generate content with model rotation on rate limits, with multimodal image support."""
         
         # We try to fulfill the request by trying available models.
         # We allow for a few failures per model before giving up entirely.
@@ -537,6 +531,24 @@ class GeminiAIEngine(BaseAIEngine):
         total_models = len(self.models)
         # Allow cycling through all models at least once, plus some retries
         max_total_attempts = total_models * 2
+        
+        # Setup multimodal content if image_path is provided
+        from google.genai import types
+        import os
+        
+        contents = prompt
+        if image_path and os.path.exists(image_path):
+            try:
+                with open(image_path, "rb") as f:
+                    image_bytes = f.read()
+                image_part = types.Part.from_bytes(
+                    data=image_bytes,
+                    mime_type="image/png"
+                )
+                contents = [prompt, image_part]
+                log.info(f"Adding screenshot to Gemini contents for multimodal analysis: {image_path}")
+            except Exception as ie:
+                log.warning(f"Could not load image bytes for multimodal call: {ie}")
         
         while attempts_across_models < max_total_attempts:
             model_name = self.current_model
@@ -555,7 +567,7 @@ class GeminiAIEngine(BaseAIEngine):
                 response = await retry_with_backoff(
                     self.client.models.generate_content,
                     model=model_name,
-                    contents=prompt,
+                    contents=contents,
                     max_retries=max_retries
                 )
                 
@@ -642,7 +654,7 @@ class OpenAIEngine(BaseAIEngine):
         
         log.info(f"Initialized OpenAI engine", model=self.model_name)
     
-    async def generate_content(self, prompt: str, max_retries: int = 3) -> str:
+    async def generate_content(self, prompt: str, image_path: Optional[str] = None, max_retries: int = 3) -> str:
         """Generate content using OpenAI API."""
         for attempt in range(max_retries):
             try:
@@ -698,7 +710,7 @@ class AnthropicEngine(BaseAIEngine):
         
         log.info(f"Initialized Anthropic engine", model=self.model_name)
     
-    async def generate_content(self, prompt: str, max_retries: int = 3) -> str:
+    async def generate_content(self, prompt: str, image_path: Optional[str] = None, max_retries: int = 3) -> str:
         """Generate content using Anthropic API."""
         for attempt in range(max_retries):
             try:
@@ -753,7 +765,7 @@ class OllamaEngine(BaseAIEngine):
         
         log.info(f"Initialized Ollama engine", model=self.model_name, base_url=self.base_url)
     
-    async def generate_content(self, prompt: str, max_retries: int = 3) -> str:
+    async def generate_content(self, prompt: str, image_path: Optional[str] = None, max_retries: int = 3) -> str:
         """Generate content using Ollama API."""
         import aiohttp
         
@@ -820,7 +832,7 @@ class GroqEngine(BaseAIEngine):
         
         log.info(f"Initialized Groq engine", model=self.model_name)
     
-    async def generate_content(self, prompt: str, max_retries: int = 3) -> str:
+    async def generate_content(self, prompt: str, image_path: Optional[str] = None, max_retries: int = 3) -> str:
         """Generate content using Groq API."""
         for attempt in range(max_retries):
             try:

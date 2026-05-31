@@ -17,6 +17,7 @@ class User:
     is_active: bool = True
     first_notified_at: Optional[datetime] = None  # When user first received a listing
     persona: str = "barakush"
+    is_admin: bool = False
     
     @property
     def is_new_user(self) -> bool:

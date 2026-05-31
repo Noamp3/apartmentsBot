@@ -57,7 +57,13 @@ class HebrewConsoleFormatter(logging.Formatter):
         message = f"{color}{timestamp} [{record.levelname:>7}] {logger_short} | {record.getMessage()}{self.RESET}"
         
         if hasattr(record, "extra_data"):
-            message += f"\n    📋 {record.extra_data}"
+            message += f"\n    [DATA] {record.extra_data}"
+            
+        if record.exc_info:
+            if not record.exc_text:
+                record.exc_text = self.formatException(record.exc_info)
+            if record.exc_text:
+                message += f"\n{color}{record.exc_text}{self.RESET}"
         
         return message
 
@@ -87,6 +93,16 @@ class StructuredLogger:
     
     def error(self, message: str, **extra):
         self._log(logging.ERROR, message, **extra)
+        
+    def exception(self, message: str, **extra):
+        import sys
+        exc_info = sys.exc_info()
+        record = self._logger.makeRecord(
+            self._logger.name, logging.ERROR, "", 0, message, (), exc_info
+        )
+        if extra:
+            record.extra_data = extra
+        self._logger.handle(record)
     
     def critical(self, message: str, **extra):
         self._log(logging.CRITICAL, message, **extra)

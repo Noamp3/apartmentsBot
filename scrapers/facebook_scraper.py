@@ -14,6 +14,7 @@ from typing import List, Optional
 
 from scrapers.base_scraper import BaseScraper
 from scrapers.anti_detection import AntiDetectionModule
+from scrapers.self_healing import SelfHealingManager
 from models.listing import Listing
 from utils.logger import Loggers
 from utils.hebrew_utils import extract_price, extract_bedrooms, extract_contact_info
@@ -56,7 +57,8 @@ class FacebookScraper(BaseScraper):
         anti_detection: AntiDetectionModule = None,
         is_seen_callback: callable = None,
         cookies_file: str = None,
-        storage_state_file: str = None
+        storage_state_file: str = None,
+        ai_engine = None
     ):
         self.group_urls = group_urls
         self.anti_detection = anti_detection or AntiDetectionModule()
@@ -67,6 +69,9 @@ class FacebookScraper(BaseScraper):
         self._context = None
         self._stealth = None
         self._is_logged_in = False
+        
+        # Initialize Self-Healing Manager
+        self.healer = SelfHealingManager(ai_engine=ai_engine, source="facebook")
         
         # Ensure data directory exists
         os.makedirs(os.path.dirname(self.cookies_file), exist_ok=True)
@@ -566,8 +571,8 @@ class FacebookScraper(BaseScraper):
         all_post_data = []
         seen_post_ids = set()
         
-        # 2025 Facebook group post selectors (desktop)
-        post_selector = 'div[role="article"]'
+        # Get selector dynamically from self-healing manager
+        post_selector = self.healer.get_selector("post_container")
         
         # For early termination: track first 6 posts
         checked_count = 0
@@ -663,6 +668,34 @@ class FacebookScraper(BaseScraper):
                 await page.keyboard.press("PageDown")
                 await asyncio.sleep(random.uniform(0.5, 1))
         
+        # Self-healing fallback if absolutely no posts were found
+        if not all_post_data and settings.FACEBOOK_SELF_HEALING_ENABLED:
+            log.warning("No posts collected. Attempting self-healing for post container selector...")
+            healed_selector = await self.healer.heal_post_container(page, post_selector)
+            if healed_selector:
+                log.info(f"Self-healing succeeded! Retrying post collection using healed selector: '{healed_selector}'")
+                post_selector = healed_selector
+                try:
+                    found = await page.query_selector_all(post_selector)
+                    for post in found:
+                        try:
+                            box = await post.bounding_box()
+                            if not box or box['height'] < 100:
+                                continue
+                            
+                            text_preview = await post.inner_text()
+                            post_id = hash(text_preview[:300] if len(text_preview) > 300 else text_preview)
+                            
+                            if post_id not in seen_post_ids:
+                                seen_post_ids.add(post_id)
+                                raw_data = await self._extract_post_data_immediate(page, post)
+                                if raw_data:
+                                    all_post_data.append(raw_data)
+                        except Exception as e:
+                            log.debug(f"Error during retry extraction: {e}")
+                except Exception as e:
+                    log.error(f"Error during self-healed retry scan: {e}")
+        
         log.info(f"Total unique posts collected: {len(all_post_data)}")
         return all_post_data
     
@@ -716,6 +749,24 @@ class FacebookScraper(BaseScraper):
             
             # Extract author
             author = self._extract_author(soup)
+            if (not author or author == "Unknown") and settings.FACEBOOK_SELF_HEALING_ENABLED:
+                self._author_failures = getattr(self, '_author_failures', 0) + 1
+                if self._author_failures >= 3:
+                    log.warning("Detected multiple author extraction failures. Attempting attribute self-healing for 'author'...")
+                    post_author_selector = self.healer.get_selector("author")
+                    healed_selector = await self.healer.heal_attribute(page, post_element, "author", post_author_selector)
+                    if healed_selector:
+                        try:
+                            elem = await post_element.query_selector(healed_selector)
+                            if elem:
+                                author_text = await elem.inner_text()
+                                if author_text.strip():
+                                    author = author_text.strip()
+                                    self._author_failures = 0
+                        except Exception as e:
+                            log.debug(f"Error extracting author after healing: {e}")
+            else:
+                self._author_failures = 0
             
             # Extract price
             price = extract_price(text)
@@ -731,10 +782,10 @@ class FacebookScraper(BaseScraper):
             city = location_info.get('city') or ''
             
             # Extract URL
-            url = await self._extract_post_url_immediate(post_element, soup)
+            url = await self._extract_post_url_immediate(page, post_element, soup)
             
             # Extract post date/time
-            posted_at = await self._extract_post_date(post_element, soup)
+            posted_at = await self._extract_post_date(page, post_element, soup)
             
             return {
                 'text': text,
@@ -751,14 +802,17 @@ class FacebookScraper(BaseScraper):
             log.debug(f"Immediate extraction error: {e}")
             return None
     
-    async def _extract_post_url_immediate(self, post_element, soup: BeautifulSoup) -> str:
+    async def _extract_post_url_immediate(self, page, post_element, soup: BeautifulSoup) -> str:
         """Extract permalink URL immediately while element is valid."""
-        # Strategy 1: Find links from element
+        post_url_selector = self.healer.get_selector("post_url")
+        
+        # Strategy 1: Find links from element using healed selector
         try:
-            links = await post_element.query_selector_all('a[href*="/posts/"], a[href*="/permalink/"], a[href*="story_fbid"]')
+            links = await post_element.query_selector_all(post_url_selector)
             for link in links:
                 href = await link.get_attribute('href')
                 if href:
+                    self._url_failures = 0
                     if href.startswith('/'):
                         return f"https://www.facebook.com{href.split('?')[0]}"
                     return href.split('?')[0]
@@ -772,6 +826,7 @@ class FacebookScraper(BaseScraper):
             # Improved matching for various Facebook post formats
             if any(p in href for p in ['/posts/', '/permalink/', 'story_fbid', 'fbid=', '/groups/']):
                 if not any(x in href for x in ['/members', '/about', '/media', '/join', '/user/']):
+                    self._url_failures = 0
                     if href.startswith('/'):
                         # Handle relative URLs correctly
                         if '?' in href:
@@ -780,31 +835,37 @@ class FacebookScraper(BaseScraper):
                         return f"https://www.facebook.com{href}"
                     return href.split('?')[0] if '?' in href else href
         
+        # Strategy 3: LLM Self-Healing Selector Fallback
+        if settings.FACEBOOK_SELF_HEALING_ENABLED:
+            self._url_failures = getattr(self, '_url_failures', 0) + 1
+            if self._url_failures >= 3:
+                log.warning("Detected multiple URL extraction failures. Attempting attribute self-healing for 'post_url'...")
+                healed_selector = await self.healer.heal_attribute(page, post_element, "post_url", post_url_selector)
+                if healed_selector:
+                    try:
+                        link = await post_element.query_selector(healed_selector)
+                        if link:
+                            href = await link.get_attribute('href')
+                            if href:
+                                self._url_failures = 0
+                                if href.startswith('/'):
+                                    return f"https://www.facebook.com{href.split('?')[0]}"
+                                return href.split('?')[0]
+                    except Exception as e:
+                        log.debug(f"Error extracting URL after healing: {e}")
+        
         return ""
     
-    async def _extract_post_date(self, post_element, soup: BeautifulSoup) -> Optional[datetime]:
-        """Extract post date from timestamp element.
-        
-        Facebook shows timestamps like:
-        - "2h", "3h" (hours ago)
-        - "2 שעות", "3 שעות" (Hebrew hours)
-        - "Yesterday", "אתמול" (yesterday)
-        - "Just now", "עכשיו" (just now)
-        - "Dec 28", "28 בדצמ'" (date format)
-        """
+    async def _extract_post_date(self, page, post_element, soup: BeautifulSoup) -> Optional[datetime]:
+        """Extract post date from timestamp element."""
         from datetime import timedelta
         import re
         
         now = datetime.now()
         
         try:
-            # Look for timestamp links (they usually contain the time)
-            timestamp_selectors = [
-                'a[role="link"] span',
-                'span[id^="jsc"]',
-                'abbr',
-                'span.x4k7w5x',  # Modern Facebook timestamp class
-            ]
+            post_date_selector = self.healer.get_selector("post_date")
+            timestamp_selectors = [s.strip() for s in post_date_selector.split(',') if s.strip()]
             
             timestamp_text = ""
             
@@ -817,7 +878,6 @@ class FacebookScraper(BaseScraper):
                         text = text.strip()
                         
                         # Use specific regex patterns instead of single-letter checks
-                        # This prevents matching random text like "John Smith"
                         timestamp_patterns = [
                             r'^\d+h$',          # "2h" - hours
                             r'^\d+\s*h$',       # "2 h"
@@ -854,7 +914,25 @@ class FacebookScraper(BaseScraper):
                     continue
                 if timestamp_text:
                     break
-            
+                    
+            # If no timestamp found, trigger self-healing fallback
+            if not timestamp_text and settings.FACEBOOK_SELF_HEALING_ENABLED:
+                self._date_failures = getattr(self, '_date_failures', 0) + 1
+                if self._date_failures >= 3:
+                    log.warning("Detected 3 consecutive date extraction failures. Triggering self-healing for 'post_date' selector...")
+                    healed_selector = await self.healer.heal_attribute(page, post_element, "post_date", post_date_selector)
+                    if healed_selector:
+                        try:
+                            elem = await post_element.query_selector(healed_selector)
+                            if elem:
+                                text = await elem.inner_text()
+                                timestamp_text = text.strip()
+                                self._date_failures = 0
+                        except Exception as e:
+                            log.debug(f"Error extracting date after healing: {e}")
+            else:
+                self._date_failures = 0
+                
             if not timestamp_text:
                 return None
             
@@ -893,7 +971,7 @@ class FacebookScraper(BaseScraper):
                 weeks = int(weeks_match.group(1))
                 return now - timedelta(weeks=weeks)
             
-            # If nothing matched, return None (we'll use current time in parse_listing)
+            # If nothing matched, return None
             return None
             
         except Exception as e:
@@ -905,8 +983,11 @@ class FacebookScraper(BaseScraper):
         await page.evaluate("window.scrollBy(0, 300)")
         await self.anti_detection.human_like_delay(1, 2)
         
+        post_selector = self.healer.get_selector("post_container")
+        
         # 2025 Facebook group post selectors (desktop)
         post_selectors = [
+            post_selector,
             'div[role="article"]',  # Main post container
             'div[data-pagelet^="FeedUnit"]',  # Feed unit container  
             'div.x1yztbdb.x1n2onr6.xh8yej3.x1ja2u2z',  # Modern FB post class
@@ -973,17 +1054,8 @@ class FacebookScraper(BaseScraper):
     
     async def _expand_post(self, post_element):
         """Click ALL 'See more' buttons to fully expand truncated content."""
-        see_more_selectors = [
-            'div[role="button"]:has-text("See more")',
-            'div[role="button"]:has-text("ראה עוד")',
-            'div[role="button"]:has-text("עוד")',
-            'span:has-text("See more")',
-            'span:has-text("ראה עוד")',
-            'span:has-text("… עוד")',
-            'span:has-text("...עוד")',
-            'div.x1i10hfl:has-text("See more")',
-            'div.x1i10hfl:has-text("עוד")',
-        ]
+        see_more_selector = self.healer.get_selector("see_more")
+        see_more_selectors = [s.strip() for s in see_more_selector.split(',') if s.strip()]
         
         clicked_any = False
         for selector in see_more_selectors:

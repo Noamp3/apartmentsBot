@@ -7,6 +7,7 @@ from telegram.ext import ContextTypes
 from database import get_db
 from database.repositories import RuleRepository, UserRepository
 from utils.logger import Loggers
+from bot.handlers.decorators import ensure_user_exists
 
 log = Loggers.bot()
 
@@ -14,6 +15,7 @@ log = Loggers.bot()
 class CallbackHandler:
     """Handles inline button callbacks."""
     
+    @ensure_user_exists
     async def handle_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Process inline button callbacks."""
         query = update.callback_query
@@ -49,6 +51,26 @@ class CallbackHandler:
         elif data.startswith("set_persona:"):
             persona_name = data.split(":")[1]
             await self._set_persona(query, context, persona_name)
+            
+        elif data.startswith("admin_clear_table:"):
+            db = await get_db()
+            user_repo = UserRepository(db)
+            user_obj = await user_repo.get_by_telegram_id(user_id)
+            if not user_obj or not user_obj.is_admin:
+                await query.answer("שגיאה: אין לך הרשאות ניהול!", show_alert=True)
+                return
+            table_name = data.split(":")[1]
+            await self._confirm_clear_table_prompt(query, table_name)
+            
+        elif data.startswith("admin_do_clear_table:"):
+            db = await get_db()
+            user_repo = UserRepository(db)
+            user_obj = await user_repo.get_by_telegram_id(user_id)
+            if not user_obj or not user_obj.is_admin:
+                await query.answer("שגיאה: אין לך הרשאות ניהול!", show_alert=True)
+                return
+            table_name = data.split(":")[1]
+            await self._do_clear_table(query, table_name)
     
     async def _delete_rule(self, query, rule_id: int, user_id: int):
         """Delete a specific rule."""
@@ -297,3 +319,66 @@ class CallbackHandler:
             escaped_msg,
             parse_mode='MarkdownV2'
         )
+
+    async def _confirm_clear_table_prompt(self, query, table_name: str):
+        """Show prompt to confirm dropping/clearing a table."""
+        keyboard = [
+            [
+                InlineKeyboardButton("💥 כן, נקה לגמרי", callback_data=f"admin_do_clear_table:{table_name}"),
+                InlineKeyboardButton("❌ ביטול", callback_data="cancel")
+            ]
+        ]
+        
+        # Friendly table names in Hebrew
+        table_names_he = {
+            "seen_listings": "היסטוריית סריקה (Seen listings)",
+            "enriched_listings": "דירות מועשרות (Enriched)",
+            "rejection_logs": "יומני פסילות (Rejections)",
+            "ai_cache": "מטמון AI (Cache)",
+            "users": "כל המשתמשים, הכללים והיסטוריית ההודעות (Reset All Users)"
+        }
+        
+        he_name = table_names_he.get(table_name, table_name)
+        
+        await query.edit_message_text(
+            f"⚠️ *אזהרה חמורה!*\n\nהאם אתה בטוח שברצונך למחוק ולאפס את הטבלה: *{he_name}*?\n\nפעולה זו תמחק את כל הנתונים ולא ניתן לשחזר אותם!",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="Markdown"
+        )
+        
+    async def _do_clear_table(self, query, table_name: str):
+        """Execute the table clear (drop + initialize)."""
+        db = await get_db()
+        
+        try:
+            # Drop dependent tables in correct order
+            tables_to_drop = []
+            if table_name == "users":
+                tables_to_drop = ["rejection_logs", "search_rules", "sent_notifications", "users"]
+            elif table_name == "seen_listings":
+                tables_to_drop = ["listing_fingerprints", "seen_listings"]
+            else:
+                tables_to_drop = [table_name]
+                
+            for table in tables_to_drop:
+                await db.connection.execute(f"DROP TABLE IF EXISTS {table}")
+                
+            await db.connection.commit()
+            
+            # Recreate dropped tables and indexes
+            await db.initialize()
+            
+            # Re-register the current admin if users was dropped so they don't lock themselves out
+            if table_name == "users":
+                user_repo = UserRepository(db)
+                await user_repo.get_or_create(
+                    telegram_id=query.from_user.id,
+                    chat_id=query.message.chat_id if query.message else query.from_user.id,
+                    username=query.from_user.username
+                )
+                
+            await query.edit_message_text(f"✅ הטבלה/ות `{table_name}` אופסו ונבנו מחדש בהצלחה!")
+            log.info(f"Admin cleared table: {table_name}", user_id=query.from_user.id)
+        except Exception as e:
+            log.error(f"Error clearing table {table_name}: {e}", exc_info=True)
+            await query.edit_message_text(f"❌ שגיאה באיפוס הטבלה: {e}")

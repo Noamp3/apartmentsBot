@@ -12,6 +12,7 @@ from models.search_rule import SearchRule, RuleType
 from utils.validators import parse_rule_input
 from utils.logger import Loggers
 from utils.israeli_locations import get_location_db
+from bot.handlers.decorators import ensure_user_exists
 
 log = Loggers.bot()
 
@@ -42,6 +43,7 @@ class MessageHandler:
         except Exception as e:
             log.error(f"Unexpected error sending message: {e}")
 
+    @ensure_user_exists
     async def handle_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Process natural language rule input from user."""
         user = update.effective_user

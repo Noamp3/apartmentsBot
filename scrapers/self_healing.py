@@ -1,0 +1,321 @@
+# scrapers/self_healing.py
+"""LLM-Based CSS Selector Self-Healing Manager.
+
+This module provides a mechanism to dynamically repair broken CSS selectors
+using an LLM when scraping pages where the DOM structure has changed.
+Healed selectors are persisted in data/healed_selectors.json to ensure
+performance remains high on subsequent runs.
+"""
+
+import os
+import json
+from typing import Dict, List, Optional
+from bs4 import BeautifulSoup
+from config import settings
+from core.ai_engine import BaseAIEngine
+from utils.logger import Loggers
+
+log = Loggers.scraper()
+
+
+class SelfHealingManager:
+    """Manages LLM-based selector healing for scrapers."""
+
+    # Default fallback selectors for Facebook scraping
+    DEFAULT_SELECTORS = {
+        "facebook": {
+            "post_container": 'div[role="article"]',
+            "see_more": 'div[role="button"]:has-text("See more"), div[role="button"]:has-text("ראה עוד"), div[role="button"]:has-text("עוד"), span:has-text("See more"), span:has-text("ראה עוד"), span:has-text("… עוד"), span:has-text("...עוד"), div.x1i10hfl:has-text("See more"), div.x1i10hfl:has-text("עוד")',
+            "post_url": 'a[href*="/posts/"], a[href*="/permalink/"], a[href*="story_fbid"]',
+            "post_date": 'a[role="link"] span, span[id^="jsc"], abbr, span.x4k7w5x',
+            "post_text": 'div[data-ad-preview="message"], div[dir="auto"]',
+            "author": 'strong, h2, h3'
+        }
+    }
+
+    def __init__(
+        self,
+        ai_engine: Optional[BaseAIEngine] = None,
+        source: str = "facebook",
+        persist_path: Optional[str] = None
+    ):
+        """Initialize SelfHealingManager.
+
+        Args:
+            ai_engine: Unified LLM Client/Engine.
+            source: Name of the scraper source (e.g. 'facebook').
+            persist_path: File path to save healed overrides.
+        """
+        self.ai_engine = ai_engine
+        self.source = source
+        self.persist_path = persist_path or settings.SELF_HEALING_PERSIST_PATH
+        self.healed_selectors: Dict[str, str] = {}
+
+        # Load any existing healed overrides
+        self.load_healed_selectors()
+
+    def load_healed_selectors(self):
+        """Load healed selectors from persistent cache."""
+        if os.path.exists(self.persist_path):
+            try:
+                with open(self.persist_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    self.healed_selectors = data.get(self.source, {})
+                log.info(
+                    f"Loaded healed selectors for {self.source}",
+                    count=len(self.healed_selectors),
+                    selectors=self.healed_selectors
+                )
+            except Exception as e:
+                log.warning(f"Could not load healed selectors: {e}")
+                self.healed_selectors = {}
+
+    def save_healed_selectors(self):
+        """Save healed selectors to persistent cache."""
+        try:
+            os.makedirs(os.path.dirname(self.persist_path), exist_ok=True)
+            data = {}
+            if os.path.exists(self.persist_path):
+                try:
+                    with open(self.persist_path, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                except Exception:
+                    pass
+            data[self.source] = self.healed_selectors
+            with open(self.persist_path, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+            log.info(f"Saved healed selectors for {self.source} to {self.persist_path}")
+        except Exception as e:
+            log.error(f"Failed to save healed selectors: {e}")
+
+    def get_selector(self, key: str) -> str:
+        """Get the healed selector if available, else default selector."""
+        # 1. Check healed/cached overrides
+        if settings.FACEBOOK_SELF_HEALING_ENABLED and key in self.healed_selectors:
+            return self.healed_selectors[key]
+
+        # 2. Check defaults
+        source_defaults = self.DEFAULT_SELECTORS.get(self.source, {})
+        return source_defaults.get(key, "")
+
+    def get_selectors_list(self, key: str) -> List[str]:
+        """Get selector list by splitting comma-separated selectors."""
+        selector = self.get_selector(key)
+        if not selector:
+            return []
+        # Comma-separated list for standard CSS selectors
+        return [s.strip() for s in selector.split(',') if s.strip()]
+
+    def clean_html(self, html: str, max_chars: int = 15000) -> str:
+        """Strip raw HTML of scripts, styles, svgs, and clean up attributes to save tokens."""
+        if not html:
+            return ""
+        try:
+            soup = BeautifulSoup(html, 'html.parser')
+            # Remove high-noise/non-layout elements
+            for tag in soup(["script", "style", "svg", "img", "path", "iframe", "noscript", "canvas", "video", "audio"]):
+                tag.decompose()
+
+            # Filter attributes to keep layout elements but reduce bloat
+            allowed_attrs = {"class", "id", "role", "href", "data-pagelet", "data-testid", "dir", "aria-label"}
+            for tag in soup.find_all(True):
+                # Filter down tag attributes
+                tag.attrs = {k: v for k, v in tag.attrs.items() if k in allowed_attrs}
+                # Remove empty elements that aren't structural
+                if not tag.contents and not tag.get_text(strip=True) and tag.name not in ("a", "div"):
+                    tag.decompose()
+
+            cleaned = str(soup)
+            # Remove excessive newlines/spaces
+            cleaned = "\n".join([line.strip() for line in cleaned.splitlines() if line.strip()])
+
+            # If it's still too large, truncate responsibly
+            if len(cleaned) > max_chars:
+                cleaned = cleaned[:max_chars] + "\n...[TRUNCATED TO FIT LLM CONTEXT]..."
+            return cleaned
+        except Exception as e:
+            log.warning(f"Error cleaning HTML: {e}")
+            return html[:max_chars]
+
+    async def heal_post_container(self, page, current_selector: str) -> Optional[str]:
+        """Analyze page HTML using LLM to find the correct post container CSS selector."""
+        if not self.ai_engine:
+            log.error("AI engine not initialized in SelfHealingManager")
+            return None
+
+        log.warning(f"Self-healing: post_container selector '{current_selector}' failed. Activating LLM healing...")
+
+        # Capture debug screenshot for container healing audit
+        try:
+            os.makedirs("logs", exist_ok=True)
+            screenshot_path = "logs/healing_post_container.png"
+            await page.screenshot(path=screenshot_path)
+            log.info(f"Captured debug screenshot for container healing audit: '{screenshot_path}'")
+        except Exception as se:
+            log.warning(f"Could not capture screenshot before healing container: {se}")
+
+        try:
+            # 1. Grab feed HTML or body HTML to isolate the DOM
+            feed_element = None
+            for container_sel in ('div[role="feed"]', 'div[data-pagelet="GroupFeed"]', 'div[data-pagelet="FeedUnit"]', '#mainContainer', '#content'):
+                try:
+                    feed_element = await page.query_selector(container_sel)
+                    if feed_element:
+                        log.info(f"Found feed element with selector: {container_sel}")
+                        break
+                except:
+                    continue
+
+            if feed_element:
+                raw_html = await feed_element.inner_html()
+            else:
+                raw_html = await page.content()
+
+            cleaned_html = self.clean_html(raw_html, max_chars=25000)
+
+            prompt = f"""
+We are scraping Facebook group posts using Playwright in Python.
+The current CSS selector to find individual post containers is `{current_selector}`.
+However, this selector failed to find any elements on the current page.
+
+Here is a cleaned, structural version of the HTML DOM:
+---
+{cleaned_html}
+---
+
+Your task:
+1. Analyze this HTML and find a robust CSS selector that matches the outermost element representing each individual post container in the group feed.
+2. In Facebook, feed posts are repeating structural nodes (usually a wrapper element containing the post author, text, timestamp links, etc.). Look for repeating class patterns, role="article", or structural div structures that represent a single post item.
+3. Keep the selector robust but simple (e.g. 'div[role="article"]', 'div.x1yztbdb', or dynamic class lists if standard tags are gone). Avoid over-specific nth-child selectors.
+
+Return a JSON object matching this schema:
+{{
+    "selector": "the CSS selector (e.g., 'div[role=\"article\"]')",
+    "reason": "Brief explanation of why you chose this based on the DOM structure."
+}}
+
+CRITICAL: Return ONLY a valid, raw JSON block. Your entire response must start with '{' and end with '}' and be directly parsable by json.loads(). Do NOT include any conversational preamble, warnings, or explanatory text before or after the JSON.
+"""
+
+            log.info("Sending DOM structure to LLM for container healing...")
+            response = await self.ai_engine.generate_content(prompt, image_path=screenshot_path)
+            result = self.ai_engine._parse_json_response(response)
+
+            healed_selector = result.get("selector")
+            reason = result.get("reason", "No reason provided")
+
+            if healed_selector:
+                log.info(f"LLM suggested healed container selector: '{healed_selector}' (Reason: {reason})")
+
+                # Verify the selector in Playwright
+                is_valid = await self._verify_selector(page, healed_selector)
+                if is_valid:
+                    log.info(f"[SUCCESS] Verified healed container selector: '{healed_selector}'")
+                    self.healed_selectors["post_container"] = healed_selector
+                    self.save_healed_selectors()
+                    return healed_selector
+                else:
+                    log.warning(f"[FAILED] Suggested selector '{healed_selector}' failed verification (found 0 elements or was invalid CSS)")
+            else:
+                log.error("LLM did not return a selector in JSON response", response=response[:300])
+
+        except Exception as e:
+            log.error(f"Error during post container self-healing: {e}")
+
+        return None
+
+    async def heal_attribute(self, page, post_element, attribute_name: str, current_selectors: str) -> Optional[str]:
+        """Analyze a single post element's inner HTML to heal attribute selectors."""
+        if not self.ai_engine:
+            log.error("AI engine not initialized in SelfHealingManager")
+            return None
+
+        log.warning(f"Self-healing: attribute '{attribute_name}' extraction failed using selectors: '{current_selectors}'. Activating LLM healing...")
+
+        # Capture debug screenshot of element (or page) for attribute healing audit
+        try:
+            os.makedirs("logs", exist_ok=True)
+            screenshot_path = f"logs/healing_attribute_{attribute_name}.png"
+            try:
+                await post_element.screenshot(path=screenshot_path)
+                log.info(f"Captured debug screenshot of element for attribute healing audit: '{screenshot_path}'")
+            except Exception:
+                try:
+                    await page.screenshot(path=screenshot_path)
+                    log.info(f"Captured debug screenshot of page for attribute healing audit: '{screenshot_path}'")
+                except:
+                    pass
+        except Exception as se:
+            log.warning(f"Could not capture screenshot before healing attribute: {se}")
+
+        try:
+            # 1. Grab element HTML
+            raw_html = await post_element.inner_html()
+            cleaned_html = self.clean_html(raw_html, max_chars=8000)
+
+            prompt = f"""
+We are scraping Facebook group posts using Playwright in Python.
+We have located the post container, but we failed to extract the '{attribute_name}' attribute using the current selectors: `{current_selectors}`.
+
+Here is the cleaned, structural inner HTML of a single post container element:
+---
+{cleaned_html}
+---
+
+Your task:
+1. Inspect this HTML and identify a working, robust CSS selector to extract the '{attribute_name}' element relative to the post container.
+2. Requirements for '{attribute_name}':
+   - 'post_url': The link (`<a>` tag) representing the post permalink. Look for hrefs containing '/posts/', '/permalink/', 'story_fbid', 'fbid=', or '/groups/'.
+   - 'post_date': The timestamp element. Look for text with short numbers like '2h', 'Yesterday', 'אתמול', '1 ימים', or date strings ('Dec 28'). It might be inside a span, abbr, or a-tag.
+   - 'post_text': The main text content message of the post (usually a div with dir="auto", user-generated content, or class name like data-ad-preview="message").
+   - 'author': The name of the post author. Usually inside a bold, strong, h2, h3 tag, or a link pointing to user profile / profile.php.
+3. Provide a CSS selector that starts matching *inside* the post container (e.g., if the timestamp span is inside a link, you can return 'a[role="link"] span' or 'span.x4k7w5x').
+
+Return a JSON object matching this schema:
+{{
+    "selector": "the healed CSS selector (e.g., 'a[href*=\"/posts/\"]' or 'span.x4k7w5x')",
+    "reason": "Brief explanation of how the selector targets the correct element in the post DOM."
+}}
+
+CRITICAL: The JSON object must have exactly two root-level keys: "selector" and "reason". Do NOT nest the keys inside any other outer key (such as "post_url", "post_date", or "post_text"). 
+Return ONLY a valid, raw JSON block. Your entire response must start with '{' and end with '}' and be directly parsable by json.loads(). Do NOT include any conversational preamble or explanatory text outside the JSON.
+"""
+
+            log.info(f"Sending element DOM to LLM for attribute '{attribute_name}' healing...")
+            response = await self.ai_engine.generate_content(prompt, image_path=screenshot_path)
+            result = self.ai_engine._parse_json_response(response)
+
+            healed_selector = result.get("selector")
+            reason = result.get("reason", "No reason provided")
+
+            if healed_selector:
+                log.info(f"LLM suggested healed selector for '{attribute_name}': '{healed_selector}' (Reason: {reason})")
+
+                # Verify the selector on the element
+                try:
+                    found = await post_element.query_selector(healed_selector)
+                    if found:
+                        log.info(f"[SUCCESS] Verified healed selector for '{attribute_name}': '{healed_selector}'")
+                        self.healed_selectors[attribute_name] = healed_selector
+                        self.save_healed_selectors()
+                        return healed_selector
+                    else:
+                        log.warning(f"[FAILED] Suggested selector '{healed_selector}' did not find any descendant inside the post element")
+                except Exception as ex:
+                    log.warning(f"[FAILED] Suggested selector '{healed_selector}' threw error during verification: {ex}")
+            else:
+                log.error("LLM did not return a selector in JSON response", response=response[:300])
+
+        except Exception as e:
+            log.error(f"Error during attribute self-healing: {e}")
+
+        return None
+
+    async def _verify_selector(self, page, selector: str) -> bool:
+        """Check if a CSS selector is syntactically valid and returns elements on the page."""
+        try:
+            elements = await page.query_selector_all(selector)
+            return len(elements) > 0
+        except Exception as e:
+            log.warning(f"Selector verification error for '{selector}': {e}")
+            return False

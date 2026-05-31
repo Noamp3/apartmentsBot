@@ -76,7 +76,7 @@ class ScrapingScheduler:
             log.info("Scraping cycle complete", duration_seconds=round(duration, 1))
             
         except Exception as e:
-            log.error("Scraping cycle failed", error=str(e))
+            log.exception("Scraping cycle failed", error=str(e))
     
     def get_next_run_time(self) -> Optional[datetime]:
         """Get the next scheduled run time."""

@@ -74,9 +74,13 @@ async def test_facebook_scraper(save_to_db: bool = False):
         max_delay=settings.MAX_DELAY_SECONDS
     )
     
+    from core.ai_engine import create_ai_engine
+    ai_engine = create_ai_engine()
+    
     scraper = FacebookScraper(
         group_urls=settings.facebook_groups,
-        anti_detection=anti_detection
+        anti_detection=anti_detection,
+        ai_engine=ai_engine
     )
     
     try:

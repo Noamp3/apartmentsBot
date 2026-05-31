@@ -43,13 +43,13 @@ class TestFacebookEarlyTermination(unittest.IsolatedAsyncioTestCase):
         with patch("asyncio.sleep", return_value=None):
             result = await self.scraper._scroll_and_collect_posts(mock_page, scroll_count=5)
             
-        # Should have stopped after 6 checks in the first scroll (since query_selector_all returns 10)
+        # Should have stopped after 10 checks in the first scroll (since query_selector_all returns 10)
         # Actually it processes all 10 from the first query_selector_all call
-        # But should return immediately when it hits the 6th seen post
-        self.assertEqual(len(result), 6)
+        # But should return immediately when it hits the 10th seen post
+        self.assertEqual(len(result), 10)
         self.is_seen_mock.assert_called()
-        self.assertEqual(self.is_seen_mock.call_count, 6)
-        mock_log.info.assert_any_call("Terminating search in group early: first 6 posts are already seen in database")
+        self.assertEqual(self.is_seen_mock.call_count, 10)
+        mock_log.info.assert_any_call("Terminating search in group early: first 10 posts are already seen in database")
 
     @patch("scrapers.facebook_scraper.log")
     async def test_no_early_termination_if_new_found(self, mock_log):

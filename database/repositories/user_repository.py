@@ -18,13 +18,13 @@ class UserRepository:
         """Create a new user record."""
         await self.db.execute(
             """
-            INSERT OR REPLACE INTO users (telegram_id, chat_id, username, created_at, is_active, first_notified_at, persona)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT OR REPLACE INTO users (telegram_id, chat_id, username, created_at, is_active, first_notified_at, persona, is_admin)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (user.telegram_id, user.chat_id, user.username, 
              user.created_at.isoformat(), user.is_active,
              user.first_notified_at.isoformat() if user.first_notified_at else None,
-             user.persona)
+             user.persona, user.is_admin)
         )
         return user
     
@@ -77,10 +77,15 @@ class UserRepository:
         if user:
             return user
         
+        # Check if this is the first user in the database
+        row = await self.db.fetch_one("SELECT COUNT(*) as count FROM users")
+        is_first_user = row["count"] == 0 if row else True
+        
         new_user = User(
             telegram_id=telegram_id,
             chat_id=chat_id,
             username=username,
+            is_admin=is_first_user
         )
         return await self.create(new_user)
     
@@ -98,6 +103,12 @@ class UserRepository:
         except (KeyError, IndexError, TypeError):
             pass
             
+        is_admin = False
+        try:
+            is_admin = bool(row["is_admin"])
+        except (KeyError, IndexError, TypeError):
+            pass
+            
         return User(
             telegram_id=row["telegram_id"],
             chat_id=row["chat_id"],
@@ -106,6 +117,7 @@ class UserRepository:
             is_active=bool(row["is_active"]),
             first_notified_at=first_notified,
             persona=persona,
+            is_admin=is_admin,
         )
         
     async def update_persona(self, telegram_id: int, persona: str):

@@ -56,9 +56,9 @@ class Settings(BaseSettings):
     GROQ_MODEL: str = "llama-3.3-70b-versatile"
     
     LOG_LEVEL: str = "INFO"
-    RESET_DB_ON_STARTUP: bool = True  # Resets listings, rejections, and seen history
-    RESET_USERS_ON_STARTUP: bool = True # Resets users AND their search rules
-    RESET_PERSONA_CACHE_ON_STARTUP: bool = True # Resets AI generated welcome/sass cache
+    RESET_DB_ON_STARTUP: bool = False  # Resets listings, rejections, and seen history
+    RESET_USERS_ON_STARTUP: bool = False # Resets users AND their search rules
+    RESET_PERSONA_CACHE_ON_STARTUP: bool = False # Resets AI generated welcome/sass cache
     
     # Database
     DATABASE_URL: str = "sqlite:///data/apartments.db"
@@ -85,6 +85,12 @@ class Settings(BaseSettings):
     # Facebook Login (required for group access)
     FACEBOOK_EMAIL: str = ""
     FACEBOOK_PASSWORD: str = ""
+    
+    # Facebook Self-Healing Settings
+    FACEBOOK_SELF_HEALING_ENABLED: bool = True
+    SELF_HEALING_PERSIST_PATH: str = "data/healed_selectors.json"
+    SELF_HEALING_AI_PROVIDER: Optional[AIProvider] = AIProvider.GEMINI
+    SELF_HEALING_MODEL: Optional[str] = "gemma-4-31b-it"
     
     # Debug Mode
     DEBUG: bool = True

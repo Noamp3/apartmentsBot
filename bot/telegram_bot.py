@@ -52,6 +52,9 @@ class ApartmentBot:
         # Store processing service in bot_data (injected from main.py)
         if hasattr(self, "processing_service"):
             self.application.bot_data["processing_service"] = self.processing_service
+            
+        if hasattr(self, "app_instance"):
+            self.application.bot_data["app_instance"] = self.app_instance
         
         # Add command handlers
         self.application.add_handler(
@@ -80,6 +83,21 @@ class ApartmentBot:
         )
         self.application.add_handler(
             TGCommandHandler("persona", self.command_handler.persona)
+        )
+        self.application.add_handler(
+            TGCommandHandler("admin", self.command_handler.admin_panel)
+        )
+        self.application.add_handler(
+            TGCommandHandler("admin_users", self.command_handler.admin_users)
+        )
+        self.application.add_handler(
+            TGCommandHandler("admin_logs", self.command_handler.admin_logs)
+        )
+        self.application.add_handler(
+            TGCommandHandler("admin_broadcast", self.command_handler.admin_broadcast)
+        )
+        self.application.add_handler(
+            TGCommandHandler("admin_scrape", self.command_handler.admin_scrape)
         )
         
         # Add message handler for natural language

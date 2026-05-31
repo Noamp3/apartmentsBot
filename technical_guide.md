@@ -177,8 +177,12 @@ class SearchRule:
 
 ### Custom Rules - Dynamic AI Interpretation
 
+> [!WARNING]
+> **Semantic Real-Time Rule Evaluation Canceled**: To prevent API quota exhaustion (HTTP 429), minimize latency, and eliminate quadratic $O(U \cdot L)$ scaling, real-time AI rule matching has been completely canceled. 
+> Instead, all AI-based metadata extraction is shifted upstream to the ingestion layer (Enrich-Once), and matches are resolved locally using a high-performance keyword-to-attribute heuristic engine (`ZeroAIUserMatcher`).
+
 > [!IMPORTANT]
-> Custom rules are **not hardcoded**. Users can state ANY requirement in natural Hebrew, and the AI evaluates listings against the user's intent.
+> Custom rules are **not hardcoded**. Users can state ANY requirement in natural Hebrew, and the AI extracts these attributes during the ingestion phase, matching them dynamically via local heuristics.
 
 ```python
 class CustomRuleEvaluator:
@@ -1572,9 +1576,11 @@ class ZeroAIUserMatcher:
         return len(rejection_reasons) == 0, rejection_reasons
 
 
+# CANCELLED & PURGED: HybridSmartMatcher has been removed from active production code.
+# The system relies 100% on ZeroAIUserMatcher to completely eliminate runtime API latency and rate limits.
 class HybridSmartMatcher:
     """
-    Hybrid matcher that preserves AI-quality matching while respecting rate limits.
+    Hybrid matcher (CANCELLED - DEPRECATED).
     
     Strategy:
     1. First try to match using pre-computed attributes (fast, no AI)

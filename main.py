@@ -111,10 +111,37 @@ class ApartmentBotApplication:
         cache_repo = CacheRepository(db_manager)
         seen_repo = SeenListingsRepository(db_manager)
         
+        # Determine Healer AI Engine
+        healer_engine = self.ai_engine
+        if settings.SELF_HEALING_AI_PROVIDER or settings.SELF_HEALING_MODEL:
+            healer_provider = settings.SELF_HEALING_AI_PROVIDER or settings.AI_PROVIDER
+            healer_model = settings.SELF_HEALING_MODEL or settings.active_model
+            
+            # Select correct API key for the healer provider
+            from core.ai_engine import AIProvider
+            healer_api_key = settings.active_api_key
+            if settings.SELF_HEALING_AI_PROVIDER:
+                if healer_provider == AIProvider.OPENAI:
+                    healer_api_key = settings.OPENAI_API_KEY
+                elif healer_provider == AIProvider.GEMINI:
+                    healer_api_key = settings.GEMINI_API_KEY
+                elif healer_provider == AIProvider.GROQ:
+                    healer_api_key = settings.GROQ_API_KEY
+                elif healer_provider == AIProvider.ANTHROPIC:
+                    healer_api_key = settings.ANTHROPIC_API_KEY
+            
+            log.info("Creating dedicated AI engine for scraper self-healing", provider=healer_provider.value, model=healer_model)
+            healer_engine = create_ai_engine(
+                provider=healer_provider,
+                api_key=healer_api_key,
+                model_name=healer_model
+            )
+            
         self.facebook_scraper = FacebookScraper(
             group_urls=settings.facebook_groups,
             anti_detection=anti_detection,
-            is_seen_callback=seen_repo.is_seen
+            is_seen_callback=seen_repo.is_seen,
+            ai_engine=healer_engine
         )
         
         # Initialize Yad2 scraper (Playwright or HTTP based on config)
@@ -161,6 +188,7 @@ class ApartmentBotApplication:
         
         # Initialize Telegram bot
         self.bot = ApartmentBot(ai_engine=self.ai_engine)
+        self.bot.app_instance = self
         
         # Initialize Processing Service
         self.processing_service = ProcessingService(self.bot, self.ai_engine)

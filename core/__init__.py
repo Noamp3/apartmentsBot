@@ -13,7 +13,7 @@ from core.ai_engine import (
     RateLimitExceeded,
     ListingEnricher,
 )
-from core.matcher import RulePreFilter, ZeroAIUserMatcher, HybridSmartMatcher
+from core.matcher import RulePreFilter, ZeroAIUserMatcher
 
 __all__ = [
     "BaseAIEngine",
@@ -28,5 +28,4 @@ __all__ = [
     "ListingEnricher",
     "RulePreFilter",
     "ZeroAIUserMatcher",
-    "HybridSmartMatcher",
 ]
