@@ -121,3 +121,37 @@ class TestIsraeliLocationDatabase:
         is_match, reasons = matcher.evaluate_listing(enriched, [rule])
         assert not is_match
         assert any("לא תואם" in r for r in reasons)
+
+    def test_multiple_area_rules_evaluated_as_or(self):
+        """Test that multiple active AREA rules are evaluated as an OR constraint rather than AND constraint."""
+        from core.matcher import ZeroAIUserMatcher
+        from models.listing import Listing, EnrichedListing
+        from models.search_rule import SearchRule, RuleType
+        from datetime import datetime
+
+        matcher = ZeroAIUserMatcher()
+        
+        # Create listing in Florentin
+        listing = Listing(
+            id="test_florentin_or", source="facebook", url="url", title="title", 
+            description="להשכרה בפלורנטין", location="תל אביב", raw_text="text",
+            posted_at=datetime.now()
+        )
+        enriched = EnrichedListing(listing=listing)
+        enriched.extracted_location = "תל אביב"
+        enriched.extracted_neighborhood = "פלורנטין"
+
+        # Rules for Florentin OR Lev HaIr
+        rule_florentin = SearchRule(
+            id=1, user_id=123, rule_type=RuleType.AREA, 
+            value="פלורנטין", is_active=True
+        )
+        rule_lev_hair = SearchRule(
+            id=2, user_id=123, rule_type=RuleType.AREA, 
+            value="לב העיר", is_active=True
+        )
+
+        # Florenin listing should pass when evaluated with BOTH rules active (OR logic)
+        is_match, reasons = matcher.evaluate_listing(enriched, [rule_florentin, rule_lev_hair])
+        assert is_match, f"Failed: {reasons}"
+        assert len(reasons) == 0

@@ -151,26 +151,38 @@ class ZeroAIUserMatcher:
         rejection_reasons.extend(hard_failures)
         
         # Phase 2: Check soft rules (area, custom)
-        for rule in rules:
-            if not rule.is_active:
-                continue
+        area_rules = [r for r in rules if r.is_active and r.rule_type in (RuleType.AREA, RuleType.BORDER_AREA)]
+        other_rules = [r for r in rules if r.is_active and r.rule_type not in (RuleType.AREA, RuleType.BORDER_AREA)]
+        
+        # Check area rules as an OR group (at least one must match if area rules exist)
+        if area_rules:
+            area_passes = False
+            area_failures = []
             
-            if rule.rule_type == RuleType.AREA:
-                area_match = self._check_area_match(enriched, rule.value, allow_bordering)
-                if not area_match[0]:
-                    rejection_reasons.append(
-                        f"מיקום {enriched.extracted_location or enriched.listing.location} לא תואם {rule.value}"
-                    )
+            for rule in area_rules:
+                if rule.rule_type == RuleType.AREA:
+                    match_res = self._check_area_match(enriched, rule.value, allow_bordering)
+                    if match_res[0]:
+                        area_passes = True
+                        break
+                    else:
+                        area_failures.append(rule.value)
+                elif rule.rule_type == RuleType.BORDER_AREA:
+                    match_res = self._check_border_area_match(enriched, rule.value)
+                    if match_res[0]:
+                        area_passes = True
+                        break
+                    else:
+                        area_failures.append("אזור גיאוגרפי מוגדר")
             
-            elif rule.rule_type == RuleType.BORDER_AREA:
-                # Border-based rules: exact neighborhood match only (no bordering expansion)
-                border_match = self._check_border_area_match(enriched, rule.value)
-                if not border_match[0]:
-                    rejection_reasons.append(
-                        f"מיקום {enriched.extracted_location or enriched.listing.location} מחוץ לאזור המוגדר"
-                    )
-            
-            elif rule.rule_type == RuleType.CUSTOM:
+            if not area_passes:
+                rejection_reasons.append(
+                    f"מיקום {enriched.extracted_location or enriched.listing.location} לא תואם אף אחד מהאזורים המבוקשים: {', '.join(area_failures)}"
+                )
+        
+        # Check other soft rules (AND logic)
+        for rule in other_rules:
+            if rule.rule_type == RuleType.CUSTOM:
                 custom_match = self._check_custom_rule(enriched, rule)
                 if not custom_match[0]:
                     rejection_reasons.append(custom_match[1])
