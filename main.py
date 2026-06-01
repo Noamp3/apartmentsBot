@@ -268,9 +268,9 @@ class ApartmentBotApplication:
         if not new_listings:
             return
         
-        # Check for cross-source duplicates using fingerprints
+        # Check for cross-source duplicates using fingerprints (pre-enrichment)
         non_duplicate_listings = []
-        cross_source_duplicates = 0
+        cross_source_duplicates_pre = 0
         
         for listing in new_listings:
             # Check if this listing duplicates an existing one from another source
@@ -278,9 +278,9 @@ class ApartmentBotApplication:
             
             if duplicate_info:
                 duplicate_id, matched_fields = duplicate_info
-                cross_source_duplicates += 1
+                cross_source_duplicates_pre += 1
                 log.info(
-                    f"Cross-source duplicate detected",
+                    f"Cross-source duplicate detected (pre-enrichment)",
                     current_listing_id=listing.id[:8],
                     current_source=listing.source,
                     current_author=listing.author[:20] if listing.author else None,
@@ -295,8 +295,8 @@ class ApartmentBotApplication:
             else:
                 non_duplicate_listings.append(listing)
         
-        if cross_source_duplicates > 0:
-            log.info(f"Filtered {cross_source_duplicates} cross-source duplicate(s)")
+        if cross_source_duplicates_pre > 0:
+            log.info(f"Filtered {cross_source_duplicates_pre} cross-source duplicate(s) before enrichment")
         
         if not non_duplicate_listings:
             log.info("All listings were duplicates, ending cycle")
@@ -322,6 +322,7 @@ class ApartmentBotApplication:
         # Cache enriched listings and save fingerprints
         saved_enriched_count = 0
         valid_enriched_listings = []
+        cross_source_duplicates_post = 0
         
         for enriched in enriched_listings:
             # VALIDATION: Drop listings with no price
@@ -336,15 +337,36 @@ class ApartmentBotApplication:
                 )
                 continue
                 
+            # Post-Enrichment Fingerprint Deduplication
+            duplicate_info = await seen_repo.find_duplicate_by_fingerprint(enriched.listing, enriched)
+            if duplicate_info:
+                duplicate_id, matched_fields = duplicate_info
+                cross_source_duplicates_post += 1
+                log.info(
+                    f"Cross-source duplicate detected (post-enrichment)",
+                    current_listing_id=enriched.listing.id[:8],
+                    current_source=enriched.listing.source,
+                    current_phone=enriched.listing.phone,
+                    current_price=enriched.extracted_price,
+                    matched_listing_id=duplicate_id[:8],
+                    matched_fields=matched_fields,
+                )
+                # Mark as seen to avoid reprocessing
+                await seen_repo.mark_seen(enriched.listing)
+                continue
+                
             valid_enriched_listings.append(enriched)
             await listing_repo.save_enriched(enriched)
             
-            # Save fingerprint for future duplicate detection
+            # Save fingerprint immediately so the next listing in this loop can match against it
             await seen_repo.save_fingerprint(enriched.listing, enriched)
             saved_enriched_count += 1
             
+        if cross_source_duplicates_post > 0:
+            log.info(f"Filtered {cross_source_duplicates_post} cross-source duplicate(s) after enrichment")
+            
         if not valid_enriched_listings:
-            log.info("No valid listings after enrichment (all dropped due to missing data)")
+            log.info("No valid listings after enrichment (all dropped due to missing data or post-enrichment duplicates)")
             return
         
         # Phase 3: Match and Notify

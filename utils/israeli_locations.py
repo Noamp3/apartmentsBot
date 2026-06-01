@@ -626,7 +626,7 @@ class IsraeliLocationDatabase:
                     return True, "area_group", f"{listing_neighborhood} באזור {group_name}"
         
         # Case 5: Target is within listing area (reverse containment)
-        if target_neighborhood and listing_city:
+        if target_neighborhood and listing_city and not listing_neighborhood:
             target_n = self.neighborhood_lookup.get(target_neighborhood.lower())
             if target_n and target_n.city == listing_city:
                 return True, "contains", f"הדירה ב{listing_city} (שכונה לא צוינה)"

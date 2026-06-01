@@ -19,6 +19,7 @@ class User:
     persona: str = "barakush"
     is_admin: bool = False
     onboarding_step: Optional[str] = None
+    allow_bordering_neighborhoods: bool = True
     
     @property
     def is_new_user(self) -> bool:

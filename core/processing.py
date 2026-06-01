@@ -83,7 +83,8 @@ class ProcessingService:
         
         for enriched in candidates:
             try:
-                is_match, reasons = self.matcher.evaluate_listing(enriched, rules)
+                allow_bordering = getattr(user, 'allow_bordering_neighborhoods', True)
+                is_match, reasons = self.matcher.evaluate_listing(enriched, rules, allow_bordering=allow_bordering)
                 
                 if is_match:
                     # Get sass intro for the first notification only

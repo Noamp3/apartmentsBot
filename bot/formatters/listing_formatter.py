@@ -175,10 +175,11 @@ class ListingFormatter:
         return "\n".join(lines)
     
     @staticmethod
-    def format_rules_list(rules: list) -> str:
+    def format_rules_list(rules: list, allow_bordering: bool = True) -> str:
         """Format user's active search rules."""
         if not rules:
-            return "📋 אין לך כללי חיפוש פעילים\\.\n\nשלח הודעה עם הדרישות שלך ואני אוסיף אותן\\!"
+            status_val = "פעיל ✅" if allow_bordering else "כבוי ❌"
+            return f"📋 *אין לך כללי חיפוש פעילים\\.*\n📍 *חיפוש בשכונות גובלות:* {status_val}\n\nשלח הודעה עם הדרישות שלך ואני אוסיף אותן\\!"
         
         lines = []
         lines.append("📋 *כללי החיפוש שלך:*")
@@ -207,6 +208,9 @@ class ListingFormatter:
             text = ListingFormatter._escape_markdown(text)
             lines.append(f"{i}\\. {icon} {text}")
         
+        lines.append("")
+        status_val = "פעיל ✅" if allow_bordering else "כבוי ❌"
+        lines.append(f"📍 *חיפוש בשכונות גובלות:* {status_val}")
         lines.append("")
         lines.append("_שלח הודעה כדי להוסיף כלל חדש_")
         lines.append("_או /clear למחיקת כל הכללים_")

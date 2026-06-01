@@ -190,6 +190,7 @@ async def test_conversational_rule_modification():
     )
     
     mock_context = AsyncMock()
+    mock_context.bot_data = {}
     mock_context.user_data = {
         'pending_rule_confirmation': {
             'user_id': 123,
@@ -201,7 +202,17 @@ async def test_conversational_rule_modification():
     # 2. Setup a mock update for the message text "בלי בבלי ותוסיף את פלורנטין"
     mock_update = AsyncMock()
     mock_update.effective_user.id = 123
+    mock_update.effective_user.username = "testuser"
+    mock_update.effective_chat.id = 123
     mock_update.message.text = "בלי בבלי ותוסיף את פלורנטין"
+    
+    # Pre-register user in DB without onboarding_step
+    from database import get_db
+    from database.repositories import UserRepository
+    from models.user import User
+    db = await get_db()
+    user_repo = UserRepository(db)
+    await user_repo.create(User(telegram_id=123, chat_id=123, username="testuser", onboarding_step=None))
     
     # Mock safe_reply_text
     handler = MessageHandler()

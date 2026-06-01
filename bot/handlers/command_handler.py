@@ -157,14 +157,65 @@ class CommandHandler:
         
         db = await get_db()
         rule_repo = RuleRepository(db)
-        rules = await rule_repo.get_user_rules(user_id)
+        user_repo = UserRepository(db)
         
-        message = ListingFormatter.format_rules_list(rules)
+        rules = await rule_repo.get_user_rules(user_id)
+        user_obj = await user_repo.get_by_telegram_id(user_id)
+        allow_bordering = user_obj.allow_bordering_neighborhoods if user_obj else True
+        
+        message = ListingFormatter.format_rules_list(rules, allow_bordering)
+        
+        button_text = "❌ השבת שכונות גובלות" if allow_bordering else "✅ הפעל שכונות גובלות"
+        keyboard = [
+            [InlineKeyboardButton(button_text, callback_data="toggle_bordering")]
+        ]
+        
         await self._safe_reply_text(
             update,
             message, 
             parse_mode='MarkdownV2',
-            reply_markup=get_main_menu_keyboard()
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+
+    @ensure_user_exists
+    async def toggle_bordering(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /toggle_bordering command."""
+        user_id = update.effective_user.id
+        db = await get_db()
+        user_repo = UserRepository(db)
+        rule_repo = RuleRepository(db)
+        
+        user_obj = await user_repo.get_by_telegram_id(user_id)
+        if not user_obj:
+            await update.message.reply_text("❌ משתמש לא נמצא")
+            return
+            
+        new_status = not user_obj.allow_bordering_neighborhoods
+        await user_repo.update_allow_bordering(user_id, new_status)
+        
+        # Friendly feedback
+        persona_name = user_obj.persona
+        from core.personas import get_persona
+        persona_def = get_persona(persona_name)
+        
+        status_text = "פעיל כעת! אשלח לך גם דירות בשכונות סמוכות 😉" if new_status else "כבוי! אשלח לך אך ורק דירות בשכונות שהגדרת במפורש 🎯"
+        
+        msg = f"{persona_def.emoji} *חיפוש בשכונות גובלות {status_text}*"
+        msg = ListingFormatter._escape_markdown(msg)
+        
+        rules = await rule_repo.get_user_rules(user_id)
+        rules_message = ListingFormatter.format_rules_list(rules, new_status)
+        
+        button_text = "❌ השבת שכונות גובלות" if new_status else "✅ הפעל שכונות גובלות"
+        keyboard = [
+            [InlineKeyboardButton(button_text, callback_data="toggle_bordering")]
+        ]
+        
+        await self._safe_reply_text(
+            update,
+            f"{msg}\n\n{rules_message}",
+            parse_mode='MarkdownV2',
+            reply_markup=InlineKeyboardMarkup(keyboard)
         )
     
     @ensure_user_exists

@@ -601,8 +601,9 @@ class GeminiAIEngine(BaseAIEngine):
                 if attempts_across_models > 0:
                      log.info(f"✅ Successfully generated content with {model_name} after recovery.")
                      
-                log.debug(f"Received response from Gemini ({model_name}): {response.text[:100]}...")
-                return response.text
+                resp_text = response.text or ""
+                log.debug(f"Received response from Gemini ({model_name}): {resp_text[:100]}...")
+                return resp_text
                 
             except RateLimitExceeded:
                 # Local limiter says stop

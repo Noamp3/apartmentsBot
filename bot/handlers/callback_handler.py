@@ -48,6 +48,9 @@ class CallbackHandler:
         elif data == "confirm_rules_no":
             await self._confirm_rules_no(query, context)
             
+        elif data == "toggle_bordering":
+            await self._toggle_bordering(query, user_id)
+            
         elif data.startswith("set_persona:"):
             persona_name = data.split(":")[1]
             await self._set_persona(query, context, persona_name)
@@ -399,3 +402,45 @@ class CallbackHandler:
         except Exception as e:
             log.error(f"Error clearing table {table_name}: {e}", exc_info=True)
             await query.edit_message_text(f"❌ שגיאה באיפוס הטבלה: {e}")
+
+    async def _toggle_bordering(self, query, user_id: int):
+        """Toggle bordering neighborhoods search preference."""
+        db = await get_db()
+        user_repo = UserRepository(db)
+        rule_repo = RuleRepository(db)
+        
+        user_obj = await user_repo.get_by_telegram_id(user_id)
+        if not user_obj:
+            await query.answer("❌ משתמש לא נמצא")
+            return
+            
+        new_status = not user_obj.allow_bordering_neighborhoods
+        await user_repo.update_allow_bordering(user_id, new_status)
+        
+        # Reload rules and user object
+        rules = await rule_repo.get_user_rules(user_id)
+        
+        # Get formatted rules list
+        from bot.formatters.listing_formatter import ListingFormatter
+        message = ListingFormatter.format_rules_list(rules, new_status)
+        
+        # Re-build toggle inline button
+        button_text = "❌ השבת שכונות גובלות" if new_status else "✅ הפעל שכונות גובלות"
+        keyboard = [
+            [InlineKeyboardButton(button_text, callback_data="toggle_bordering")]
+        ]
+        
+        # Friendly feedback
+        persona_name = user_obj.persona
+        from core.personas import get_persona
+        persona_def = get_persona(persona_name)
+        
+        status_text = "פעיל כעת! אשלח לך גם דירות בשכונות סמוכות 😉" if new_status else "כבוי! אשלח לך אך ורק דירות בשכונות שהגדרת במפורש 🎯"
+        
+        # Show alert with feedback
+        await query.answer(f"{persona_def.emoji} חיפוש בשכונות גובלות {status_text}", show_alert=True)
+        
+        # Edit the message to show the updated status
+        await self._safe_edit_message_text(query, message, parse_mode='MarkdownV2')
+        # Edit the message with the new inline keyboard as well
+        await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup(keyboard))

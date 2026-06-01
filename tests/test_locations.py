@@ -77,3 +77,21 @@ class TestIsraeliLocationDatabase:
         result = self.db.normalize_location("דירה בפלורנטין תל אביב")
         assert result["city"] == "תל אביב"
         assert result["neighborhood"] == "פלורנטין"
+
+    def test_unrelated_neighborhood_no_match(self):
+        """Test that unrelated neighborhoods in the same city do not match."""
+        is_match, match_type, _ = self.db.is_location_match(
+            "רמת אביב, תל אביב",
+            "פלורנטין"
+        )
+        assert not is_match
+        assert match_type == "none"
+
+    def test_reverse_containment_only_when_unspecified(self):
+        """Test that reverse containment matches only when neighborhood is unspecified."""
+        is_match, match_type, _ = self.db.is_location_match(
+            "תל אביב",
+            "פלורנטין"
+        )
+        assert is_match
+        assert match_type == "contains"

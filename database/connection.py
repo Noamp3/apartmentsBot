@@ -20,7 +20,8 @@ CREATE TABLE IF NOT EXISTS users (
     is_active BOOLEAN DEFAULT TRUE,
     first_notified_at TIMESTAMP,
     persona TEXT DEFAULT 'barakush',
-    is_admin BOOLEAN DEFAULT FALSE
+    is_admin BOOLEAN DEFAULT FALSE,
+    allow_bordering_neighborhoods BOOLEAN DEFAULT TRUE
 );
 
 -- Search rules table
@@ -177,6 +178,13 @@ class DatabaseManager:
         # Safe migration: Add 'is_admin' column if it doesn't exist
         try:
             await self._connection.execute("ALTER TABLE users ADD COLUMN is_admin BOOLEAN DEFAULT FALSE")
+            await self._connection.commit()
+        except aiosqlite.OperationalError:
+            pass
+            
+        # Safe migration: Add 'allow_bordering_neighborhoods' column if it doesn't exist
+        try:
+            await self._connection.execute("ALTER TABLE users ADD COLUMN allow_bordering_neighborhoods BOOLEAN DEFAULT TRUE")
             await self._connection.commit()
         except aiosqlite.OperationalError:
             pass

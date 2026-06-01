@@ -122,7 +122,8 @@ class ZeroAIUserMatcher:
     def evaluate_listing(
         self, 
         enriched: EnrichedListing, 
-        rules: List[SearchRule]
+        rules: List[SearchRule],
+        allow_bordering: bool = True
     ) -> Tuple[bool, List[str]]:
         """Evaluate a single enriched listing against user rules.
         
@@ -138,12 +139,12 @@ class ZeroAIUserMatcher:
         if enriched.listing.posted_at:
              age = datetime.now() - enriched.listing.posted_at
              if age.days >= 1:
-                 log.warning(f"Rejection safety: Old listing {enriched.listing.id} (age: {age.days} days)")
-                 return False, [f"דירה ישנה מדי (פורסמה לפני {age.days} ימים)"]
+                  log.warning(f"Rejection safety: Old listing {enriched.listing.id} (age: {age.days} days)")
+                  return False, [f"דירה ישנה מדי (פורסמה לפני {age.days} ימים)"]
         else:
-            # If date is unknown, give benefit of the doubt and continue evaluation
-            # Facebook date extraction often fails, and rejecting these loses too many valid listings
-            log.debug(f"Unknown date for listing {enriched.listing.id} - accepting (benefit of doubt)")
+             # If date is unknown, give benefit of the doubt and continue evaluation
+             # Facebook date extraction often fails, and rejecting these loses too many valid listings
+             log.debug(f"Unknown date for listing {enriched.listing.id} - accepting (benefit of doubt)")
         
         # Phase 1: Check hard rules (price, bedrooms)
         passes_hard, hard_failures = self.pre_filter.passes_hard_rules(enriched, rules)
@@ -155,7 +156,7 @@ class ZeroAIUserMatcher:
                 continue
             
             if rule.rule_type == RuleType.AREA:
-                area_match = self._check_area_match(enriched, rule.value)
+                area_match = self._check_area_match(enriched, rule.value, allow_bordering)
                 if not area_match[0]:
                     rejection_reasons.append(
                         f"מיקום {enriched.extracted_location or enriched.listing.location} לא תואם {rule.value}"
@@ -179,7 +180,8 @@ class ZeroAIUserMatcher:
     def _check_area_match(
         self, 
         enriched: EnrichedListing, 
-        target_area: str
+        target_area: str,
+        allow_bordering: bool = True
     ) -> Tuple[bool, str]:
         """Check if listing location matches target area."""
         target_lower = target_area.strip().lower()
@@ -191,7 +193,7 @@ class ZeroAIUserMatcher:
                     return True, ""
         
         # Check bordering areas
-        if enriched.bordering_areas:
+        if allow_bordering and enriched.bordering_areas:
             for border_area in enriched.bordering_areas:
                 if target_lower in border_area.lower():
                     return True, enriched.bordering_areas[border_area]
@@ -199,7 +201,7 @@ class ZeroAIUserMatcher:
         # Use location database for matching
         listing_loc = enriched.extracted_location or enriched.listing.location
         is_match, match_type, _ = self.location_db.is_location_match(
-            listing_loc, target_area
+            listing_loc, target_area, allow_bordering=allow_bordering
         )
         
         return is_match, ""

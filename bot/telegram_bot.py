@@ -67,6 +67,9 @@ class ApartmentBot:
             TGCommandHandler("rules", self.command_handler.rules)
         )
         self.application.add_handler(
+            TGCommandHandler("toggle_bordering", self.command_handler.toggle_bordering)
+        )
+        self.application.add_handler(
             TGCommandHandler("rejections", self.command_handler.rejections)
         )
         self.application.add_handler(
