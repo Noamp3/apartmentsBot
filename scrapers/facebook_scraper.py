@@ -27,6 +27,11 @@ from config import settings
 log = Loggers.scraper()
 
 
+class FacebookLoginRequiredException(Exception):
+    """Raised when Facebook requires login but authentication fails or is not available."""
+    pass
+
+
 class FacebookScraper(BaseScraper):
     """Scrapes apartment listings from Facebook groups.
     
@@ -100,6 +105,9 @@ class FacebookScraper(BaseScraper):
                     # Delay between groups
                     await self.anti_detection.human_like_delay(5, 10)
                     
+                except FacebookLoginRequiredException as le:
+                    log.error(f"Aborting scraping cycle: Facebook login is required but failed. {le}")
+                    break
                 except Exception as e:
                     log.error(f"Failed to scrape group", url=group_url, error=str(e))
                     import traceback
@@ -260,9 +268,8 @@ class FacebookScraper(BaseScraper):
             raise
     
     def _get_desktop_user_agent(self) -> str:
-        """Get a random desktop user agent."""
-        import random
-        return random.choice(self.DESKTOP_USER_AGENTS)
+        """Get a stable desktop user agent to maintain session cookie validity."""
+        return "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
     
     def _convert_to_desktop_url(self, url: str) -> str:
         """Convert mobile Facebook URL to desktop version."""
@@ -686,7 +693,7 @@ class FacebookScraper(BaseScraper):
             current_url = page.url
             page_content = await page.content()
             
-            if 'login' in current_url or ('Log In' in page_content and 'Create new account' in page_content):
+            if 'login' in current_url or 'checkpoint' in current_url or ('Log In' in page_content and 'Create new account' in page_content):
                 log.info("Login required for Facebook group access")
                 logged_in = await self._login_to_facebook(page)
                 if logged_in:
@@ -695,7 +702,7 @@ class FacebookScraper(BaseScraper):
                 else:
                     log.error("Cannot access Facebook group without login")
                     await self._notify_login_required()
-                    return []
+                    raise FacebookLoginRequiredException("Facebook login is required and failed or was not completed.")
             
             # Dismiss any overlays/popups that might be blocking
             await self._dismiss_overlays(page)

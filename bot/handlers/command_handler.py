@@ -756,7 +756,7 @@ _הבוט פעיל וסורק דירות חדשות כל מספר דקות_
             browser_channel = "msedge" if not (is_arm and is_linux) else None
             
             launch_args = {
-                'headless': True,
+                'headless': settings.HEADLESS_MODE,
                 'args': [
                     '--disable-blink-features=AutomationControlled',
                     '--disable-dev-shm-usage',
@@ -881,6 +881,55 @@ _הבוט פעיל וסורק דירות חדשות כל מספר דקות_
                     elif cmd_lower in ("ss", "screenshot"):
                         await self._send_interactive_screenshot(page, chat_id, context, HELP_TEXT)
                         continue
+                    
+                    # ── reCAPTCHA tile selection: e.g. "2 5 6 9" or "tile 2 5 6 9" ──
+                    elif cmd_lower.startswith("tile ") or (__import__("re").match(r"^[\d\s,]+$", cmd) and any(c.isdigit() for c in cmd)):
+                        import re
+                        numbers = [int(n) for n in re.findall(r'\d+', cmd)]
+                        # Only treat as tile selection if all numbers are valid indices (1 to 16)
+                        if numbers and all(1 <= n <= 16 for n in numbers):
+                            # Find tiles inside frames
+                            tiles = []
+                            for frame in page.frames:
+                                try:
+                                    elements = await frame.query_selector_all(
+                                        '.rc-imageselect-tile, .rc-imageselect-candidate, td.rc-imageselect-tile, .rc-imageselect-tile-wrapper'
+                                    )
+                                    if elements:
+                                        tiles = elements
+                                        break
+                                except Exception:
+                                    continue
+                                    
+                            if tiles:
+                                clicked_indices = []
+                                for num in numbers:
+                                    idx = num - 1
+                                    if 0 <= idx < len(tiles):
+                                        try:
+                                            await tiles[idx].click()
+                                            clicked_indices.append(num)
+                                            await asyncio.sleep(0.3)
+                                        except Exception as click_err:
+                                            log.warning(f"Failed to click tile {num}: {click_err}")
+                                            
+                                if clicked_indices:
+                                    await context.bot.send_message(
+                                        chat_id=chat_id, 
+                                        text=f"Selected tiles: {', '.join(map(str, clicked_indices))}"
+                                    )
+                                    await asyncio.sleep(1.5)
+                                    await self._send_interactive_screenshot(page, chat_id, context)
+                                    continue
+                                else:
+                                    await context.bot.send_message(chat_id=chat_id, text="❌ לא הצלחתי ללחוץ על האריחים שנבחרו.")
+                                    continue
+                            else:
+                                await context.bot.send_message(
+                                    chat_id=chat_id, 
+                                    text="❌ לא מצאתי אריחי תמונה של reCAPTCHA במסך. נסה להשתמש ב-tap עם קואורדינטות."
+                                )
+                                continue
                     
                     # ── enter ──
                     elif cmd_lower == "enter":
@@ -1052,52 +1101,109 @@ _הבוט פעיל וסורק דירות חדשות כל מספר דקות_
     async def _click_element_by_text(self, page, target_text: str) -> bool:
         """Find and click a visible element containing the target text.
         
-        Tries multiple selector strategies in order of specificity.
+        Tries multiple selector strategies in order of specificity,
+        searching both the main page and all frames/iframes.
         Returns True if an element was found and clicked.
         """
-        # Strategy 1: Playwright :has-text() selectors (most reliable)
-        selectors = [
-            f'button:has-text("{target_text}")',
-            f'[role="button"]:has-text("{target_text}")',
-            f'a:has-text("{target_text}")',
-            f'input[type="submit"][value="{target_text}"]',
-            f'label:has-text("{target_text}")',
-        ]
-        
-        for selector in selectors:
-            try:
-                elem = await page.query_selector(selector)
-                if elem and await elem.is_visible():
-                    await elem.click()
-                    return True
-            except Exception:
-                continue
-        
-        # Strategy 2: Broader search through all interactive elements
-        try:
-            interactive = await page.query_selector_all(
-                'button, a, [role="button"], input[type="submit"], '
-                'div[tabindex], span[tabindex], div[onclick]'
-            )
-            for elem in interactive:
-                try:
-                    text = await elem.inner_text()
-                    if target_text.lower() in text.lower().strip():
-                        if await elem.is_visible():
+        # Special case: reCAPTCHA auto-detection
+        is_recaptcha_query = any(k in target_text.lower() for k in ["robot", "רובוט", "captcha", "recaptcha"])
+        if is_recaptcha_query:
+            recaptcha_selectors = [
+                'span#recaptcha-anchor',
+                '#recaptcha-anchor',
+                '.recaptcha-checkbox-border',
+                'div.recaptcha-checkbox',
+                '[role="checkbox"]',
+            ]
+            for frame in page.frames:
+                for selector in recaptcha_selectors:
+                    try:
+                        elem = await frame.query_selector(selector)
+                        if elem and await elem.is_visible():
+                            log.info(f"Auto-detected reCAPTCHA element with selector '{selector}' in frame '{frame.name}'")
                             await elem.click()
                             return True
+                    except Exception:
+                        continue
+
+        # Special case: reCAPTCHA verify button auto-detection
+        is_verify_query = any(k in target_text.lower() for k in ["verify", "confirm", "אימות", "הבא", "next"])
+        if is_verify_query:
+            verify_selectors = [
+                '#recaptcha-verify-button',
+                'button#recaptcha-verify-button',
+                '.rc-button-default',
+                'button:has-text("Verify")',
+                'button:has-text("אימות")',
+                'button:has-text("הבא")',
+                'button:has-text("Next")',
+            ]
+            for frame in page.frames:
+                for selector in verify_selectors:
+                    try:
+                        elem = await frame.query_selector(selector)
+                        if elem and await elem.is_visible():
+                            log.info(f"Auto-detected reCAPTCHA verify button with selector '{selector}' in frame '{frame.name}'")
+                            await elem.click()
+                            return True
+                    except Exception:
+                        continue
+
+        # Try main page and all subframes
+        for frame in page.frames:
+            try:
+                # Strategy 1: Playwright :has-text() selectors (most reliable)
+                selectors = [
+                    f'button:has-text("{target_text}")',
+                    f'[role="button"]:has-text("{target_text}")',
+                    f'a:has-text("{target_text}")',
+                    f'input[type="submit"][value="{target_text}"]',
+                    f'label:has-text("{target_text}")',
+                    f'div:has-text("{target_text}")',
+                    f'span:has-text("{target_text}")',
+                ]
+                
+                for selector in selectors:
+                    try:
+                        elem = await frame.query_selector(selector)
+                        if elem and await elem.is_visible():
+                            await elem.click()
+                            return True
+                    except Exception:
+                        continue
+                
+                # Strategy 2: Broader search through all interactive elements
+                try:
+                    interactive = await frame.query_selector_all(
+                        'button, a, [role="button"], input[type="submit"], '
+                        'div[tabindex], span[tabindex], div[onclick], '
+                        'input[type="checkbox"], label'
+                    )
+                    for elem in interactive:
+                        try:
+                            text = await elem.inner_text()
+                            if not text:
+                                # Fallback to check attribute like aria-label or title
+                                text = (await elem.get_attribute("aria-label") or "") + " " + (await elem.get_attribute("title") or "")
+                            if target_text.lower() in text.lower().strip():
+                                if await elem.is_visible():
+                                    await elem.click()
+                                    return True
+                        except Exception:
+                            continue
                 except Exception:
-                    continue
-        except Exception:
-            pass
-        
-        # Strategy 3: Try with page.locator().click() for complex text matching
-        try:
-            locator = page.get_by_text(target_text, exact=False).first
-            if await locator.is_visible():
-                await locator.click()
-                return True
-        except Exception:
-            pass
+                    pass
+                
+                # Strategy 3: Try with frame.get_by_text().click() for complex text matching
+                try:
+                    locator = frame.get_by_text(target_text, exact=False).first
+                    if await locator.is_visible():
+                        await locator.click()
+                        return True
+                except Exception:
+                    pass
+            except Exception as frame_err:
+                log.warning(f"Error searching frame for text '{target_text}': {frame_err}")
+                continue
         
         return False
