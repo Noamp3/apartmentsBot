@@ -57,7 +57,7 @@ class Settings(BaseSettings):
     
     LOG_LEVEL: str = "INFO"
     RESET_DB_ON_STARTUP: bool = False  # Resets listings, rejections, and seen history
-    RESET_USERS_ON_STARTUP: bool = True # Resets users AND their search rules
+    RESET_USERS_ON_STARTUP: bool = False # Resets users AND their search rules
     RESET_PERSONA_CACHE_ON_STARTUP: bool = False # Resets AI generated welcome/sass cache
     
     # Database
