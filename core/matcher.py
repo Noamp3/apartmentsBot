@@ -196,20 +196,6 @@ class ZeroAIUserMatcher:
         allow_bordering: bool = True
     ) -> Tuple[bool, str]:
         """Check if listing location matches target area."""
-        target_lower = target_area.strip().lower()
-        
-        # Check pre-computed area matches
-        if enriched.area_matches:
-            for area in enriched.area_matches:
-                if target_lower in area.lower():
-                    return True, ""
-        
-        # Check bordering areas
-        if allow_bordering and enriched.bordering_areas:
-            for border_area in enriched.bordering_areas:
-                if target_lower in border_area.lower():
-                    return True, enriched.bordering_areas[border_area]
-        
         # Use location database for matching
         # Build a composite listing location signal so the database can extract the neighborhood
         location_signals = []
