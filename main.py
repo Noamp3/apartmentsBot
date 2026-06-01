@@ -90,12 +90,54 @@ class ApartmentBotApplication:
             await db.initialize()
             log.info(f"Database reset complete. Dropped: {', '.join(ordered_drops)}")
         
-        # Initialize AI engine (uses settings.AI_PROVIDER)
-        self.ai_engine = create_ai_engine()
-        self.rate_limiter = RateLimiter()  # Rate limiter for quota management
-        self.enricher = ListingEnricher(self.ai_engine)
-        log.info(f"AI engine initialized", provider=settings.AI_PROVIDER.value)
+        # Initialize Cache Repository
+        from database.repositories.cache_repository import CacheRepository
+        db_manager = await get_db()
+        cache_repo = CacheRepository(db_manager)
+        seen_repo = SeenListingsRepository(db_manager)
         
+        # Reset persona cache if configured
+        if settings.RESET_PERSONA_CACHE_ON_STARTUP:
+            log.warning(f"⚠️ Clearing persona cache (Config value: {settings.RESET_PERSONA_CACHE_ON_STARTUP}). Check .env if this is unexpected.")
+            await cache_repo.clear_cache()
+            log.info("Persona cache cleared")
+
+        # Initialize Chat Rate Limiter and AI Engine
+        self.chat_rate_limiter = RateLimiter(
+            requests_per_minute=settings.chat_rate_limit,
+            daily_limit=settings.chat_daily_limit
+        )
+        self.chat_ai_engine = create_ai_engine(
+            provider=settings.chat_provider,
+            api_key=settings.chat_api_key,
+            model_name=settings.chat_model,
+            rate_limiter=self.chat_rate_limiter,
+            cache_repo=cache_repo
+        )
+        self.ai_engine = self.chat_ai_engine  # For backward compatibility
+        
+        # Warm up Chat AI cache in the background so the app won't wait for it
+        asyncio.create_task(self.chat_ai_engine.warm_up_cache())
+        log.info("Chat AI engine initialized (cache warming up in background)", provider=settings.chat_provider.value, model=settings.chat_model)
+
+        # Initialize Enrichment Rate Limiter and AI Engine
+        self.enrich_rate_limiter = RateLimiter(
+            requests_per_minute=settings.enrich_rate_limit,
+            daily_limit=settings.enrich_daily_limit
+        )
+        self.enrich_ai_engine = create_ai_engine(
+            provider=settings.enrich_provider,
+            api_key=settings.enrich_api_key,
+            model_name=settings.enrich_model,
+            rate_limiter=self.enrich_rate_limiter,
+            cache_repo=cache_repo
+        )
+        self.enricher = ListingEnricher(self.enrich_ai_engine)
+        log.info("Enrichment AI engine initialized", provider=settings.enrich_provider.value, model=settings.enrich_model)
+        
+        # Set self.rate_limiter (used by scheduler) to the enrich rate limiter
+        self.rate_limiter = self.enrich_rate_limiter
+
         # Initialize matcher
         self.matcher = ZeroAIUserMatcher()
         
@@ -105,30 +147,14 @@ class ApartmentBotApplication:
             max_delay=settings.MAX_DELAY_SECONDS
         )
         
-        # Initialize Cache Repository
-        from database.repositories.cache_repository import CacheRepository
-        db_manager = await get_db()
-        cache_repo = CacheRepository(db_manager)
-        seen_repo = SeenListingsRepository(db_manager)
-        
         # Determine Healer AI Engine
-        healer_engine = self.ai_engine
+        healer_engine = self.enrich_ai_engine
         if settings.SELF_HEALING_AI_PROVIDER or settings.SELF_HEALING_MODEL:
-            healer_provider = settings.SELF_HEALING_AI_PROVIDER or settings.AI_PROVIDER
-            healer_model = settings.SELF_HEALING_MODEL or settings.active_model
+            healer_provider = settings.SELF_HEALING_AI_PROVIDER or settings.enrich_provider
+            healer_model = settings.SELF_HEALING_MODEL or settings.enrich_model
             
             # Select correct API key for the healer provider
-            from core.ai_engine import AIProvider
-            healer_api_key = settings.active_api_key
-            if settings.SELF_HEALING_AI_PROVIDER:
-                if healer_provider == AIProvider.OPENAI:
-                    healer_api_key = settings.OPENAI_API_KEY
-                elif healer_provider == AIProvider.GEMINI:
-                    healer_api_key = settings.GEMINI_API_KEY
-                elif healer_provider == AIProvider.GROQ:
-                    healer_api_key = settings.GROQ_API_KEY
-                elif healer_provider == AIProvider.ANTHROPIC:
-                    healer_api_key = settings.ANTHROPIC_API_KEY
+            healer_api_key = settings.get_provider_api_key(healer_provider)
             
             log.info("Creating dedicated AI engine for scraper self-healing", provider=healer_provider.value, model=healer_model)
             healer_engine = create_ai_engine(
@@ -157,41 +183,12 @@ class ApartmentBotApplication:
             )
         log.info("Scrapers initialized")
         
-        # Initialize Rate Limiter
-        self.rate_limiter = RateLimiter(
-            requests_per_minute=settings.AI_RATE_LIMIT,
-            daily_limit=settings.GEMINI_DAILY_LIMIT
-        )
-        
-        # Reset persona cache if configured
-        if settings.RESET_PERSONA_CACHE_ON_STARTUP:
-            log.warning(f"⚠️ Clearing persona cache (Config value: {settings.RESET_PERSONA_CACHE_ON_STARTUP}). Check .env if this is unexpected.")
-            await cache_repo.clear_cache()
-            log.info("Persona cache cleared")
-        
-        # Initialize AI Engine with cache
-        self.ai_engine = create_ai_engine(
-            provider=settings.AI_PROVIDER,
-            api_key=settings.active_api_key, # Use generic property
-            model_name=settings.active_model, # Use generic property that handles list splitting
-            rate_limiter=self.rate_limiter,
-            cache_repo=cache_repo
-        )
-        # Warm up AI cache in the background so the app won't wait for it
-        asyncio.create_task(self.ai_engine.warm_up_cache())
-        log.info("AI engine initialized (cache warming up in background)")
-        
-        self.enricher = ListingEnricher(self.ai_engine)
-        
-        # Initialize matcher
-        self.matcher = ZeroAIUserMatcher()
-        
-        # Initialize Telegram bot
-        self.bot = ApartmentBot(ai_engine=self.ai_engine)
+        # Initialize Telegram bot (uses chat_ai_engine)
+        self.bot = ApartmentBot(ai_engine=self.chat_ai_engine)
         self.bot.app_instance = self
         
-        # Initialize Processing Service
-        self.processing_service = ProcessingService(self.bot, self.ai_engine)
+        # Initialize Processing Service (uses chat_ai_engine for sass/dialogue)
+        self.processing_service = ProcessingService(self.bot, self.chat_ai_engine)
         self.bot.processing_service = self.processing_service  # Inject into bot
         
         await self.bot.setup()

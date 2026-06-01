@@ -34,6 +34,14 @@ class Settings(BaseSettings):
     # AI Provider Configuration
     AI_PROVIDER: AIProvider = AIProvider.GEMINI
     
+    # Chat AI Configuration (Optional, falls back to general settings)
+    CHAT_AI_PROVIDER: Optional[AIProvider] = None
+    CHAT_MODEL: Optional[str] = None
+    
+    # Enrich AI Configuration (Optional, falls back to general settings)
+    ENRICH_AI_PROVIDER: Optional[AIProvider] = AIProvider.GEMINI
+    ENRICH_MODEL: Optional[str] = 'gemma-4-31b-it'
+    
     # Gemini Settings
     GEMINI_API_KEY: str = ""
     # Comma-separated list of models to rotate through. First one is primary.
@@ -113,9 +121,8 @@ class Settings(BaseSettings):
             return []
         return [m.strip() for m in self.GEMINI_MODEL.split(",") if m.strip()]
     
-    @property
-    def active_api_key(self) -> str:
-        """Get the API key for the active provider."""
+    def get_provider_api_key(self, provider: AIProvider) -> str:
+        """Get the API key for a specific provider."""
         keys = {
             AIProvider.GEMINI: self.GEMINI_API_KEY,
             AIProvider.OPENAI: self.OPENAI_API_KEY,
@@ -123,11 +130,10 @@ class Settings(BaseSettings):
             AIProvider.OLLAMA: "",  # Ollama doesn't need an API key
             AIProvider.GROQ: self.GROQ_API_KEY,
         }
-        return keys.get(self.AI_PROVIDER, "")
-    
-    @property
-    def active_model(self) -> str:
-        """Get the primary model name for the active provider."""
+        return keys.get(provider, "")
+
+    def get_provider_default_model(self, provider: AIProvider) -> str:
+        """Get the default model name for a specific provider."""
         models = {
             AIProvider.GEMINI: self.gemini_models[0] if self.gemini_models else "",
             AIProvider.OPENAI: self.OPENAI_MODEL,
@@ -135,7 +141,17 @@ class Settings(BaseSettings):
             AIProvider.OLLAMA: self.OLLAMA_MODEL,
             AIProvider.GROQ: self.GROQ_MODEL,
         }
-        return models.get(self.AI_PROVIDER, "")
+        return models.get(provider, "")
+
+    @property
+    def active_api_key(self) -> str:
+        """Get the API key for the active provider."""
+        return self.get_provider_api_key(self.AI_PROVIDER)
+    
+    @property
+    def active_model(self) -> str:
+        """Get the primary model name for the active provider."""
+        return self.get_provider_default_model(self.AI_PROVIDER)
     
     # Rate Limiting
     # Gemini free tier: RPM limits vary by model, typically 10-15 RPM
@@ -148,9 +164,8 @@ class Settings(BaseSettings):
     GROQ_DAILY_LIMIT: int = 14400
     RATE_LIMIT_SAFETY_MARGIN: float = 1.0  # Trust exact numbers for now
     
-    @property
-    def AI_RATE_LIMIT(self) -> int:
-        """Get rate limit for active provider."""
+    def get_provider_rate_limit(self, provider: AIProvider) -> int:
+        """Get rate limit (RPM) for a specific provider."""
         limits = {
             AIProvider.GEMINI: self.GEMINI_RPM_LIMIT,
             AIProvider.OPENAI: self.OPENAI_RPM_LIMIT,
@@ -158,7 +173,78 @@ class Settings(BaseSettings):
             AIProvider.OLLAMA: 100,  # High limit for local
             AIProvider.GROQ: self.GROQ_RPM_LIMIT,
         }
-        return int(limits.get(self.AI_PROVIDER, 10))
+        return int(limits.get(provider, 10))
+
+    def get_provider_daily_limit(self, provider: AIProvider) -> Optional[int]:
+        """Get daily limit for a specific provider."""
+        limits = {
+            AIProvider.GEMINI: self.GEMINI_DAILY_LIMIT,
+            AIProvider.GROQ: self.GROQ_DAILY_LIMIT,
+        }
+        return limits.get(provider)
+
+    @property
+    def AI_RATE_LIMIT(self) -> int:
+        """Get rate limit for active provider."""
+        return self.get_provider_rate_limit(self.AI_PROVIDER)
+
+    @property
+    def chat_provider(self) -> AIProvider:
+        """Get the AI provider for chat operations."""
+        return self.CHAT_AI_PROVIDER or self.AI_PROVIDER
+
+    @property
+    def chat_model(self) -> str:
+        """Get the model name for chat operations."""
+        if self.CHAT_MODEL:
+            return self.CHAT_MODEL
+        if self.CHAT_AI_PROVIDER:
+            return self.get_provider_default_model(self.CHAT_AI_PROVIDER)
+        return self.active_model
+
+    @property
+    def chat_api_key(self) -> str:
+        """Get the API key for chat operations."""
+        return self.get_provider_api_key(self.chat_provider)
+
+    @property
+    def chat_rate_limit(self) -> int:
+        """Get rate limit for chat operations."""
+        return self.get_provider_rate_limit(self.chat_provider)
+
+    @property
+    def chat_daily_limit(self) -> Optional[int]:
+        """Get daily limit for chat operations."""
+        return self.get_provider_daily_limit(self.chat_provider)
+
+    @property
+    def enrich_provider(self) -> AIProvider:
+        """Get the AI provider for enrichment operations."""
+        return self.ENRICH_AI_PROVIDER or self.AI_PROVIDER
+
+    @property
+    def enrich_model(self) -> str:
+        """Get the model name for enrichment operations."""
+        if self.ENRICH_MODEL:
+            return self.ENRICH_MODEL
+        if self.ENRICH_AI_PROVIDER:
+            return self.get_provider_default_model(self.ENRICH_AI_PROVIDER)
+        return self.active_model
+
+    @property
+    def enrich_api_key(self) -> str:
+        """Get the API key for enrichment operations."""
+        return self.get_provider_api_key(self.enrich_provider)
+
+    @property
+    def enrich_rate_limit(self) -> int:
+        """Get rate limit for enrichment operations."""
+        return self.get_provider_rate_limit(self.enrich_provider)
+
+    @property
+    def enrich_daily_limit(self) -> Optional[int]:
+        """Get daily limit for enrichment operations."""
+        return self.get_provider_daily_limit(self.enrich_provider)
     
     # Batch Processing (prompt batching, NOT Batch API - works on free tier)
     # This controls how many listings we include in a single prompt
