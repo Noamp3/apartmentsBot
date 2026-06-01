@@ -585,7 +585,8 @@ class IsraeliLocationDatabase:
         self, 
         listing_location: str, 
         target_location: str,
-        allow_bordering: bool = True
+        allow_bordering: bool = True,
+        listing_neighborhood_specified: bool = False
     ) -> Tuple[bool, str, str]:
         """Check if listing location matches target with smart logic.
         
@@ -626,7 +627,7 @@ class IsraeliLocationDatabase:
                     return True, "area_group", f"{listing_neighborhood} באזור {group_name}"
         
         # Case 5: Target is within listing area (reverse containment)
-        if target_neighborhood and listing_city and not listing_neighborhood:
+        if target_neighborhood and listing_city and not listing_neighborhood and not listing_neighborhood_specified:
             target_n = self.neighborhood_lookup.get(target_neighborhood.lower())
             if target_n and target_n.city == listing_city:
                 return True, "contains", f"הדירה ב{listing_city} (שכונה לא צוינה)"

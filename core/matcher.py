@@ -199,9 +199,21 @@ class ZeroAIUserMatcher:
                     return True, enriched.bordering_areas[border_area]
         
         # Use location database for matching
-        listing_loc = enriched.extracted_location or enriched.listing.location
+        # Build a composite listing location signal so the database can extract the neighborhood
+        location_signals = []
+        if enriched.extracted_neighborhood:
+            location_signals.append(enriched.extracted_neighborhood)
+        if enriched.extracted_street:
+            location_signals.append(enriched.extracted_street)
+        location_signals.append(enriched.extracted_location or enriched.listing.location)
+        
+        listing_loc = ", ".join(location_signals)
+        
         is_match, match_type, _ = self.location_db.is_location_match(
-            listing_loc, target_area, allow_bordering=allow_bordering
+            listing_loc, 
+            target_area, 
+            allow_bordering=allow_bordering,
+            listing_neighborhood_specified=bool(enriched.extracted_neighborhood)
         )
         
         return is_match, ""

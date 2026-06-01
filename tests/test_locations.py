@@ -95,3 +95,29 @@ class TestIsraeliLocationDatabase:
         )
         assert is_match
         assert match_type == "contains"
+
+    def test_matcher_area_match_ignores_unrelated_extracted_neighborhood(self):
+        """Test that ZeroAIUserMatcher correctly identifies extracted neighborhood and doesn't trigger city-wide containment."""
+        from core.matcher import ZeroAIUserMatcher
+        from models.listing import Listing, EnrichedListing
+        from models.search_rule import SearchRule, RuleType
+        from datetime import datetime
+
+        matcher = ZeroAIUserMatcher()
+        listing = Listing(
+            id="test_hamishtela", source="facebook", url="url", title="title", 
+            description="להשכרה בתל אביב שכונת המשתלה", location="תל אביב", raw_text="text",
+            posted_at=datetime.now()
+        )
+        enriched = EnrichedListing(listing=listing)
+        enriched.extracted_location = "תל אביב"
+        enriched.extracted_neighborhood = "המשתלה"
+
+        rule = SearchRule(
+            id=1, user_id=123, rule_type=RuleType.AREA, 
+            value="פלורנטין", is_active=True
+        )
+
+        is_match, reasons = matcher.evaluate_listing(enriched, [rule])
+        assert not is_match
+        assert any("לא תואם" in r for r in reasons)
