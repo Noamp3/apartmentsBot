@@ -667,58 +667,117 @@ _הבוט פעיל וסורק דירות חדשות כל מספר דקות_
     @ensure_user_exists
     @admin_required
     async def admin_fb_login(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Manually trigger a Facebook login flow to authenticate session and capture 2FA code."""
+        """Start an interactive Facebook login session via Telegram.
+        
+        Opens a browser on the server, auto-fills credentials, then enters
+        an interactive loop where the admin can guide the browser through
+        CAPTCHAs, 2FA, and other challenges via screenshot + text commands.
+        """
         import asyncio
         
         chat_id = update.effective_chat.id
         
         # Check if there is already an active session running
+        if context.bot_data.get("fb_interactive_login", {}).get("active"):
+            await update.message.reply_text("❌ יש כבר תהליך התחברות אינטראקטיבי פעיל!")
+            return
         if context.bot_data.get("fb_login_waiting_for_2fa") is not None:
             await update.message.reply_text("❌ יש כבר תהליך התחברות פעיל שממתין לקוד 2FA!")
             return
             
-        await update.message.reply_text("🔐 *מתחיל תהליך התחברות לפייסבוק...*\nהדפדפן מופעל כעת. אנא המתן...")
+        await update.message.reply_text(
+            "🔐 *מתחיל התחברות אינטראקטיבית לפייסבוק...*\n"
+            "הדפדפן מופעל כעת. אמלא פרטים אוטומטית ואז תוכל/י לנווט דרך Telegram.",
+            parse_mode='Markdown'
+        )
         
-        # Launch background task for Facebook login
-        asyncio.create_task(self._run_facebook_login_task(chat_id, context))
+        # Set up interactive login state
+        context.bot_data["fb_interactive_login"] = {
+            "chat_id": chat_id,
+            "queue": asyncio.Queue(),
+            "active": True,
+        }
+        
+        # Launch background task
+        asyncio.create_task(self._run_interactive_fb_login_task(chat_id, context))
 
-    async def _run_facebook_login_task(self, chat_id: int, context: ContextTypes.DEFAULT_TYPE):
-        """Background task that runs the Playwright Facebook login and interacts with Telegram for 2FA."""
+    async def _run_interactive_fb_login_task(self, chat_id: int, context: ContextTypes.DEFAULT_TYPE):
+        """Interactive Facebook login via Telegram screenshots and commands.
+        
+        Flow:
+        1. Launch browser, navigate to FB login
+        2. Auto-fill credentials and submit
+        3. Enter interactive loop: screenshot → wait for command → execute → repeat
+        4. Admin types 'done' to save session or 'cancel' to abort
+        """
         import asyncio
         import os
         import json
-        import random
         from playwright.async_api import async_playwright
         from playwright_stealth import Stealth
         from config import settings
         
+        HELP_TEXT = (
+            "📋 *פקודות:*\n"
+            "• `click [טקסט]` — לחיצה על כפתור/קישור\n"
+            "• `tap [x] [y]` — לחיצה בנקודה\n"
+            "• `type [טקסט]` — הקלדה בשדה\n"
+            "• `enter` — Enter\n"
+            "• `tab` — Tab\n"
+            "• `scroll` — גלילה למטה\n"
+            "• `back` — חזרה\n"
+            "• `ss` — צילום מסך מחדש\n"
+            "• `done` ✅ — שמירה וסיום\n"
+            "• `cancel` ❌ — ביטול\n"
+            "• טקסט חופשי → יוקלד"
+        )
+        
         email = settings.FACEBOOK_EMAIL
         password = settings.FACEBOOK_PASSWORD
-        
-        if not email or not password:
-            await context.bot.send_message(chat_id=chat_id, text="❌ שגיאה: FACEBOOK_EMAIL ו-FACEBOOK_PASSWORD אינם מוגדרים ב-.env!")
-            return
-            
         browser = None
-        playwright = None
+        playwright_instance = None
+        login_state = context.bot_data.get("fb_interactive_login", {})
+        command_queue = login_state.get("queue")
+        session_saved = False
+        
+        if not command_queue:
+            await context.bot.send_message(chat_id=chat_id, text="❌ שגיאה פנימית: תור פקודות לא נמצא.")
+            return
         
         try:
-            playwright = await async_playwright().start()
+            playwright_instance = await async_playwright().start()
             
-            # Launch browser in headed mode (will run in Xvfb on remote)
-            log.info("Telegram-triggered Facebook login starting browser...")
-            browser = await playwright.chromium.launch(
-                headless=False,
-                args=[
+            log.info("Interactive FB login: launching browser")
+            
+            # Determine browser channel
+            import platform
+            is_arm = platform.machine().lower() in ['arm64', 'aarch64']
+            is_linux = platform.system().lower() == 'linux'
+            browser_channel = "msedge" if not (is_arm and is_linux) else None
+            
+            launch_args = {
+                'headless': True,
+                'args': [
                     '--disable-blink-features=AutomationControlled',
                     '--disable-dev-shm-usage',
                     '--no-sandbox',
                     '--lang=he-IL',
+                    '--window-size=1280,720',
                 ]
-            )
+            }
+            if browser_channel:
+                launch_args['channel'] = browser_channel
+                
+            try:
+                browser = await playwright_instance.chromium.launch(**launch_args)
+            except Exception:
+                # Fallback without channel
+                launch_args.pop('channel', None)
+                browser = await playwright_instance.chromium.launch(**launch_args)
             
             browser_context = await browser.new_context(
                 user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+                viewport={'width': 1280, 'height': 720},
                 locale='he-IL',
                 timezone_id='Asia/Jerusalem',
             )
@@ -731,123 +790,314 @@ _הבוט פעיל וסורק דירות חדשות כל מספר דקות_
             
             page = await browser_context.new_page()
             
-            await context.bot.send_message(chat_id=chat_id, text="🌐 מנווט לדף ההתחברות של פייסבוק...")
+            # Navigate to Facebook login
+            await context.bot.send_message(chat_id=chat_id, text="🌐 מנווט לדף ההתחברות...")
             await page.goto("https://www.facebook.com/login", wait_until="domcontentloaded", timeout=45000)
             await asyncio.sleep(3)
             
             # Handle cookie consent
             try:
-                consent = await page.query_selector('button[data-cookiebanner="accept_button"], button:has-text("Allow all cookies"), button:has-text("אישור הכל")')
+                consent = await page.query_selector(
+                    'button[data-cookiebanner="accept_button"], '
+                    'button:has-text("Allow all cookies"), '
+                    'button:has-text("אישור הכל")'
+                )
                 if consent and await consent.is_visible():
                     await consent.click()
                     await asyncio.sleep(1)
-            except:
+            except Exception:
                 pass
-                
-            email_input = await page.query_selector('input#email, input[name="email"]')
-            if email_input:
-                await email_input.fill(email)
-                
-            pass_input = await page.query_selector('input#pass, input[name="pass"], input[type="password"]')
-            if pass_input:
-                await pass_input.fill(password)
-                
-            await context.bot.send_message(chat_id=chat_id, text="🔑 מגיש פרטי התחברות...")
-            await page.keyboard.press("Enter")
-            await asyncio.sleep(6)
             
-            current_url = page.url
-            log.info(f"URL after login submit: {current_url}")
-            
-            # Check for 2FA
-            two_factor_selectors = [
-                'input#approvals_code',
-                'input[name="approvals_code"]',
-                'input[type="text"]',
-            ]
-            
-            has_2fa = False
-            two_fa_input = None
-            for selector in two_factor_selectors:
-                two_fa_input = await page.query_selector(selector)
-                if two_fa_input and await two_fa_input.is_visible():
-                    has_2fa = True
-                    break
-                    
-            if has_2fa or "two_step_verification" in current_url or "checkpoint" in current_url:
-                os.makedirs("logs", exist_ok=True)
-                await page.screenshot(path="logs/2fa_prompt.png")
-                
-                # Send screenshot to admin chat
-                with open("logs/2fa_prompt.png", "rb") as photo_file:
-                    await context.bot.send_photo(
-                        chat_id=chat_id,
-                        photo=photo_file,
-                        caption="⚠️ נדרש אימות דו-שלבי (2FA)!\nאנא השב להודעה זו (או הקלד כאן בשיחה) את קוד האימות שקיבלת (למשל: 123456):"
-                    )
-                
-                # Set up the Future for the 2FA code
-                context.bot_data["fb_login_waiting_for_2fa"] = chat_id
-                context.bot_data["fb_login_future"] = asyncio.Future()
-                
+            # Auto-fill credentials if available
+            if email and password:
                 try:
-                    # Wait for 2FA code from the admin (timeout 2 minutes)
-                    code = await asyncio.wait_for(context.bot_data["fb_login_future"], timeout=120.0)
-                except asyncio.TimeoutError:
-                    context.bot_data["fb_login_waiting_for_2fa"] = None
-                    await context.bot.send_message(chat_id=chat_id, text="❌ פג תוקף הזמן להזנת הקוד (2 דקות). תהליך ההתחברות בוטל.")
-                    await browser.close()
-                    return
-                
-                # Fill in the code
-                if not two_fa_input:
-                    for selector in two_factor_selectors:
-                        two_fa_input = await page.query_selector(selector)
-                        if two_fa_input:
-                            break
-                
-                if two_fa_input:
-                    await two_fa_input.fill(code)
-                    await asyncio.sleep(1)
-                    await context.bot.send_message(chat_id=chat_id, text="🚀 קוד 2FA נשלח לפייסבוק...")
+                    email_input = await page.query_selector('input#email, input[name="email"]')
+                    if email_input:
+                        await email_input.fill(email)
+                    
+                    pass_input = await page.query_selector('input#pass, input[name="pass"], input[type="password"]')
+                    if pass_input:
+                        await pass_input.fill(password)
+                    
+                    await context.bot.send_message(chat_id=chat_id, text="🔑 פרטי התחברות מולאו אוטומטית. שולח...")
                     await page.keyboard.press("Enter")
                     await asyncio.sleep(6)
-                else:
-                    await context.bot.send_message(chat_id=chat_id, text="❌ שגיאה: לא נמצאה תיבת הזנת הקוד בדף. בודק מחדש.")
-                    await browser.close()
-                    return
+                except Exception as e:
+                    log.warning(f"Auto-fill failed: {e}")
+                    await context.bot.send_message(
+                        chat_id=chat_id,
+                        text=f"⚠️ מילוי אוטומטי נכשל: {e}\nתוכל/י למלא ידנית עם `type`."
+                    )
+            else:
+                await context.bot.send_message(
+                    chat_id=chat_id,
+                    text="⚠️ פרטי התחברות לא מוגדרים ב-.env. מלא/י ידנית עם `type`."
+                )
             
-            # Handle "Trust browser" checkpoint
-            try:
-                trust_btn = await page.query_selector('button#checkpointSubmitButton, button[type="submit"]')
-                if trust_btn and await trust_btn.is_visible():
-                    log.info("Handling 'Trust Browser' checkpoint in Telegram task...")
-                    await trust_btn.click()
-                    await asyncio.sleep(5)
-            except Exception as e:
-                log.warning(f"Checkpoint click exception: {e}")
-                
-            current_url = page.url
-            log.info(f"Final URL: {current_url}")
+            # Send initial screenshot with full help text
+            os.makedirs("logs", exist_ok=True)
+            await self._send_interactive_screenshot(page, chat_id, context, HELP_TEXT)
             
-            # Save session
-            os.makedirs("data", exist_ok=True)
-            await browser_context.storage_state(path="data/fb_storage_state.json")
-            cookies = await browser_context.cookies()
-            with open("data/fb_cookies.json", "w") as f:
-                json.dump(cookies, f)
-                
-            await context.bot.send_message(
-                chat_id=chat_id,
-                text="🎉 **ההתחברות לפייסבוק הושלמה בהצלחה!**\nהקוקיז ומצב הדפדפן נשמרו.\nהסורק יתחבר אוטומטית במחזור הבא!"
-            )
-            
+            # ══════════════════════════════════════════════════════════
+            # Interactive command loop
+            # ══════════════════════════════════════════════════════════
+            while login_state.get("active"):
+                try:
+                    # Wait for next command (5 min timeout per command)
+                    cmd = await asyncio.wait_for(command_queue.get(), timeout=300)
+                    cmd = cmd.strip()
+                    
+                    if not cmd:
+                        continue
+                    
+                    cmd_lower = cmd.lower()
+                    
+                    # ── done: save session and exit ──
+                    if cmd_lower == "done":
+                        os.makedirs("data", exist_ok=True)
+                        await browser_context.storage_state(path="data/fb_storage_state.json")
+                        cookies = await browser_context.cookies()
+                        with open("data/fb_cookies.json", "w") as f:
+                            json.dump(cookies, f)
+                        session_saved = True
+                        
+                        await context.bot.send_message(
+                            chat_id=chat_id,
+                            text=(
+                                "🎉 *ההתחברות הושלמה!*\n"
+                                "✅ Session וcookies נשמרו בהצלחה.\n"
+                                "הסורק יתחבר אוטומטית במחזור הבא!"
+                            ),
+                            parse_mode="Markdown"
+                        )
+                        break
+                    
+                    # ── cancel: abort ──
+                    elif cmd_lower == "cancel":
+                        await context.bot.send_message(chat_id=chat_id, text="❌ תהליך ההתחברות בוטל.")
+                        break
+                    
+                    # ── ss/screenshot: retake screenshot ──
+                    elif cmd_lower in ("ss", "screenshot"):
+                        await self._send_interactive_screenshot(page, chat_id, context, HELP_TEXT)
+                        continue
+                    
+                    # ── enter ──
+                    elif cmd_lower == "enter":
+                        await page.keyboard.press("Enter")
+                        await asyncio.sleep(2)
+                        await context.bot.send_message(chat_id=chat_id, text="⏎ Enter")
+                    
+                    # ── tab ──
+                    elif cmd_lower == "tab":
+                        await page.keyboard.press("Tab")
+                        await asyncio.sleep(0.5)
+                        await context.bot.send_message(chat_id=chat_id, text="⇥ Tab")
+                    
+                    # ── scroll ──
+                    elif cmd_lower == "scroll":
+                        await page.mouse.wheel(0, 400)
+                        await asyncio.sleep(1)
+                        await context.bot.send_message(chat_id=chat_id, text="⬇️ גלילה למטה")
+                    
+                    # ── back ──
+                    elif cmd_lower == "back":
+                        await page.go_back()
+                        await asyncio.sleep(2)
+                        await context.bot.send_message(chat_id=chat_id, text="⬅️ חזרה")
+                    
+                    # ── click [text]: click element by visible text ──
+                    elif cmd_lower.startswith("click "):
+                        target_text = cmd[6:].strip()
+                        clicked = await self._click_element_by_text(page, target_text)
+                        if clicked:
+                            await asyncio.sleep(2)
+                            await context.bot.send_message(chat_id=chat_id, text=f'✅ לחצתי על "{target_text}"')
+                        else:
+                            await context.bot.send_message(
+                                chat_id=chat_id,
+                                text=f'❌ לא מצאתי אלמנט עם הטקסט "{target_text}"'
+                            )
+                    
+                    # ── tap [x] [y]: click at pixel coordinates ──
+                    elif cmd_lower.startswith("tap "):
+                        parts = cmd.split()
+                        if len(parts) >= 3:
+                            try:
+                                x, y = int(parts[1]), int(parts[2])
+                                await page.mouse.click(x, y)
+                                await asyncio.sleep(1)
+                                await context.bot.send_message(chat_id=chat_id, text=f"👆 Tap ({x}, {y})")
+                            except ValueError:
+                                await context.bot.send_message(chat_id=chat_id, text="❌ פורמט: `tap X Y` (מספרים)")
+                        else:
+                            await context.bot.send_message(chat_id=chat_id, text="❌ פורמט: `tap X Y`")
+                            continue
+                    
+                    # ── type [text]: type text into focused element ──
+                    elif cmd_lower.startswith("type "):
+                        text_to_type = cmd[5:]
+                        await page.keyboard.type(text_to_type, delay=50)
+                        await asyncio.sleep(0.5)
+                        display = text_to_type[:20] + "..." if len(text_to_type) > 20 else text_to_type
+                        await context.bot.send_message(chat_id=chat_id, text=f'⌨️ הוקלד: "{display}"')
+                    
+                    # ── goto [url]: navigate to URL ──
+                    elif cmd_lower.startswith("goto "):
+                        url = cmd[5:].strip()
+                        if not url.startswith("http"):
+                            url = "https://" + url
+                        await page.goto(url, wait_until="domcontentloaded", timeout=30000)
+                        await asyncio.sleep(2)
+                        await context.bot.send_message(chat_id=chat_id, text=f"🌐 ניווט ל: {url[:60]}")
+                    
+                    # ── select [field]: focus a specific input field ──
+                    elif cmd_lower.startswith("select "):
+                        target = cmd[7:].strip()
+                        input_elem = await page.query_selector(
+                            f'input[name="{target}"], input[id="{target}"], '
+                            f'input[type="{target}"], textarea[name="{target}"]'
+                        )
+                        if input_elem:
+                            await input_elem.click()
+                            await asyncio.sleep(0.3)
+                            await context.bot.send_message(chat_id=chat_id, text=f"🎯 Focused: {target}")
+                        else:
+                            await context.bot.send_message(chat_id=chat_id, text=f"❌ לא מצאתי שדה: {target}")
+                            continue
+                    
+                    # ── clear: clear focused input ──
+                    elif cmd_lower == "clear":
+                        await page.keyboard.press("Control+a")
+                        await page.keyboard.press("Backspace")
+                        await asyncio.sleep(0.3)
+                        await context.bot.send_message(chat_id=chat_id, text="🧹 שדה נוקה")
+                    
+                    # ── Any other text: type it into the focused element ──
+                    else:
+                        await page.keyboard.type(cmd, delay=50)
+                        await asyncio.sleep(0.5)
+                        display = cmd[:20] + "..." if len(cmd) > 20 else cmd
+                        await context.bot.send_message(chat_id=chat_id, text=f'⌨️ הוקלד: "{display}"')
+                    
+                    # Auto-send screenshot after each action
+                    await self._send_interactive_screenshot(page, chat_id, context)
+                    
+                except asyncio.TimeoutError:
+                    await context.bot.send_message(
+                        chat_id=chat_id,
+                        text="⏰ פג תוקף (5 דקות ללא פעילות). תהליך ההתחברות בוטל."
+                    )
+                    break
+                except asyncio.CancelledError:
+                    break
+                except Exception as e:
+                    log.error(f"Interactive login command error: {e}", exc_info=True)
+                    await context.bot.send_message(chat_id=chat_id, text=f"⚠️ שגיאה בביצוע הפקודה: {e}")
+                    try:
+                        await self._send_interactive_screenshot(page, chat_id, context)
+                    except Exception:
+                        pass
+        
         except Exception as e:
-            log.error(f"Telegram-triggered Facebook login failed: {e}", exc_info=True)
+            log.error(f"Interactive Facebook login failed: {e}", exc_info=True)
             await context.bot.send_message(chat_id=chat_id, text=f"❌ שגיאה במהלך ההתחברות: {e}")
         finally:
+            # Clean up state
+            context.bot_data["fb_interactive_login"] = {"active": False}
             context.bot_data["fb_login_waiting_for_2fa"] = None
             if browser:
-                await browser.close()
-            if playwright:
-                await playwright.stop()
+                try:
+                    await browser.close()
+                except Exception:
+                    pass
+            if playwright_instance:
+                try:
+                    await playwright_instance.stop()
+                except Exception:
+                    pass
+            log.info(f"Interactive FB login ended. Session saved: {session_saved}")
+
+    async def _send_interactive_screenshot(self, page, chat_id, context, help_text=None):
+        """Take a page screenshot and send it to the admin via Telegram."""
+        import os
+        os.makedirs("logs", exist_ok=True)
+        screenshot_path = "logs/fb_interactive.png"
+        
+        try:
+            await page.screenshot(path=screenshot_path)
+            current_url = page.url
+            
+            # Build caption
+            url_display = current_url[:80] + "..." if len(current_url) > 80 else current_url
+            caption = f"📸 `{url_display}`"
+            if help_text:
+                caption += f"\n\n{help_text}"
+            
+            # Telegram caption limit is 1024 chars
+            if len(caption) > 1024:
+                caption = caption[:1020] + "..."
+            
+            with open(screenshot_path, "rb") as f:
+                await context.bot.send_photo(
+                    chat_id=chat_id,
+                    photo=f,
+                    caption=caption,
+                    parse_mode="Markdown"
+                )
+        except Exception as e:
+            log.error(f"Failed to send interactive screenshot: {e}")
+            await context.bot.send_message(chat_id=chat_id, text=f"❌ שגיאה בצילום מסך: {e}")
+
+    async def _click_element_by_text(self, page, target_text: str) -> bool:
+        """Find and click a visible element containing the target text.
+        
+        Tries multiple selector strategies in order of specificity.
+        Returns True if an element was found and clicked.
+        """
+        # Strategy 1: Playwright :has-text() selectors (most reliable)
+        selectors = [
+            f'button:has-text("{target_text}")',
+            f'[role="button"]:has-text("{target_text}")',
+            f'a:has-text("{target_text}")',
+            f'input[type="submit"][value="{target_text}"]',
+            f'label:has-text("{target_text}")',
+        ]
+        
+        for selector in selectors:
+            try:
+                elem = await page.query_selector(selector)
+                if elem and await elem.is_visible():
+                    await elem.click()
+                    return True
+            except Exception:
+                continue
+        
+        # Strategy 2: Broader search through all interactive elements
+        try:
+            interactive = await page.query_selector_all(
+                'button, a, [role="button"], input[type="submit"], '
+                'div[tabindex], span[tabindex], div[onclick]'
+            )
+            for elem in interactive:
+                try:
+                    text = await elem.inner_text()
+                    if target_text.lower() in text.lower().strip():
+                        if await elem.is_visible():
+                            await elem.click()
+                            return True
+                except Exception:
+                    continue
+        except Exception:
+            pass
+        
+        # Strategy 3: Try with page.locator().click() for complex text matching
+        try:
+            locator = page.get_by_text(target_text, exact=False).first
+            if await locator.is_visible():
+                await locator.click()
+                return True
+        except Exception:
+            pass
+        
+        return False

@@ -57,6 +57,18 @@ class MessageHandler:
         user_repo = UserRepository(db)
         user_obj = await user_repo.get_by_telegram_id(user.id)
         
+        # Intercept interactive Facebook login commands (highest priority)
+        fb_interactive = context.bot_data.get("fb_interactive_login")
+        if (fb_interactive 
+            and fb_interactive.get("active") 
+            and fb_interactive.get("chat_id") == user.id):
+            command = text.strip()
+            log.info("Interactive FB login command received", user_id=user.id, command=command)
+            queue = fb_interactive.get("queue")
+            if queue:
+                queue.put_nowait(command)
+            return
+        
         # Intercept if user is in onboarding
         if user_obj and user_obj.onboarding_step:
             await self.handle_onboarding_step(update, context, user_obj, text)

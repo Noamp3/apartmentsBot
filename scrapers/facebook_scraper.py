@@ -610,6 +610,42 @@ class FacebookScraper(BaseScraper):
         except Exception as e:
             log.warning(f"Could not save debug info: {e}")
     
+    async def _notify_login_required(self):
+        """Notify admin via Telegram that interactive login is needed.
+        
+        Rate-limited to at most once per hour to prevent notification spam
+        when multiple groups fail in the same scraping cycle.
+        """
+        import time
+        
+        # Rate limit: notify at most once per hour
+        now = time.time()
+        last_notify = getattr(self, '_last_login_notify', 0)
+        if now - last_notify < 3600:
+            return
+        self._last_login_notify = now
+        
+        if not hasattr(self, 'bot') or not self.bot:
+            return
+        
+        try:
+            from database import get_db
+            db = await get_db()
+            admin_row = await db.fetch_one("SELECT chat_id FROM users WHERE is_admin = 1")
+            if admin_row:
+                await self.bot.application.bot.send_message(
+                    chat_id=admin_row["chat_id"],
+                    text=(
+                        "🔐 *נדרשת התחברות ידנית לפייסבוק!*\n\n"
+                        "ההתחברות האוטומטית נכשלה (ייתכן CAPTCHA או session שפג תוקף).\n"
+                        "השתמש/י בפקודה /admin_fb_login להתחברות אינטראקטיבית מ-Telegram."
+                    ),
+                    parse_mode="Markdown"
+                )
+                log.info("Notified admin about Facebook login requirement")
+        except Exception as e:
+            log.error(f"Failed to notify admin about login requirement: {e}")
+    
     async def _close_browser(self):
         """Close browser resources."""
         if self._context:
@@ -658,6 +694,7 @@ class FacebookScraper(BaseScraper):
                     await self.anti_detection.human_like_delay(3, 5)
                 else:
                     log.error("Cannot access Facebook group without login")
+                    await self._notify_login_required()
                     return []
             
             # Dismiss any overlays/popups that might be blocking
