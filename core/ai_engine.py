@@ -323,6 +323,10 @@ class BaseAIEngine(ABC):
         text = re.sub(r"```\s*", "", text)
         text = text.strip()
         
+        # Robustness: Escape unescaped double quotes inside Hebrew abbreviations (e.g. ש"ח, ת"א)
+        # because LLMs often return them unescaped in JSON strings, causing parse failures.
+        text = re.sub(r'(?<=[א-ת])"(?=[א-ת])', r'\"', text)
+        
         try:
             return json.loads(text)
         except json.JSONDecodeError:

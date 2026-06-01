@@ -180,6 +180,8 @@ async def test_message_handler_real_llm_flow(ai_engine):
         # 3. Mock Telegram Update and Context
         update = MagicMock()
         update.effective_user.id = telegram_id
+        update.effective_user.username = "real_llm_tester"
+        update.effective_chat.id = telegram_id
         update.message.text = "דירה בתל אביב עד 5000 שח"
         
         # We will capture the message sent by _safe_reply_text
@@ -269,6 +271,8 @@ async def test_message_handler_fallback_flow(ai_engine):
         # 3. Mock Telegram Update and Context
         update = MagicMock()
         update.effective_user.id = telegram_id
+        update.effective_user.username = "real_llm_tester"
+        update.effective_chat.id = telegram_id
         # Input has compound neighborhood name "לב תל אביב או כרם התימנים" which gets misclassified as border_area by LLM
         update.message.text = "אני רוצה בלב תל אביב או כרם התימנים"
         

@@ -116,29 +116,37 @@ class MessageHandler:
             added_neighborhoods = []
             is_modification = False
             
-            # Removals
-            for pattern in remove_patterns:
-                matches = re.findall(pattern, text)
-                for m in matches:
-                    n_name = m.strip()
-                    parts = re.split(r'\s+ו|\s+(?:או)\s+|\s*,\s*', n_name)
-                    for part in parts:
-                        normalized = location_db.normalize_location(part)["neighborhood"]
-                        if normalized:
-                            removed_neighborhoods.append(normalized)
-                            is_modification = True
-                            
-            # Additions
-            for pattern in add_patterns:
-                matches = re.findall(pattern, text)
-                for m in matches:
-                    n_name = m.strip()
-                    parts = re.split(r'\s+ו|\s+(?:או)\s+|\s*,\s*', n_name)
-                    for part in parts:
-                        normalized = location_db.normalize_location(part)["neighborhood"]
-                        if normalized:
-                            added_neighborhoods.append(normalized)
-                            is_modification = True
+            # Split the message into independent clauses to avoid greedy regex crossing boundaries
+            clauses = re.split(r'\s+ו(?=[א-ת])|\s*,\s*|\s+ו?גם\s+', text)
+            
+            for clause in clauses:
+                clause = clause.strip()
+                if not clause:
+                    continue
+                    
+                # Removals
+                for pattern in remove_patterns:
+                    matches = re.findall(pattern, clause)
+                    for m in matches:
+                        n_name = m.strip()
+                        parts = re.split(r'\s+ו|\s+(?:או)\s+|\s*,\s*', n_name)
+                        for part in parts:
+                            normalized = location_db.normalize_location(part)["neighborhood"]
+                            if normalized:
+                                removed_neighborhoods.append(normalized)
+                                is_modification = True
+                                
+                # Additions
+                for pattern in add_patterns:
+                    matches = re.findall(pattern, clause)
+                    for m in matches:
+                        n_name = m.strip()
+                        parts = re.split(r'\s+ו|\s+(?:או)\s+|\s*,\s*', n_name)
+                        for part in parts:
+                            normalized = location_db.normalize_location(part)["neighborhood"]
+                            if normalized:
+                                added_neighborhoods.append(normalized)
+                                is_modification = True
                             
             # Remove duplicates
             removed_neighborhoods = list(set(removed_neighborhoods))
