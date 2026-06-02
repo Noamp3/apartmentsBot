@@ -17,6 +17,28 @@ from bot.handlers.decorators import ensure_user_exists
 log = Loggers.bot()
 
 
+def clean_hebrew_location_text(text: str) -> str:
+    """Clean common command/prefix words from Hebrew geographic search text."""
+    import re
+    # Remove leading/trailing whitespace
+    text = text.strip()
+    # Remove common prefix patterns
+    prefixes = [
+        r'^ו?(?:ת)?וסי[פף](?:י)?\s+(?:את\s+)?',
+        r'^ו?להוסיף\s+(?:את\s+)?',
+        r'^ו?(?:ת)?סיר(?:י)?\s+(?:את\s+)?',
+        r'^ו?להסיר\s+(?:את\s+)?',
+        r'^ו?בלי\s+',
+        r'^ו?ללא\s+',
+        r'^ו?עם\s+',
+        r'^ו?מחק\s+(?:את\s+)?',
+    ]
+    for pattern in prefixes:
+        text = re.sub(pattern, '', text)
+    return text.strip()
+
+
+
 class MessageHandler:
     """Handles natural language messages for rule definition."""
     
@@ -219,9 +241,10 @@ class MessageHandler:
             
             if is_modification:
                 all_pending_rules = pending_data.get('all_pending_rules', [])
-                border_rules_adjusted = False
+                rules_adjusted = False
+                updated_pending_rules = []
                 
-                # Apply changes to any BORDER_AREA rules
+                # Apply changes to all pending rules
                 for rule in all_pending_rules:
                     if rule.rule_type == RuleType.BORDER_AREA:
                         current = [n.strip() for n in rule.value.split(",") if n.strip()]
@@ -236,36 +259,66 @@ class MessageHandler:
                             if a_name not in current:
                                 current.append(a_name)
                                 
-                        # Save updated list
-                        rule.value = ",".join(current)
-                        border_rules_adjusted = True
+                        if current:
+                            rule.value = ",".join(current)
+                            updated_pending_rules.append(rule)
+                            rules_adjusted = True
+                        else:
+                            rules_adjusted = True
+                    elif rule.rule_type == RuleType.AREA:
+                        if rule.value in removed_neighborhoods:
+                            rules_adjusted = True
+                        else:
+                            updated_pending_rules.append(rule)
+                    else:
+                        updated_pending_rules.append(rule)
                 
-                if border_rules_adjusted:
-                    log.info("Updated pending border area rules with user adjustments", user_id=user.id)
+                # Handle additions that aren't already covered by AREA or BORDER_AREA rules
+                existing_areas = set()
+                for rule in updated_pending_rules:
+                    if rule.rule_type == RuleType.AREA:
+                        existing_areas.add(rule.value)
+                    elif rule.rule_type == RuleType.BORDER_AREA:
+                        existing_areas.update(n.strip() for n in rule.value.split(",") if n.strip())
+                
+                for a_name in added_neighborhoods:
+                    if a_name not in existing_areas:
+                        new_rule = SearchRule(
+                            user_id=user.id,
+                            rule_type=RuleType.AREA,
+                            value=a_name,
+                            original_text=a_name
+                        )
+                        updated_pending_rules.append(new_rule)
+                        rules_adjusted = True
+                
+                if rules_adjusted:
+                    pending_data['all_pending_rules'] = updated_pending_rules
+                    log.info("Updated pending rules with user adjustments", user_id=user.id)
                     
-                    # Re-format confirmation message
-                    confirmation_msg = self._format_rules_confirmation_message(all_pending_rules, pending_data.get('border_rules_data'))
+                # Re-format confirmation message
+                confirmation_msg = self._format_rules_confirmation_message(updated_pending_rules, pending_data.get('border_rules_data'))
+                
+                # Highlight what was changed
+                mod_actions = []
+                if removed_neighborhoods:
+                    mod_actions.append(f"❌ הסרתי את: {', '.join(removed_neighborhoods)}")
+                if added_neighborhoods:
+                    mod_actions.append(f"➕ הוספתי את: {', '.join(added_neighborhoods)}")
                     
-                    # Highlight what was changed
-                    mod_actions = []
-                    if removed_neighborhoods:
-                        mod_actions.append(f"❌ הסרתי את: {', '.join(removed_neighborhoods)}")
-                    if added_neighborhoods:
-                        mod_actions.append(f"➕ הוספתי את: {', '.join(added_neighborhoods)}")
-                        
-                    escaped_mod = self._escape_markdown("\n".join(mod_actions))
-                    full_message = f"✍️ *עדכנתי את האזור לבקשתך\\!*\n{escaped_mod}\n\n{confirmation_msg}"
-                    
-                    from bot.handlers.callback_handler import CallbackHandler
-                    keyboard = CallbackHandler.create_rules_confirmation_keyboard()
-                    
-                    await self._safe_reply_text(
-                        update,
-                        full_message,
-                        reply_markup=keyboard,
-                        parse_mode='MarkdownV2'
-                    )
-                    return
+                escaped_mod = self._escape_markdown("\n".join(mod_actions))
+                full_message = f"✍️ *עדכנתי את האזור לבקשתך\\!*\n{escaped_mod}\n\n{confirmation_msg}"
+                
+                from bot.handlers.callback_handler import CallbackHandler
+                keyboard = CallbackHandler.create_rules_confirmation_keyboard()
+                
+                await self._safe_reply_text(
+                    update,
+                    full_message,
+                    reply_markup=keyboard,
+                    parse_mode='MarkdownV2'
+                )
+                return
         
         # Check if text matches any of our persistent reply keyboard options
         menu_mappings = {
@@ -377,6 +430,10 @@ class MessageHandler:
             rule_value = rule_data["value"]
             original_text = rule_data["original_text"]
             
+            # Clean up command prefixes from original text for AREA and BORDER_AREA
+            if rule_type in (RuleType.AREA, RuleType.BORDER_AREA):
+                original_text = clean_hebrew_location_text(original_text)
+            
             # If value is returned as a list, join it cleanly with commas
             if isinstance(rule_value, list):
                 rule_value = ",".join(str(item) for item in rule_value)
@@ -402,6 +459,7 @@ class MessageHandler:
                     # Failed to parse borders (no directional terms), fall back to treating it as a standard AREA rule!
                     log.warning(f"Failed to parse border rule: {rule_value}. Falling back to standard AREA rule.")
                     rule_type = RuleType.AREA
+                    original_text = clean_hebrew_location_text(original_text or str(rule_value))
             
             rule = SearchRule(
                 user_id=user.id,
@@ -451,7 +509,7 @@ class MessageHandler:
                 # CRITICAL FIX: For BORDER_AREA, value must be CSV of neighborhoods for Matcher!
                 # We keep the description in the original_text or we lose it, but Matcher needs the list.
                 value=",".join(b_data['neighborhoods']) if b_data['rule_type'] == RuleType.BORDER_AREA else b_data['value'],
-                original_text=b_data['original_text']
+                original_text=clean_hebrew_location_text(b_data['original_text'])
             )
             pending_rules_to_save.append(rule)
         
@@ -799,12 +857,17 @@ class MessageHandler:
                             rule_value = r_data["value"]
                             original_text = r_data["original_text"]
                             
+                            # Clean up original text for AREA and BORDER_AREA
+                            if rule_type in (RuleType.AREA, RuleType.BORDER_AREA):
+                                original_text = clean_hebrew_location_text(original_text)
+                            
                             if rule_type == RuleType.BORDER_AREA:
                                 neighborhoods = await self._parse_border_constraints(str(rule_value))
                                 if neighborhoods:
                                     rule_value = ",".join(neighborhoods)
                                 else:
                                     rule_type = RuleType.AREA
+                                    original_text = clean_hebrew_location_text(original_text or str(rule_value))
                                     
                             rule = SearchRule(
                                 user_id=user_id,
@@ -916,25 +979,34 @@ class MessageHandler:
                     rules_to_save.append({
                         "type": "border_area",
                         "value": ",".join(neighborhoods),
-                        "original_text": text
+                        "original_text": clean_hebrew_location_text(text)
                     })
                 else:
-                    rules_to_save.append({
-                        "type": "area",
-                        "value": text,
-                        "original_text": text
-                    })
+                    # Fall back to standard area splitting and normalization
+                    parts = re.split(r'\s+ו|\s+(?:או)\s+|\s*,\s*', text)
+                    for part in parts:
+                        part_stripped = part.strip()
+                        if not part_stripped:
+                            continue
+                        cleaned_part = clean_hebrew_location_text(part_stripped)
+                        normalized = location_db.normalize_location(cleaned_part)
+                        rules_to_save.append({
+                            "type": "area",
+                            "value": normalized["neighborhood"] if normalized["neighborhood"] else cleaned_part,
+                            "original_text": cleaned_part
+                        })
             else:
                 parts = re.split(r'\s+ו|\s+(?:או)\s+|\s*,\s*', text)
                 for part in parts:
                     part_stripped = part.strip()
                     if not part_stripped:
                         continue
-                    normalized = location_db.normalize_location(part_stripped)
+                    cleaned_part = clean_hebrew_location_text(part_stripped)
+                    normalized = location_db.normalize_location(cleaned_part)
                     rules_to_save.append({
                         "type": "area",
-                        "value": normalized["neighborhood"] if normalized["neighborhood"] else part_stripped,
-                        "original_text": part_stripped
+                        "value": normalized["neighborhood"] if normalized["neighborhood"] else cleaned_part,
+                        "original_text": cleaned_part
                     })
             
             context.user_data['onboarding_rules'] = rules_to_save

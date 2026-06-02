@@ -246,6 +246,69 @@ async def test_conversational_rule_modification():
     print()
 
 
+@pytest.mark.asyncio
+async def test_area_rule_modification_and_cleaning():
+    """Test that standard AREA rules can be modified and original text is cleaned."""
+    print("\n=== Testing Standard AREA Rule Modification and Text Cleaning ===\n")
+    
+    from bot.handlers.message_handler import clean_hebrew_location_text
+    
+    # 1. Test the clean function directly
+    assert clean_hebrew_location_text("תוסיף את הצפון הישן") == "הצפון הישן"
+    assert clean_hebrew_location_text("תוסיפי את פלורנטין") == "פלורנטין"
+    assert clean_hebrew_location_text("בלי בבלי") == "בבלי"
+    assert clean_hebrew_location_text("להסיר את כרם התימנים") == "כרם התימנים"
+    print("✓ Location text cleaning logic verified!")
+    
+    # 2. Test modifying standard AREA rules conversational flow
+    from models.search_rule import SearchRule, RuleType
+    
+    pending_rule = SearchRule(
+        user_id=123,
+        rule_type=RuleType.AREA,
+        value="בבלי",
+        original_text="בבלי"
+    )
+    
+    mock_context = AsyncMock()
+    mock_context.bot_data = {}
+    mock_context.user_data = {
+        'pending_rule_confirmation': {
+            'user_id': 123,
+            'all_pending_rules': [pending_rule],
+            'border_rules_data': []
+        }
+    }
+    
+    mock_update = AsyncMock()
+    mock_update.effective_user.id = 123
+    mock_update.effective_user.username = "testuser"
+    mock_update.effective_chat.id = 123
+    mock_update.message.text = "בלי בבלי ותוסיף את הצפון הישן"
+    
+    handler = MessageHandler()
+    handler._safe_reply_text = AsyncMock()
+    
+    # Call handle_message
+    await handler.handle_message(mock_update, mock_context)
+    
+    # Assertions
+    updated_rules = mock_context.user_data['pending_rule_confirmation']['all_pending_rules']
+    
+    # "בבלי" AREA rule should be removed, "הצפון הישן" AREA rule should be added
+    rule_types = [r.rule_type for r in updated_rules]
+    rule_values = [r.value for r in updated_rules]
+    rule_texts = [r.original_text for r in updated_rules]
+    
+    assert RuleType.AREA in rule_types
+    assert "בבלי" not in rule_values
+    assert "הצפון הישן" in rule_values
+    assert "הצפון הישן" in rule_texts  # Check that original text was cleaned!
+    
+    print("✓ Standard AREA rule modification and cleaning verified successfully!")
+    print()
+
+
 def main():
     """Run all tests."""
     print("="*60)
@@ -260,6 +323,7 @@ def main():
         asyncio.run(test_border_parsing())
         asyncio.run(test_llm_fallback())
         asyncio.run(test_conversational_rule_modification())
+        asyncio.run(test_area_rule_modification_and_cleaning())
         
         print("\n" + "="*60)
         print("All tests completed successfully!")
