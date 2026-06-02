@@ -310,6 +310,75 @@ async def test_area_rule_modification_and_cleaning():
 
 
 @pytest.mark.asyncio
+async def test_active_rules_conversational_modification():
+    """Test that active rules in DB can be conversationally modified directly."""
+    print("\n=== Testing Active Rules Conversational Modification ===\n")
+    
+    from database import get_db
+    from database.repositories import UserRepository, RuleRepository
+    from models.user import User
+    from models.search_rule import SearchRule, RuleType
+    
+    db = await get_db()
+    user_repo = UserRepository(db)
+    rule_repo = RuleRepository(db)
+    
+    # Clean up existing rules/user if any
+    await rule_repo.delete_all_user_rules(123)
+    await db.connection.execute("DELETE FROM users WHERE telegram_id = 123")
+    await db.connection.commit()
+    
+    await user_repo.create(User(telegram_id=123, chat_id=123, username="testuser", onboarding_step=None))
+    
+    # Create active rule in database
+    active_rule = SearchRule(
+        user_id=123,
+        rule_type=RuleType.BORDER_AREA,
+        value="פלורנטין,נווה צדק",
+        original_text="פלורנטין ונווה צדק"
+    )
+    rule_id = await rule_repo.create(active_rule)
+    
+    mock_context = AsyncMock()
+    mock_context.bot_data = {}
+    mock_context.user_data = {}  # Empty: no pending state!
+    
+    mock_update = AsyncMock()
+    mock_update.effective_user.id = 123
+    mock_update.effective_user.username = "testuser"
+    mock_update.effective_chat.id = 123
+    mock_update.message.text = "תוסיף את הצפון הישן"
+    
+    handler = MessageHandler()
+    handler._safe_reply_text = AsyncMock()
+    
+    # Call handle_message
+    await handler.handle_message(mock_update, mock_context)
+        
+    # Assertions
+    pending_conf = mock_context.user_data.get('pending_rule_confirmation')
+    assert pending_conf is not None
+    assert rule_id.id in pending_conf['rules_to_delete']
+    
+    updated_rules = pending_conf['all_pending_rules']
+    
+    rule_types = [r.rule_type for r in updated_rules]
+    rule_values = [r.value for r in updated_rules]
+    
+    assert RuleType.BORDER_AREA in rule_types
+    # The BORDER_AREA rule should have been updated in-place with "הצפון הישן" appended!
+    assert "פלורנטין,נווה צדק,הצפון הישן" in rule_values
+    
+    # Clean up
+    await rule_repo.delete_all_user_rules(123)
+    await db.connection.execute("DELETE FROM users WHERE telegram_id = 123")
+    await db.connection.commit()
+    
+    print("✓ Active rules conversational modification verified successfully!")
+    print()
+
+
+@pytest.mark.asyncio
 async def test_custom_location_merging():
     """Test that custom locations are saved in locations_custom.json and merged on reload."""
     print("\n=== Testing Custom Location Merging and Decoupling ===\n")
@@ -355,7 +424,9 @@ async def test_custom_location_merging():
         mock_ai = AsyncMock()
         mock_ai.generate_content.return_value = '{"matched_neighborhood": "לב העיר", "name_to_add": "מלצ\'ט", "type": "street"}'
         
-        # Mock _parse_json_response (since it's implemented on base AI engine)
+        # Mock _parse_json_response using MagicMock since it is a synchronous function on the base AI engine
+        from unittest.mock import MagicMock
+        mock_ai._parse_json_response = MagicMock()
         mock_ai._parse_json_response.return_value = {
             "matched_neighborhood": "לב העיר", 
             "name_to_add": "מלצ'ט", 
@@ -403,6 +474,7 @@ def main():
         asyncio.run(test_llm_fallback())
         asyncio.run(test_conversational_rule_modification())
         asyncio.run(test_area_rule_modification_and_cleaning())
+        asyncio.run(test_active_rules_conversational_modification())
         asyncio.run(test_custom_location_merging())
         
         print("\n" + "="*60)

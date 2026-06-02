@@ -180,22 +180,59 @@ class MessageHandler:
         
         # Check if we have a pending rule confirmation and the user is modifying the neighborhoods
         pending_data = context.user_data.get('pending_rule_confirmation')
+        
+        remove_patterns = [
+            r'(?:^|\s)ו?(?:ת)?סיר(?:י)?\s+(?:את\s+)?([א-ת\s\d\'-]+)',
+            r'(?:^|\s)ו?בלי\s+([א-ת\s\d\'-]+)',
+            r'(?:^|\s)ו?ללא\s+([א-ת\s\d\'-]+)',
+            r'(?:^|\s)ו?להסיר\s+(?:את\s+)?([א-ת\s\d\'-]+)',
+            r'(?:^|\s)ו?מחק\s+(?:את\s+)?([א-ת\s\d\'-]+)',
+        ]
+        
+        add_patterns = [
+            r'(?:^|\s)ו?(?:ת)?וסי[פף](?:י)?\s+(?:את\s+)?([א-ת\s\d\'-]+)',
+            r'(?:^|\s)ו?להוסיף\s+(?:את\s+)?([א-ת\s\d\'-]+)',
+            r'(?:^|\s)ו?עם\s+([א-ת\s\d\'-]+)',
+        ]
+        
+        if not pending_data:
+            import re
+            has_mod_keywords = False
+            for pattern in remove_patterns + add_patterns:
+                if re.search(pattern, text):
+                    has_mod_keywords = True
+                    break
+                    
+            if has_mod_keywords:
+                db = await get_db()
+                from database.repositories import RuleRepository
+                rule_repo = RuleRepository(db)
+                active_rules = await rule_repo.get_user_rules(user.id, active_only=True)
+                
+                if active_rules:
+                    cloned_rules = []
+                    rules_to_delete = []
+                    for r in active_rules:
+                        cloned = SearchRule(
+                            user_id=r.user_id,
+                            rule_type=r.rule_type,
+                            value=r.value,
+                            original_text=r.original_text
+                        )
+                        cloned_rules.append(cloned)
+                        rules_to_delete.append(r.id)
+                    
+                    pending_data = {
+                        'user_id': user.id,
+                        'all_pending_rules': cloned_rules,
+                        'border_rules_data': [],
+                        'rules_to_delete': rules_to_delete,
+                        'sass_response': 'עדכנתי את הכללים שלך!'
+                    }
+                    context.user_data['pending_rule_confirmation'] = pending_data
+
         if pending_data:
             import re
-            
-            remove_patterns = [
-                r'(?:^|\s)ו?(?:ת)?סיר(?:י)?\s+(?:את\s+)?([א-ת\s\d\'-]+)',
-                r'(?:^|\s)ו?בלי\s+([א-ת\s\d\'-]+)',
-                r'(?:^|\s)ו?ללא\s+([א-ת\s\d\'-]+)',
-                r'(?:^|\s)ו?להסיר\s+(?:את\s+)?([א-ת\s\d\'-]+)',
-                r'(?:^|\s)ו?מחק\s+(?:את\s+)?([א-ת\s\d\'-]+)',
-            ]
-            
-            add_patterns = [
-                r'(?:^|\s)ו?(?:ת)?וסי[פף](?:י)?\s+(?:את\s+)?([א-ת\s\d\'-]+)',
-                r'(?:^|\s)ו?להוסיף\s+(?:את\s+)?([א-ת\s\d\'-]+)',
-                r'(?:^|\s)ו?עם\s+([א-ת\s\d\'-]+)',
-            ]
             
             location_db = get_location_db()
             

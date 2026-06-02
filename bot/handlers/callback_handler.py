@@ -209,6 +209,11 @@ class CallbackHandler:
         db = await get_db()
         rule_repo = RuleRepository(db)
         
+        # Delete rules marked for deletion first (replaces modified active rules)
+        rules_to_delete = pending_data.get('rules_to_delete', [])
+        for r_id in rules_to_delete:
+            await rule_repo.delete(r_id)
+            
         added_count = 0
         
         # We need to handle conflicts for the pending rules just like we did in message_handler
