@@ -312,7 +312,7 @@ class BaseAIEngine(ABC):
             return None
     
     @abstractmethod
-    async def generate_content(self, prompt: str, image_path: Optional[str] = None, max_retries: Optional[int] = None) -> str:
+    async def generate_content(self, prompt: str, image_path: Optional[str] = None, max_retries: Optional[int] = None, enable_grounding: bool = False, latitude: Optional[float] = None, longitude: Optional[float] = None) -> str:
         """Generate content from a prompt, optionally including a screenshot path."""
         pass
     
@@ -514,7 +514,7 @@ class GeminiAIEngine(BaseAIEngine):
         self.api_key = api_key or settings.GEMINI_API_KEY
         # If model passed explicitly, use it as primary, otherwise use first from settings
         explicit_model = model
-        self.primary_model = explicit_model or (settings.gemini_models[0] if settings.gemini_models else "gemini-3-flash-preview")
+        self.primary_model = explicit_model or (settings.gemini_models[0] if settings.gemini_models else "gemini-3.1-flash-lite")
         
         self.client = genai.Client(api_key=self.api_key)
         
@@ -532,7 +532,7 @@ class GeminiAIEngine(BaseAIEngine):
                 
         # Ensure we have at least one model
         if not self.models:
-            self.models = ["gemini-3-flash-preview"]
+            self.models = ["gemini-3.1-flash-lite"]
                 
         # Create a rate limiter for EACH model
         self.limiters = {}
@@ -553,8 +553,16 @@ class GeminiAIEngine(BaseAIEngine):
     def current_model(self) -> str:
         return self.models[self.current_model_index]
     
-    async def generate_content(self, prompt: str, image_path: Optional[str] = None, max_retries: Optional[int] = None) -> str:
-        """Generate content with model rotation on rate limits, with multimodal image support."""
+    async def generate_content(
+        self, 
+        prompt: str, 
+        image_path: Optional[str] = None, 
+        max_retries: Optional[int] = None, 
+        enable_grounding: bool = False,
+        latitude: Optional[float] = None,
+        longitude: Optional[float] = None
+    ) -> str:
+        """Generate content with model rotation on rate limits, with multimodal image support and Google Maps grounding support."""
         if max_retries is None:
             max_retries = settings.GEMINI_503_RETRIES
         
@@ -594,20 +602,46 @@ class GeminiAIEngine(BaseAIEngine):
                 log.debug(f"Sending prompt to Gemini ({model_name}): {prompt[:100]}...")
 
                 if attempts_across_models > 0:
-                    log.info(f"🔄 Retrying request with model {model_name} (Attempt {attempts_across_models + 1})...")
+                      log.info(f"🔄 Retrying request with model {model_name} (Attempt {attempts_across_models + 1})...")
 
-                # 2. Call API (retrying transient errors safely)
-                response = await retry_with_backoff(
-                    self.client.models.generate_content,
-                    model=model_name,
-                    contents=contents,
-                    max_retries=max_retries
-                )
+                if enable_grounding:
+                    log.info(f"Using Google Maps Grounding via Interactions API for model: {model_name}")
+                    response = await retry_with_backoff(
+                        self.client.interactions.create,
+                        model=model_name,
+                        input=prompt,
+                        tools=[{
+                            "type": "google_maps",
+                            "latitude": latitude or 32.0853,
+                            "longitude": longitude or 34.7818
+                        }],
+                        max_retries=max_retries
+                    )
+                    text_blocks = []
+                    if hasattr(response, "outputs") and response.outputs:
+                        for out in response.outputs:
+                            if hasattr(out, "type") and out.type == "text" and hasattr(out, "text") and out.text:
+                                text_blocks.append(out.text)
+                    elif hasattr(response, "steps") and response.steps:
+                        for step in response.steps:
+                            if step.type == "model_output":
+                                for content_block in step.content:
+                                    if content_block.type == "text":
+                                        text_blocks.append(content_block.text)
+                    resp_text = "\n".join(text_blocks)
+                else:
+                    # 2. Call API (retrying transient errors safely)
+                    response = await retry_with_backoff(
+                        self.client.models.generate_content,
+                        model=model_name,
+                        contents=contents,
+                        max_retries=max_retries
+                    )
+                    resp_text = response.text or ""
                 
                 if attempts_across_models > 0:
                      log.info(f"✅ Successfully generated content with {model_name} after recovery.")
                      
-                resp_text = response.text or ""
                 log.debug(f"Received response from Gemini ({model_name}): {resp_text[:100]}...")
                 return resp_text
                 
@@ -690,7 +724,15 @@ class OpenAIEngine(BaseAIEngine):
         
         log.info(f"Initialized OpenAI engine", model=self.model_name)
     
-    async def generate_content(self, prompt: str, image_path: Optional[str] = None, max_retries: Optional[int] = None) -> str:
+    async def generate_content(
+        self, 
+        prompt: str, 
+        image_path: Optional[str] = None, 
+        max_retries: Optional[int] = None, 
+        enable_grounding: bool = False,
+        latitude: Optional[float] = None,
+        longitude: Optional[float] = None
+    ) -> str:
         """Generate content using OpenAI API."""
         max_retries = max_retries if max_retries is not None else 3
         for attempt in range(max_retries):
@@ -747,7 +789,15 @@ class AnthropicEngine(BaseAIEngine):
         
         log.info(f"Initialized Anthropic engine", model=self.model_name)
     
-    async def generate_content(self, prompt: str, image_path: Optional[str] = None, max_retries: Optional[int] = None) -> str:
+    async def generate_content(
+        self, 
+        prompt: str, 
+        image_path: Optional[str] = None, 
+        max_retries: Optional[int] = None, 
+        enable_grounding: bool = False,
+        latitude: Optional[float] = None,
+        longitude: Optional[float] = None
+    ) -> str:
         """Generate content using Anthropic API."""
         max_retries = max_retries if max_retries is not None else 3
         for attempt in range(max_retries):
@@ -803,7 +853,15 @@ class OllamaEngine(BaseAIEngine):
         
         log.info(f"Initialized Ollama engine", model=self.model_name, base_url=self.base_url)
     
-    async def generate_content(self, prompt: str, image_path: Optional[str] = None, max_retries: Optional[int] = None) -> str:
+    async def generate_content(
+        self, 
+        prompt: str, 
+        image_path: Optional[str] = None, 
+        max_retries: Optional[int] = None, 
+        enable_grounding: bool = False,
+        latitude: Optional[float] = None,
+        longitude: Optional[float] = None
+    ) -> str:
         """Generate content using Ollama API."""
         max_retries = max_retries if max_retries is not None else 3
         import aiohttp
@@ -871,7 +929,15 @@ class GroqEngine(BaseAIEngine):
         
         log.info(f"Initialized Groq engine", model=self.model_name)
     
-    async def generate_content(self, prompt: str, image_path: Optional[str] = None, max_retries: Optional[int] = None) -> str:
+    async def generate_content(
+        self, 
+        prompt: str, 
+        image_path: Optional[str] = None, 
+        max_retries: Optional[int] = None, 
+        enable_grounding: bool = False,
+        latitude: Optional[float] = None,
+        longitude: Optional[float] = None
+    ) -> str:
         """Generate content using Groq API."""
         max_retries = max_retries if max_retries is not None else 3
         for attempt in range(max_retries):
@@ -1018,8 +1084,8 @@ class ListingEnricher:
             "price": מספר או null (שים לב: אל תחלץ מספר טלפון בן 10 ספרות כמחיר!),
             "bedrooms": מספר או null,
             "location": "עיר (ברירת מחדל: תל אביב)",
-            "neighborhood": "שכונה ספציפית. חשוב: נסה להסיק מהרחוב! לדוגמה: אלנבי/רוטשילד/נחלת בנימין = לב תל אביב, פלורנטין = פלורנטין, דיזנגוף = הצפון הישן, ללא מידע = null",
-            "street": "שם הרחוב אם מוזכר (בלי מספר), אחרת null",
+            "neighborhood": "שם השכונה המפורש כפי שהוא כתוב ישירות בפוסט בלבד. אל תנחש, אל תסיק מהרחוב, ואל תשלים שכונה מהראש (למניעת הזיות/hallucinations)! אם לא כתוב במפורש בטקסט, רשום null.",
+            "street": "שם הרחוב המפורש כפי שהוא כתוב ישירות בפוסט בלבד (בלי מספר). אל תנחש, אל תסיק מהתיאור, ואל תשלים שם רחוב מהראש (למניעת הזיות/hallucinations)! אם לא כתוב במפורש בטקסט, רשום null.",
             "has_broker": true/false (האם מוזכר תיווך),
             "attributes": {{
                 "has_parking": true/false/null,

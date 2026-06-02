@@ -135,6 +135,21 @@ class ApartmentBotApplication:
         self.enricher = ListingEnricher(self.enrich_ai_engine)
         log.info("Enrichment AI engine initialized", provider=settings.enrich_provider.value, model=settings.enrich_model)
         
+        # Initialize Geo Grounding AI Engine (configurable via settings.GEO_GROUNDING_MODEL)
+        self.geo_grounding_rate_limiter = RateLimiter(
+            requests_per_minute=settings.GEMINI_RPM_LIMIT,
+            daily_limit=settings.GEMINI_DAILY_LIMIT
+        )
+        from config import AIProvider
+        self.geo_grounding_ai_engine = create_ai_engine(
+            provider=AIProvider.GEMINI,
+            api_key=settings.GEMINI_API_KEY,
+            model_name=settings.GEO_GROUNDING_MODEL,
+            rate_limiter=self.geo_grounding_rate_limiter,
+            cache_repo=cache_repo
+        )
+        log.info("Geo Grounding AI engine initialized", provider="gemini", model=settings.GEO_GROUNDING_MODEL)
+        
         # Set self.rate_limiter (used by scheduler) to the enrich rate limiter
         self.rate_limiter = self.enrich_rate_limiter
 
@@ -352,6 +367,40 @@ class ApartmentBotApplication:
                 await seen_repo.mark_seen(enriched.listing)
                 continue
                 
+            # Self-heal location if uncertain
+            location_signals = []
+            if enriched.extracted_neighborhood:
+                location_signals.append(enriched.extracted_neighborhood)
+            if enriched.extracted_street:
+                location_signals.append(enriched.extracted_street)
+            location_signals.append(enriched.extracted_location or enriched.listing.location)
+            
+            listing_loc = ", ".join(location_signals)
+            
+            from utils.israeli_locations import get_location_db
+            loc_db = get_location_db()
+            norm = loc_db.normalize_location(listing_loc)
+            if not norm["neighborhood"] and self.geo_grounding_ai_engine:
+                log.info(
+                    f"Location uncertainty detected for listing {enriched.listing.id[:8]} ('{listing_loc}'). Invoking AI location self-healing..."
+                )
+                try:
+                    details = f"Title: {enriched.listing.title}\nDescription: {enriched.listing.description}"
+                    healed_norm = await loc_db.async_resolve_unknown_location(
+                        raw_location=listing_loc,
+                        listing_details=details,
+                        ai_engine=self.geo_grounding_ai_engine
+                    )
+                    if healed_norm and healed_norm["neighborhood"]:
+                        log.info(
+                            f"Location self-healed successfully for listing {enriched.listing.id[:8]} -> '{healed_norm['neighborhood']}'"
+                        )
+                        enriched.extracted_neighborhood = healed_norm["neighborhood"]
+                        if healed_norm["city"]:
+                            enriched.extracted_location = healed_norm["city"]
+                except Exception as e:
+                    log.error(f"Failed to resolve unknown location via AI self-healing: {e}")
+                        
             valid_enriched_listings.append(enriched)
             await listing_repo.save_enriched(enriched)
             

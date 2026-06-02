@@ -1,9 +1,15 @@
 # utils/israeli_locations.py
 """Israeli location database with neighborhood relationships."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Dict, List, Tuple, Optional
 import re
+import os
+import json
+import asyncio
+import logging
+
+log = logging.getLogger("apartments_bot")
 
 
 @dataclass
@@ -14,12 +20,14 @@ class Neighborhood:
     aliases: List[str]
     bordering: List[str]
     area_type: str  # "central", "north", "south", "east", "jaffa", "coast"
+    streets: List[str] = field(default_factory=list)
 
 
 @dataclass
-class TelAvivBorder:
-    """Represents a geographic border in Tel Aviv."""
+class Border:
+    """Represents a geographic border in a city."""
     name: str
+    city: str
     aliases: List[str]
     neighborhoods_west: List[str]  # Neighborhoods to the west of this border
     neighborhoods_east: List[str]  # Neighborhoods to the east of this border
@@ -28,520 +36,93 @@ class TelAvivBorder:
     border_type: str  # "street", "highway", "natural" (beach/sea)
 
 
+# Backward-compatible alias
+TelAvivBorder = Border
+
+
 class IsraeliLocationDatabase:
     """Database of Israeli cities and neighborhoods with relationships.
     
     Used for smart location matching without AI calls.
     """
     
-    def __init__(self):
-        self._build_database()
-    
-    def _build_database(self):
+    def __init__(self, schema_path: Optional[str] = None):
+        if schema_path is None:
+            # Default to locations.json in the same directory as this file
+            schema_path = os.path.join(os.path.dirname(__file__), "locations.json")
+        self.schema_path = schema_path
+        self._lock = asyncio.Lock()
+        self._load_database()
+        
+    def _load_database(self):
+        with open(self.schema_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            
         # City aliases (common variations)
-        self.city_aliases: Dict[str, List[str]] = {
-            "תל אביב": ["תל-אביב", "ת\"א", "תא", "תל אביב יפו", "תל-אביב-יפו", "tel aviv"],
-            "ירושלים": ["י-ם", "ירושלים עיר", "jerusalem"],
-            "חיפה": ["haifa"],
-            "רמת גן": ["רמת-גן", "ר\"ג", "ramat gan"],
-            "גבעתיים": ["גבעתים", "givatayim"],
-            "הרצליה": ["herzliya"],
-            "רעננה": ["raanana"],
-            "פתח תקווה": ["פ\"ת", "פתח-תקווה", "petah tikva"],
-            "ראשון לציון": ["ראשל\"צ", "ראשון-לציון", "rishon"],
-            "הוד השרון": ["hod hasharon"],
-            "כפר סבא": ["kfar saba"],
-            "נתניה": ["netanya"],
-            "באר שבע": ["ב\"ש", "beer sheva"],
-            "חולון": ["holon"],
-            "בת ים": ["bat yam"],
-            "בני ברק": ["bnei brak"],
-        }
-        
+        self.city_aliases: Dict[str, List[str]] = {}
+        self.city_coords: Dict[str, Tuple[float, float]] = {}
+        for city, city_info in data.get("cities", {}).items():
+            self.city_aliases[city] = city_info.get("aliases", [])
+            lat = city_info.get("latitude")
+            lon = city_info.get("longitude")
+            if lat is not None and lon is not None:
+                self.city_coords[city] = (lat, lon)
+            
         # Tel Aviv neighborhoods - COMPREHENSIVE LIST
-        self.tel_aviv_neighborhoods: Dict[str, Neighborhood] = {
-            # === SOUTH TEL AVIV ===
-            "פלורנטין": Neighborhood(
-                name="פלורנטין", city="תל אביב",
-                aliases=["florentin", "שכונת פלורנטין"],
-                bordering=["נווה צדק", "שפירא", "מונטיפיורי", "לב העיר", "נחלת בנימין"],
-                area_type="south"
-            ),
-            "נווה צדק": Neighborhood(
-                name="נווה צדק", city="תל אביב",
-                aliases=["neve tzedek", "נוה צדק", "neveh tzedek"],
-                bordering=["פלורנטין", "לב העיר", "כרם התימנים", "יפו"],
-                area_type="south"
-            ),
-            "שפירא": Neighborhood(
-                name="שפירא", city="תל אביב",
-                aliases=["shapira", "שכונת שפירא"],
-                bordering=["פלורנטין", "התקווה", "נווה שאנן", "כפר שלם"],
-                area_type="south"
-            ),
-            "התקווה": Neighborhood(
-                name="התקווה", city="תל אביב",
-                aliases=["שכונת התקווה", "hatikva", "hatikvah"],
-                bordering=["שפירא", "יד אליהו", "כפר שלם", "עזרא"],
-                area_type="south"
-            ),
-            "נווה שאנן": Neighborhood(
-                name="נווה שאנן", city="תל אביב",
-                aliases=["neve shaanan", "נוה שאנן"],
-                bordering=["שפירא", "פלורנטין"],
-                area_type="south"
-            ),
-            "כפר שלם": Neighborhood(
-                name="כפר שלם", city="תל אביב",
-                aliases=["kfar shalem"],
-                bordering=["התקווה", "שפירא", "יד אליהו"],
-                area_type="south"
-            ),
-            "עזרא": Neighborhood(
-                name="עזרא", city="תל אביב",
-                aliases=["ezra"],
-                bordering=["התקווה", "יד אליהו"],
-                area_type="south"
-            ),
+        self.tel_aviv_neighborhoods: Dict[str, Neighborhood] = {}
+        for n_data in data.get("neighborhoods", []):
+            name = n_data["name"]
+            self.tel_aviv_neighborhoods[name] = Neighborhood(
+                name=name,
+                city=n_data["city"],
+                aliases=n_data.get("aliases", []),
+                bordering=n_data.get("bordering", []),
+                area_type=n_data.get("area_type", ""),
+                streets=n_data.get("streets", [])
+            )
             
-            # === JAFFA / יפו ===
-            "יפו": Neighborhood(
-                name="יפו", city="תל אביב",
-                aliases=["jaffa", "yafo", "יפו העתיקה"],
-                bordering=["נווה צדק", "עג'מי", "יפו ג'", "יפו ד'"],
-                area_type="jaffa"
-            ),
-            "עג'מי": Neighborhood(
-                name="עג'מי", city="תל אביב",
-                aliases=["ajami", "עגמי"],
-                bordering=["יפו", "יפו ג'", "בת ים"],
-                area_type="jaffa"
-            ),
-            "יפו ג'": Neighborhood(
-                name="יפו ג'", city="תל אביב",
-                aliases=["jaffa c", "יפו ג"],
-                bordering=["יפו", "עג'מי", "יפו ד'"],
-                area_type="jaffa"
-            ),
-            "יפו ד'": Neighborhood(
-                name="יפו ד'", city="תל אביב",
-                aliases=["jaffa d", "יפו ד"],
-                bordering=["יפו", "יפו ג'", "גבעת עלייה"],
-                area_type="jaffa"
-            ),
-            "גבעת עלייה": Neighborhood(
-                name="גבעת עלייה", city="תל אביב",
-                aliases=["givat aliya"],
-                bordering=["יפו ד'", "חולון"],
-                area_type="jaffa"
-            ),
-            
-            # === CENTRAL TEL AVIV ===
-            "לב העיר": Neighborhood(
-                name="לב העיר", city="תל אביב",
-                aliases=["מרכז העיר", "center", "city center", "downtown"],
-                bordering=["פלורנטין", "נווה צדק", "רוטשילד", "הבימה", "כרם התימנים", "מונטיפיורי", "נחלת בנימין"],
-                area_type="central"
-            ),
-            "רוטשילד": Neighborhood(
-                name="רוטשילד", city="תל אביב",
-                aliases=["שדרות רוטשילד", "rothschild", "רוטשילד בולבארד"],
-                bordering=["לב העיר", "נווה צדק", "הבימה", "אחוזת בית"],
-                area_type="central"
-            ),
-            "הבימה": Neighborhood(
-                name="הבימה", city="תל אביב",
-                aliases=["כיכר הבימה", "habima", "ליד הבימה"],
-                bordering=["רוטשילד", "לב העיר", "הצפון הישן", "כרם התימנים"],
-                area_type="central"
-            ),
-            "כרם התימנים": Neighborhood(
-                name="כרם התימנים", city="תל אביב",
-                aliases=["kerem hateimanim", "כרם", "the kerem"],
-                bordering=["נווה צדק", "לב העיר", "הבימה", "שוק הכרמל"],
-                area_type="central"
-            ),
-            "מונטיפיורי": Neighborhood(
-                name="מונטיפיורי", city="תל אביב",
-                aliases=["montefiore", "מונטיפיורה"],
-                bordering=["פלורנטין", "לב העיר", "נחלת בנימין"],
-                area_type="central"
-            ),
-            "נחלת בנימין": Neighborhood(
-                name="נחלת בנימין", city="תל אביב",
-                aliases=["nachalat binyamin", "נחלת בנימן"],
-                bordering=["לב העיר", "פלורנטין", "מונטיפיורי", "שוק הכרמל"],
-                area_type="central"
-            ),
-            "אחוזת בית": Neighborhood(
-                name="אחוזת בית", city="תל אביב",
-                aliases=["ahuzat bait", "אחוזת-בית"],
-                bordering=["רוטשילד", "לב העיר"],
-                area_type="central"
-            ),
-            "שוק הכרמל": Neighborhood(
-                name="שוק הכרמל", city="תל אביב",
-                aliases=["carmel market", "הכרמל"],
-                bordering=["כרם התימנים", "נחלת בנימין", "לב העיר"],
-                area_type="central"
-            ),
-            "דיזנגוף": Neighborhood(
-                name="דיזנגוף", city="תל אביב",
-                aliases=["dizengoff", "כיכר דיזנגוף", "דיזינגוף"],
-                bordering=["בן יהודה", "הצפון הישן", "לב העיר"],
-                area_type="central"
-            ),
-            "בן יהודה": Neighborhood(
-                name="בן יהודה", city="תל אביב",
-                aliases=["ben yehuda", "רחוב בן יהודה"],
-                bordering=["לב העיר", "בוגרשוב", "דיזנגוף"],
-                area_type="central"
-            ),
-            "אלנבי": Neighborhood(
-                name="אלנבי", city="תל אביב",
-                aliases=["allenby", "רחוב אלנבי"],
-                bordering=["לב העיר", "נווה צדק", "כרם התימנים"],
-                area_type="central"
-            ),
-            
-            # === NORTH TEL AVIV ===
-            "הצפון הישן": Neighborhood(
-                name="הצפון הישן", city="תל אביב",
-                aliases=["צפון ישן", "old north", "הצפון הישן תל אביב"],
-                bordering=["הצפון החדש", "לב העיר", "הבימה", "בבלי", "דיזנגוף"],
-                area_type="north"
-            ),
-            "הצפון החדש": Neighborhood(
-                name="הצפון החדש", city="תל אביב",
-                aliases=["צפון חדש", "new north"],
-                bordering=["הצפון הישן", "רמת אביב", "בבלי", "כוכב הצפון", "נמל תל אביב"],
-                area_type="north"
-            ),
-            "בבלי": Neighborhood(
-                name="בבלי", city="תל אביב",
-                aliases=["bavli"],
-                bordering=["הצפון הישן", "הצפון החדש", "קרית שאול"],
-                area_type="north"
-            ),
-            "כוכב הצפון": Neighborhood(
-                name="כוכב הצפון", city="תל אביב",
-                aliases=["kochav hatzafon", "star of the north"],
-                bordering=["הצפון החדש", "רמת אביב"],
-                area_type="north"
-            ),
-            "רמת אביב": Neighborhood(
-                name="רמת אביב", city="תל אביב",
-                aliases=["ramat aviv"],
-                bordering=["הצפון החדש", "רמת אביב ג'", "נווה אביבים", "כוכב הצפון"],
-                area_type="north"
-            ),
-            "רמת אביב ג'": Neighborhood(
-                name="רמת אביב ג'", city="תל אביב",
-                aliases=["ramat aviv gimel", "רמת אביב ג"],
-                bordering=["רמת אביב", "נווה אביבים", "אפקה"],
-                area_type="north"
-            ),
-            "נווה אביבים": Neighborhood(
-                name="נווה אביבים", city="תל אביב",
-                aliases=["neve avivim", "נוה אביבים"],
-                bordering=["רמת אביב", "רמת אביב ג'", "אפקה"],
-                area_type="north"
-            ),
-            "אפקה": Neighborhood(
-                name="אפקה", city="תל אביב",
-                aliases=["afeka"],
-                bordering=["רמת אביב ג'", "נווה אביבים", "רמת החייל"],
-                area_type="north"
-            ),
-            "רמת החייל": Neighborhood(
-                name="רמת החייל", city="תל אביב",
-                aliases=["ramat hachayal", "רמת החיל"],
-                bordering=["אפקה", "תל ברוך", "רמת גן"],
-                area_type="north"
-            ),
-            "תל ברוך": Neighborhood(
-                name="תל ברוך", city="תל אביב",
-                aliases=["tel baruch"],
-                bordering=["רמת החייל", "תל ברוך צפון"],
-                area_type="north"
-            ),
-            "תל ברוך צפון": Neighborhood(
-                name="תל ברוך צפון", city="תל אביב",
-                aliases=["tel baruch north"],
-                bordering=["תל ברוך", "הרצליה"],
-                area_type="north"
-            ),
-            
-            # === EAST TEL AVIV ===
-            "יד אליהו": Neighborhood(
-                name="יד אליהו", city="תל אביב",
-                aliases=["yad eliyahu"],
-                bordering=["התקווה", "עזרא", "נווה שרת", "הארגזים"],
-                area_type="east"
-            ),
-            "נווה שרת": Neighborhood(
-                name="נווה שרת", city="תל אביב",
-                aliases=["neve sharet", "נוה שרת"],
-                bordering=["יד אליהו", "קריית שלום", "גבעתיים"],
-                area_type="east"
-            ),
-            "קריית שלום": Neighborhood(
-                name="קריית שלום", city="תל אביב",
-                aliases=["kiryat shalom"],
-                bordering=["נווה שרת", "חולון"],
-                area_type="east"
-            ),
-            "הארגזים": Neighborhood(
-                name="הארגזים", city="תל אביב",
-                aliases=["haargazim"],
-                bordering=["יד אליהו"],
-                area_type="east"
-            ),
-            "קרית שאול": Neighborhood(
-                name="קרית שאול", city="תל אביב",
-                aliases=["kiryat shaul", "קריית שאול"],
-                bordering=["בבלי", "רמת גן"],
-                area_type="east"
-            ),
-            
-            # === BEACH / COAST ===
-            "נמל תל אביב": Neighborhood(
-                name="נמל תל אביב", city="תל אביב",
-                aliases=["tel aviv port", "הנמל", "namal", "port"],
-                bordering=["הצפון החדש", "הירקון"],
-                area_type="coast"
-            ),
-            "הירקון": Neighborhood(
-                name="הירקון", city="תל אביב",
-                aliases=["hayarkon", "רחוב הירקון"],
-                bordering=["נמל תל אביב", "הצפון הישן", "לב העיר", "גורדון"],
-                area_type="coast"
-            ),
-            "גורדון": Neighborhood(
-                name="גורדון", city="תל אביב",
-                aliases=["gordon", "חוף גורדון"],
-                bordering=["הירקון", "הצפון הישן", "פרישמן"],
-                area_type="coast"
-            ),
-            "פרישמן": Neighborhood(
-                name="פרישמן", city="תל אביב",
-                aliases=["frishman", "חוף פרישמן"],
-                bordering=["גורדון", "לב העיר", "בוגרשוב"],
-                area_type="coast"
-            ),
-            "בוגרשוב": Neighborhood(
-                name="בוגרשוב", city="תל אביב",
-                aliases=["bogrshov", "בוגרשוב סנטר"],
-                bordering=["פרישמן", "לב העיר", "בן יהודה"],
-                area_type="coast"
-            ),
-        }
-        
         # Area groupings (for "אזור" type searches)
-        self.area_groups: Dict[str, List[str]] = {
-            "גוש דן": ["תל אביב", "רמת גן", "גבעתיים", "בני ברק", "חולון", "בת ים", "אור יהודה", "קרית אונו"],
-            "המרכז": ["תל אביב", "רמת גן", "גבעתיים", "הרצליה", "רעננה", "כפר סבא", "הוד השרון", "פתח תקווה", "ראשון לציון", "חולון", "בת ים"],
-            "השרון": ["הרצליה", "רעננה", "כפר סבא", "הוד השרון", "נתניה", "רמת השרון"],
-            
-            # Tel Aviv sub-areas
-            "צפון תל אביב": ["הצפון הישן", "הצפון החדש", "רמת אביב", "רמת אביב ג'", "אפקה", "נווה אביבים", "רמת החייל", "תל ברוך", "כוכב הצפון", "בבלי"],
-            "דרום תל אביב": ["פלורנטין", "שפירא", "התקווה", "נווה שאנן", "כפר שלם", "עזרא"],
-            "מרכז תל אביב": ["לב העיר", "רוטשילד", "הבימה", "כרם התימנים", "נווה צדק", "מונטיפיורי", "נחלת בנימין", "אחוזת בית", "שוק הכרמל", "דיזנגוף", "בן יהודה", "אלנבי"],
-            "יפו": ["יפו", "עג'מי", "יפו ג'", "יפו ד'", "גבעת עלייה"],
-            "קו החוף": ["נמל תל אביב", "הירקון", "גורדון", "פרישמן", "בוגרשוב"],
-            "מזרח תל אביב": ["יד אליהו", "נווה שרת", "קריית שלום", "הארגזים", "קרית שאול"],
-        }
+        self.area_groups: Dict[str, List[str]] = data.get("area_groups", {})
         
         # Tel Aviv geographic borders
-        self.tel_aviv_borders: Dict[str, TelAvivBorder] = {
-            "איילון": TelAvivBorder(
-                name="איילון",
-                aliases=["ayalon", "כביש איילון", "נהר איילון", "אילון"],
-                neighborhoods_west=[
-                    # Central/West TLV
-                    "לב העיר", "רוטשילד", "הבימה", "כרם התימנים", "נווה צדק",
-                    "פלורנטין", "מונטיפיורי", "נחלת בנימין", "אחוזת בית", "שוק הכרמל",
-                    "דיזנגוף", "בן יהודה", "אלנבי", "הצפון הישן", "הצפון החדש",
-                    "בבלי", "כוכב הצפון", "רמת אביב", "רמת אביב ג'", "נווה אביבים",
-                    "אפקה", "נמל תל אביב", "הירקון", "גורדון", "פרישמן", "בוגרשוב",
-                    # South TLV
-                    "שפירא", "התקווה", "נווה שאנן", "כפר שלם", "עזרא",
-                    # Jaffa
-                    "יפו", "עג'מי", "יפו ג'", "יפו ד'", "גבעת עלייה"
-                ],
-                neighborhoods_east=[
-                    "רמת החייל", "תל ברוך", "יד אליהו", "נווה שרת",
-                    "קריית שלום", "הארגזים", "קרית שאול", "תל ברוך צפון"
-                ],
-                neighborhoods_north=[],  # Not really a N/S divider
-                neighborhoods_south=[],
-                border_type="highway"
-            ),
-            "יפו": TelAvivBorder(
-                name="יפו",
-                aliases=["jaffa", "רחוב יפו", "יפו הישנה"],
-                neighborhoods_west=[],  # Sea/Jaffa area to the west
-                neighborhoods_east=[],
-                neighborhoods_north=[
-                    # Everything north of Jaffa street
-                    "לב העיר", "רוטשילד", "הבימה", "כרם התימנים", "נווה צדק",
-                    "מונטיפיורי", "נחלת בנימין", "אחוזת בית", "שוק הכרמל",
-                    "דיזנגוף", "בן יהודה", "אלנבי", "הצפון הישן", "הצפון החדש",
-                    "בבלי", "כוכב הצפון", "רמת אביב", "רמת אביב ג'", "נווה אביבים",
-                    "אפקה", "רמת החייל", "תל ברוך", "נמל תל אביב", "הירקון",
-                    "גורדון", "פרישמן", "בוגרשוב", "יד אליהו", "נווה שרת",
-                    "קרית שאול", "תל ברוך צפון", "פלורנטין"
-                ],
-                neighborhoods_south=[
-                    # Jaffa and southern areas
-                    "יפו", "עג'מי", "יפו ג'", "יפו ד'", "גבעת עלייה",
-                    "שפירא", "התקווה", "נווה שאנן", "כפר שלם", "עזרא",
-                    "קריית שלום", "הארגזים"
-                ],
-                border_type="street"
-            ),
-            "ארלוזורוב": TelAvivBorder(
-                name="ארלוזורוב",
-                aliases=["arlozorov", "ארלוזורוב סנטר", "רחוב ארלוזורוב", "ארלוזרוב", "ארלוזרוף", "ארלוזורוף"],
-                neighborhoods_west=[],
-                neighborhoods_east=[],
-                neighborhoods_north=[
-                    "רמת אביב", "רמת אביב ג'", "נווה אביבים", "אפקה",
-                    "רמת החייל", "תל ברוך", "תל ברוך צפון", "נמל תל אביב",
-                    "כוכב הצפון", "הצפון החדש"
-                ],
-                neighborhoods_south=[
-                    "לב העיר", "רוטשילד", "הבימה", "כרם התימנים", "נווה צדק",
-                    "פלורנטין", "מונטיפיורי", "נחלת בנימין", "אחוזת בית", "שוק הכרמל",
-                    "דיזנגוף", "בן יהודה", "אלנבי", "הצפון הישן", "בבלי",
-                    "שפירא", "התקווה", "נווה שאנן", "כפר שלם", "עזרא",
-                    "יפו", "עג'מי", "יפו ג'", "יפו ד'", "גבעת עלייה",
-                    "יד אליהו", "נווה שרת", "קריית שלום", "הארגזים",
-                    "קרית שאול", "הירקון", "גורדון", "פרישמן", "בוגרשוב"
-                ],
-                border_type="street"
-            ),
-            "דיזנגוף": TelAvivBorder(
-                name="דיזנגוף",
-                aliases=["dizengoff", "רחוב דיזנגוף", "דיזינגוף"],
-                neighborhoods_west=[
-                    "נמל תל אביב", "הירקון", "גורדון", "פרישמן", "בוגרשוב",
-                    "בן יהודה"
-                ],
-                neighborhoods_east=[
-                    "הצפון הישן", "הצפון החדש", "בבלי", "לב העיר",
-                    "רמת אביב", "כוכב הצפון"
-                ],
-                neighborhoods_north=[],
-                neighborhoods_south=[],
-                border_type="street"
-            ),
-            "ים": TelAvivBorder(
-                name="ים",
-                aliases=["sea", "beach", "חוף", "הים", "ים התיכון"],
-                neighborhoods_west=[],  # Open sea
-                neighborhoods_east=[
-                    # Everything is east of the sea
-                    "נמל תל אביב", "הירקון", "גורדון", "פרישמן", "בוגרשוב",
-                    "בן יהודה", "הצפון הישן", "הצפון החדש", "לב העיר",
-                    "נווה צדק", "יפו", "עג'מי"
-                ],
-                neighborhoods_north=[],
-                neighborhoods_south=[],
-                border_type="natural"
-            ),
-            "ירקון": TelAvivBorder(
-                name="ירקון",
-                aliases=["hayarkon", "נחל הירקון", "הירקון", "ירקון"],
-                neighborhoods_west=[],
-                neighborhoods_east=[],
-                neighborhoods_north=[
-                    "רמת אביב", "רמת אביב ג'", "נווה אביבים", "אפקה",
-                    "רמת החייל", "תל ברוך", "תל ברוך צפון", "כוכב הצפון", "קרית שאול"
-                ],
-                neighborhoods_south=[
-                    "הצפון הישן", "הצפון החדש", "בבלי", "לב העיר", "רוטשילד",
-                    "הבימה", "כרם התימנים", "נווה צדק", "פלורנטין", "מונטיפיורי",
-                    "נחלת בנימין", "אחוזת בית", "שוק הכרמל", "דיזנגוף", "בן יהודה",
-                    "אלנבי", "נמל תל אביב", "הירקון", "גורדון", "פרישמן",
-                    "בוגרשוב", "יד אליהו", "נווה שרת", "קריית שלום", "הארגזים",
-                    "שפירא", "התקווה", "נווה שאנן", "כפר שלם", "עזרא",
-                    "יפו", "עג'מי", "יפו ג'", "יפו ד'", "גבעת עלייה"
-                ],
-                border_type="natural"
-            ),
-            "פלורנטין": TelAvivBorder(
-                name="פלורנטין",
-                aliases=["florentin", "שכונת פלורנטין"],
-                neighborhoods_west=["נווה צדק", "יפו", "עג'מי", "יפו ג'", "יפו ד'", "גבעת עלייה"],
-                neighborhoods_east=["יד אליהו", "נווה שרת", "קריית שלום", "הארגזים", "קרית שאול"],
-                neighborhoods_north=[
-                    "לב העיר", "רוטשילד", "הבימה", "כרם התימנים", "מונטיפיורי",
-                    "נחלת בנימין", "אחוזת בית", "שוק הכרמל", "דיזנגוף", "בן יהודה",
-                    "אלנבי", "הצפון הישן", "הצפון החדש", "בבלי", "כוכב הצפון",
-                    "רמת אביב", "רמת אביב ג'", "נווה אביבים", "אפקה", "רמת החייל",
-                    "תל ברוך", "תל ברוך צפון", "נמל תל אביב", "הירקון", "גורדון",
-                    "פרישמן", "בוגרשוב", "יד אליהו", "נווה שרת", "קרית שאול"
-                ],
-                neighborhoods_south=[
-                    "שפירא", "התקווה", "נווה שאנן", "כפר שלם", "עזרא",
-                    "יפו", "עג'מי", "יפו ג'", "יפו ד'", "גבעת עלייה",
-                    "קריית שלום", "הארגזים"
-                ],
-                border_type="street"
-            ),
-            "אלנבי": TelAvivBorder(
-                name="אלנבי",
-                aliases=["allenby", "רחוב אלנבי", "אלנבי סנטר"],
-                neighborhoods_west=["נווה צדק", "יפו", "עג'מי", "יפו ג'", "יפו ד'", "גבעת עלייה", "כרם התימנים", "שוק הכרמל"],
-                neighborhoods_east=["מונטיפיורי", "נחלת בנימין", "יד אליהו", "נווה שרת", "קריית שלום", "הארגזים", "קרית שאול", "שפירא", "התקווה", "נווה שאנן", "כפר שלם", "עזרא"],
-                neighborhoods_north=[
-                    "לב העיר", "רוטשילד", "הבימה", "דיזנגוף", "בן יהודה",
-                    "הצפון הישן", "הצפון החדש", "בבלי", "כוכב הצפון", "רמת אביב",
-                    "רמת אביב ג'", "נווה אביבים", "אפקה", "רמת החייל", "תל ברוך",
-                    "תל ברוך צפון", "נמל תל אביב", "הירקון", "גורדון", "פרישמן",
-                    "בוגרשוב", "יד אליהו", "נווה שרת", "קרית שאול", "מונטיפיורי",
-                    "נחלת בנימין"
-                ],
-                neighborhoods_south=[
-                    "פלורנטין", "שפירא", "התקווה", "נווה שאנן", "כפר שלם",
-                    "עזרא", "יפו", "עג'מי", "יפו ג'", "יפו ד'", "גבעת עלייה",
-                    "קריית שלום", "הארגזים", "נווה צדק", "אחוזת בית"
-                ],
-                border_type="street"
-            ),
-            "רוטשילד": TelAvivBorder(
-                name="רוטשילד",
-                aliases=["rothschild", "שדרות רוטשילד", "רוטשילד בולבארד"],
-                neighborhoods_west=["נווה צדק", "כרם התימנים", "שוק הכרמל", "ים", "גורדון", "פרישמן", "בוגרשוב", "בן יהודה", "יפו", "עג'מי"],
-                neighborhoods_east=["מונטיפיורי", "נחלת בנימין", "לב העיר", "שפירא", "התקווה", "יד אליהו", "נווה שרת", "קריית שלום", "הארגזים", "קרית שאול", "כפר שלם", "עזרא"],
-                neighborhoods_north=[
-                    "לב העיר", "הבימה", "דיזנגוף", "בן יהודה", "הצפון הישן",
-                    "הצפון החדש", "בבלי", "כוכב הצפון", "רמת אביב", "רמת אביב ג'",
-                    "נווה אביבים", "אפקה", "רמת החייל", "תל ברוך", "תל ברוך צפון",
-                    "נמל תל אביב", "הירקון", "גורדון", "פרישמן", "בוגרשוב",
-                    "יד אליהו", "נווה שרת", "קרית שאול", "מונטיפיורי"
-                ],
-                neighborhoods_south=[
-                    "נווה צדק", "פלורנטין", "שפירא", "התקווה", "נווה שאנן",
-                    "כפר שלם", "עזרא", "יפו", "עג'מי", "יפו ג'", "יפו ד'",
-                    "גבעת עלייה", "קריית שלום", "הארגזים", "אחוזת בית"
-                ],
-                border_type="street"
-            ),
-        }
-        
+        self.tel_aviv_borders: Dict[str, Border] = {}
+        for b_data in data.get("borders", []):
+            name = b_data["name"]
+            self.tel_aviv_borders[name] = Border(
+                name=name,
+                city=b_data.get("city", "תל אביב"),
+                aliases=b_data.get("aliases", []),
+                neighborhoods_west=b_data.get("neighborhoods_west", []),
+                neighborhoods_east=b_data.get("neighborhoods_east", []),
+                neighborhoods_north=b_data.get("neighborhoods_north", []),
+                neighborhoods_south=b_data.get("neighborhoods_south", []),
+                border_type=b_data.get("border_type", "")
+            )
+            
         # Build reverse lookup maps
         self._build_lookups()
     
+    @property
+    def neighborhoods(self) -> Dict[str, Neighborhood]:
+        """Expose neighborhoods for future expansions."""
+        return self.tel_aviv_neighborhoods
+        
+    @property
+    def borders(self) -> Dict[str, Border]:
+        """Expose borders for future expansions."""
+        return self.tel_aviv_borders
+    
     def _build_lookups(self):
         """Build efficient lookup structures."""
-        # Neighborhood by any name
-        self.neighborhood_lookup: Dict[str, Neighborhood] = {}
+        # Neighborhood by any name, sorted by length descending to prevent substring shadowing
+        raw_lookup = {}
         for n in self.tel_aviv_neighborhoods.values():
-            self.neighborhood_lookup[n.name.lower()] = n
+            raw_lookup[n.name.lower()] = n
             for alias in n.aliases:
-                self.neighborhood_lookup[alias.lower()] = n
+                raw_lookup[alias.lower()] = n
+            for street in n.streets:
+                raw_lookup[street.lower()] = n
+        self.neighborhood_lookup = {k: raw_lookup[k] for k in sorted(raw_lookup.keys(), key=len, reverse=True)}
         
         # City by any name
         self.city_lookup: Dict[str, str] = {}
@@ -611,10 +192,18 @@ class IsraeliLocationDatabase:
             if listing_city == target_city:
                 return True, "contains", f"הדירה ב{listing_city}"
         
-        # Case 3: Bordering neighborhoods
+        # Case 3: Bordering neighborhoods (symmetric check)
         if allow_bordering and target_neighborhood and listing_neighborhood:
             target_n = self.neighborhood_lookup.get(target_neighborhood.lower())
+            listing_n = self.neighborhood_lookup.get(listing_neighborhood.lower())
+            
+            is_bordering = False
             if target_n and listing_neighborhood in target_n.bordering:
+                is_bordering = True
+            elif listing_n and target_neighborhood in listing_n.bordering:
+                is_bordering = True
+                
+            if is_bordering:
                 return True, "bordering", f"{listing_neighborhood} גובל ב{target_neighborhood}"
         
         # Case 4: Area group match (e.g., "גוש דן", "המרכז")
@@ -709,7 +298,7 @@ class IsraeliLocationDatabase:
         
         return list(all_neighborhoods)
     
-    def _find_border(self, border_name: str) -> Optional[TelAvivBorder]:
+    def _find_border(self, border_name: str) -> Optional[Border]:
         """Find a border by name or alias, supporting fuzzy matching and Hebrew prefix stripping."""
         border_lower = border_name.strip().lower()
         
@@ -751,6 +340,146 @@ class IsraeliLocationDatabase:
                 return border_possibilities[close_matches[0]]
                 
         return None
+
+    async def async_resolve_unknown_location(
+        self, 
+        raw_location: str, 
+        listing_details: str, 
+        ai_engine
+    ) -> dict:
+        """Resolve an unknown location using LLM and update schema.
+        
+        If resolved, appends the identified alias or street name to the matched neighborhood
+        in locations.json, reloads the database, and returns the normalized info.
+        """
+        # First verify if it's already resolvable
+        norm = self.normalize_location(raw_location)
+        if norm["neighborhood"]:
+            return norm
+            
+        # Determine city and coordinates for grounding
+        city = norm["city"]
+        if not city:
+            # Try to extract city from raw_location or listing_details
+            for c, aliases in self.city_aliases.items():
+                all_names = [c] + aliases
+                if any(name.lower() in raw_location.lower() or name.lower() in listing_details.lower() for name in all_names):
+                    city = c
+                    break
+                    
+        if not city:
+            city = "תל אביב"
+            
+        if city not in self.city_coords:
+            raise ValueError(f"Grounding coordinates for city '{city}' not found in locations.json schema configuration.")
+            
+        lat, lon = self.city_coords[city]
+            
+        # Group neighborhoods by city
+        neighborhoods_by_city = {}
+        for n in self.tel_aviv_neighborhoods.values():
+            neighborhoods_by_city.setdefault(n.city, []).append(n.name)
+            
+        prompt = f"""
+You are an expert geographical matching assistant for Israeli cities and neighborhoods.
+We have a listing with the following information:
+- Raw location string: "{raw_location}"
+- Listing details: "{listing_details}"
+
+We could not match this raw location to a known neighborhood in our database.
+Here is a list of known cities and their neighborhoods in our database:
+{json.dumps(neighborhoods_by_city, ensure_ascii=False, indent=2)}
+
+Your task:
+1. Use your active Google Maps grounding search tool to look up the location, street, and landmarks mentioned in the raw location and listing details.
+2. Identify the precise neighborhood in the target city where this location/street/landmark is situated.
+3. If this neighborhood is in our list of known neighborhoods for that city, match it to that neighborhood name (must be exactly one of the names from the list above).
+4. If this neighborhood is NOT in our list of known neighborhoods, specify the correct neighborhood name (in Hebrew, e.g. "יפו ג'") in the `matched_neighborhood` field, and we will dynamically add it to our database.
+5. If you cannot confidently map it to any neighborhood, return null for matched_neighborhood.
+
+In the JSON output:
+- "matched_neighborhood" must be the name of the matched neighborhood (e.g. "הצפון הישן").
+- "name_to_add" MUST NOT be null if we are mapping a specific street or alias that is not currently listed under this neighborhood. You MUST specify the exact street name (e.g. "ירמיהו" or "יהודה המכבי" or "שלמה המלך" or "סירקין") or neighborhood alias from the raw location or details to add. Only return null if the raw location itself is simply the exact name of the neighborhood and does not specify a street or landmark.
+- "type" MUST be "street" if the name_to_add is a street name, or "alias" if it is a neighborhood alias/name variation. It MUST NOT be null if name_to_add is not null.
+
+Return a JSON object with this schema:
+{{
+    "matched_neighborhood": "Name of the neighborhood (string, match from the list or a newly discovered neighborhood name) or null",
+    "name_to_add": "The specific street name or neighborhood alias (string) to add, or null",
+    "type": "Either 'street' or 'alias' or null"
+}}
+
+CRITICAL: Return ONLY a valid, raw JSON block. Your entire response must start with '{' and end with '}' and be directly parsesable by json.loads(). Do NOT include any conversational preamble, markdown blocks, or explanation outside the JSON.
+"""
+        try:
+            log.info(f"Invoking AI engine with grounding to resolve unknown location: '{raw_location}'")
+            response = await ai_engine.generate_content(
+                prompt, 
+                enable_grounding=True, 
+                latitude=lat, 
+                longitude=lon
+            )
+            result = ai_engine._parse_json_response(response)
+            
+            matched_nb = result.get("matched_neighborhood")
+            name_to_add = result.get("name_to_add")
+            name_type = result.get("type")
+            
+            if matched_nb and name_to_add and name_type in ("street", "alias"):
+                name_to_add = name_to_add.strip()
+                matched_nb = matched_nb.strip()
+                
+                async with self._lock:
+                    with open(self.schema_path, "r", encoding="utf-8") as f:
+                        schema_data = json.load(f)
+                        
+                    updated = False
+                    # Find neighborhood in schema
+                    nb_entry = next((nb for nb in schema_data.get("neighborhoods", []) if nb["name"] == matched_nb), None)
+                    
+                    if nb_entry:
+                        # Existing neighborhood
+                        if name_type == "street":
+                            streets = nb_entry.setdefault("streets", [])
+                            if name_to_add.lower() not in [s.lower() for s in streets]:
+                                streets.append(name_to_add)
+                                updated = True
+                        else:
+                            aliases = nb_entry.setdefault("aliases", [])
+                            if name_to_add.lower() not in [a.lower() for a in aliases]:
+                                aliases.append(name_to_add)
+                                updated = True
+                    else:
+                        # New neighborhood discovered!
+                        log.info(f"Discovered new neighborhood: '{matched_nb}' in city '{city}'! Adding to schema.")
+                        new_nb = {
+                            "name": matched_nb,
+                            "city": city,
+                            "aliases": [],
+                            "bordering": [],
+                            "area_type": "unknown",
+                            "streets": []
+                        }
+                        if name_type == "street":
+                            new_nb["streets"].append(name_to_add)
+                        else:
+                            new_nb["aliases"].append(name_to_add)
+                        
+                        schema_data.setdefault("neighborhoods", []).append(new_nb)
+                        updated = True
+                        
+                    if updated:
+                        with open(self.schema_path, "w", encoding="utf-8") as f:
+                            json.dump(schema_data, f, indent=2, ensure_ascii=False)
+                        self._load_database()
+                        log.info(
+                            f"Self-healed location schema: added '{name_to_add}' as {name_type} for neighborhood '{matched_nb}'"
+                        )
+                        return self.normalize_location(raw_location)
+        except Exception as e:
+            log.error(f"Error during AI location resolution: {e}")
+            
+        return self.normalize_location(raw_location)
 
 
 # Singleton instance

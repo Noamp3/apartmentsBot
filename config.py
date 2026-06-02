@@ -42,10 +42,13 @@ class Settings(BaseSettings):
     ENRICH_AI_PROVIDER: Optional[AIProvider] = AIProvider.GEMINI
     ENRICH_MODEL: Optional[str] = 'gemma-4-31b-it'
     
+    # Geo Grounding AI Configuration (Requires Google Maps Grounding support)
+    GEO_GROUNDING_MODEL: str = "gemini-3.1-flash-lite"
+    
     # Gemini Settings
     GEMINI_API_KEY: str = ""
     # Comma-separated list of models to rotate through. First one is primary.
-    GEMINI_MODEL: str = "gemini-3-flash-preview,gemini-2.0-flash-exp,gemini-1.5-flash,gemini-1.5-flash-8b,gemini-1.5-pro"
+    GEMINI_MODEL: str = "gemini-3.1-flash-lite,gemini-3-flash-preview,gemini-2.0-flash-exp,gemini-1.5-flash,gemini-1.5-flash-8b,gemini-1.5-pro"
     GEMINI_503_RETRIES: int = 20
     
     # OpenAI Settings
