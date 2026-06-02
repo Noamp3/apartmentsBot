@@ -155,3 +155,152 @@ async def test_complete_onboarding_flow():
     
     # Clean up user and rules
     await user_repo.delete_user(test_user_id)
+
+
+@pytest.mark.asyncio
+async def test_onboarding_budget_range_and_min():
+    db = await get_db()
+    await db.initialize()
+    user_repo = UserRepository(db)
+    
+    test_user_id = 987654321
+    if await user_repo.exists(test_user_id):
+        await user_repo.delete_user(test_user_id)
+        
+    # Create test user
+    user = await user_repo.get_or_create(telegram_id=test_user_id, chat_id=test_user_id, username="test_onboard_user")
+    await user_repo.update_onboarding_step(test_user_id, "ask_budget")
+    
+    msg_handler = MessageHandler(ai_engine=None)
+    
+    # 1. Test Price Range
+    context_mock = MagicMock(spec=ContextTypes.DEFAULT_TYPE)
+    context_mock.bot_data = {"ai_engine": None, "processing_service": None}
+    context_mock.user_data = {"onboarding_rules": []}
+    
+    budget_message_mock = MagicMock()
+    budget_message_mock.text = "בין 3000 ל-5000 שקל"
+    budget_message_mock.reply_text = AsyncMock()
+    
+    update_mock = MagicMock(spec=Update)
+    update_mock.effective_user = MagicMock(id=test_user_id)
+    update_mock.effective_chat = MagicMock(id=test_user_id)
+    update_mock.message = budget_message_mock
+    
+    await msg_handler.handle_message(update_mock, context_mock)
+    
+    rules = context_mock.user_data["onboarding_rules"]
+    assert len(rules) == 2
+    assert any(r["type"] == "price_min" and r["value"] == 3000 for r in rules)
+    assert any(r["type"] == "price_max" and r["value"] == 5000 for r in rules)
+    
+    # 2. Test Minimum Price Only
+    await user_repo.update_onboarding_step(test_user_id, "ask_budget")
+    context_mock.user_data = {"onboarding_rules": []}
+    budget_message_mock.text = "מינימום 4000 שקל"
+    
+    await msg_handler.handle_message(update_mock, context_mock)
+    
+    rules = context_mock.user_data["onboarding_rules"]
+    assert len(rules) == 1
+    assert rules[0]["type"] == "price_min"
+    assert rules[0]["value"] == 4000
+
+    await user_repo.delete_user(test_user_id)
+
+
+@pytest.mark.asyncio
+async def test_multi_rule_onboarding_direct_completion():
+    db = await get_db()
+    await db.initialize()
+    user_repo = UserRepository(db)
+    rule_repo = RuleRepository(db)
+    
+    test_user_id = 987654321
+    if await user_repo.exists(test_user_id):
+        await user_repo.delete_user(test_user_id)
+        
+    await user_repo.get_or_create(telegram_id=test_user_id, chat_id=test_user_id, username="test_onboard_user")
+    await user_repo.update_onboarding_step(test_user_id, "ask_location")
+    
+    # Mock AI Engine to return location and price max (multi-rule)
+    mock_ai = AsyncMock()
+    mock_ai.parse_user_rules.return_value = (
+        [
+            {"type": "area", "value": "פלורנטין", "original_text": "פלורנטין"},
+            {"type": "price_max", "value": 5000, "original_text": "עד 5000₪"}
+        ],
+        "תגובה כלשהי"
+    )
+    mock_ai.get_random_sass.return_value = "יאס מלכה"
+    
+    msg_handler = MessageHandler(ai_engine=mock_ai)
+    
+    context_mock = MagicMock(spec=ContextTypes.DEFAULT_TYPE)
+    context_mock.bot_data = {"ai_engine": mock_ai, "processing_service": None}
+    context_mock.user_data = {"onboarding_rules": []}
+    
+    message_mock = MagicMock()
+    message_mock.text = "רוצה בפלורנטין עד 5000"
+    message_mock.reply_text = AsyncMock()
+    
+    update_mock = MagicMock(spec=Update)
+    update_mock.effective_user = MagicMock(id=test_user_id)
+    update_mock.effective_chat = MagicMock(id=test_user_id)
+    update_mock.message = message_mock
+    
+    await msg_handler.handle_message(update_mock, context_mock)
+    
+    # Verify onboarding_step is set to None (completed)
+    user = await user_repo.get_by_telegram_id(test_user_id)
+    assert user.onboarding_step is None
+    
+    # Verify rules were successfully written to the DB
+    saved_rules = await rule_repo.get_user_rules(test_user_id)
+    assert len(saved_rules) == 2
+    rule_types = [r.rule_type for r in saved_rules]
+    assert RuleType.AREA in rule_types
+    assert RuleType.PRICE_MAX in rule_types
+    
+    await user_repo.delete_user(test_user_id)
+
+
+@pytest.mark.asyncio
+async def test_single_rule_bypasses_ai():
+    db = await get_db()
+    await db.initialize()
+    user_repo = UserRepository(db)
+    
+    test_user_id = 987654321
+    if await user_repo.exists(test_user_id):
+        await user_repo.delete_user(test_user_id)
+        
+    await user_repo.get_or_create(telegram_id=test_user_id, chat_id=test_user_id, username="test_onboard_user")
+    await user_repo.update_onboarding_step(test_user_id, "ask_location")
+    
+    mock_ai = AsyncMock()
+    msg_handler = MessageHandler(ai_engine=mock_ai)
+    
+    context_mock = MagicMock(spec=ContextTypes.DEFAULT_TYPE)
+    context_mock.bot_data = {"ai_engine": mock_ai, "processing_service": None}
+    context_mock.user_data = {"onboarding_rules": []}
+    
+    message_mock = MagicMock()
+    message_mock.text = "פלורנטין"
+    message_mock.reply_text = AsyncMock()
+    
+    update_mock = MagicMock(spec=Update)
+    update_mock.effective_user = MagicMock(id=test_user_id)
+    update_mock.effective_chat = MagicMock(id=test_user_id)
+    update_mock.message = message_mock
+    
+    await msg_handler.handle_message(update_mock, context_mock)
+    
+    # AI engine should NOT be called (bypassed!)
+    mock_ai.parse_user_rules.assert_not_called()
+    
+    # We should have proceeded to ask_budget
+    user = await user_repo.get_by_telegram_id(test_user_id)
+    assert user.onboarding_step == "ask_budget"
+    
+    await user_repo.delete_user(test_user_id)

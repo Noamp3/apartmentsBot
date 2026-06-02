@@ -3,6 +3,7 @@
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
+import html
 
 from database import get_db
 from database.repositories import RuleRepository, UserRepository
@@ -55,25 +56,39 @@ class CallbackHandler:
             persona_name = data.split(":")[1]
             await self._set_persona(query, context, persona_name)
             
-        elif data.startswith("admin_clear_table:"):
+        elif data.startswith("admin_"):
             db = await get_db()
             user_repo = UserRepository(db)
             user_obj = await user_repo.get_by_telegram_id(user_id)
             if not user_obj or not user_obj.is_admin:
                 await query.answer("שגיאה: אין לך הרשאות ניהול!", show_alert=True)
                 return
-            table_name = data.split(":")[1]
-            await self._confirm_clear_table_prompt(query, table_name)
             
-        elif data.startswith("admin_do_clear_table:"):
-            db = await get_db()
-            user_repo = UserRepository(db)
-            user_obj = await user_repo.get_by_telegram_id(user_id)
-            if not user_obj or not user_obj.is_admin:
-                await query.answer("שגיאה: אין לך הרשאות ניהול!", show_alert=True)
-                return
-            table_name = data.split(":")[1]
-            await self._do_clear_table(query, table_name)
+            # Sub-menus routing
+            if data == "admin_menu_main":
+                await self._show_admin_dashboard(query, context)
+            elif data == "admin_menu_users":
+                await self._show_admin_users(query, context)
+            elif data == "admin_menu_recent_listings":
+                await self._show_admin_recent_listings(query, context)
+            elif data == "admin_menu_logs":
+                await self._show_admin_logs(query, context)
+            elif data.startswith("admin_menu_fb"):
+                await self._show_admin_fb_menu(query, context)
+            elif data == "admin_menu_clear":
+                await self._show_admin_clear_menu(query, context)
+            elif data == "admin_menu_server":
+                await self._show_admin_server_stats(query, context)
+            elif data == "admin_menu_gemini":
+                await self._show_admin_gemini_test(query, context)
+            elif data == "admin_broadcast_prompt":
+                await self._prompt_admin_broadcast(query, context)
+            elif data.startswith("admin_clear_table:"):
+                table_name = data.split(":")[1]
+                await self._confirm_clear_table_prompt(query, table_name)
+            elif data.startswith("admin_do_clear_table:"):
+                table_name = data.split(":")[1]
+                await self._do_clear_table(query, table_name)
     
     async def _delete_rule(self, query, rule_id: int, user_id: int):
         """Delete a specific rule."""
@@ -361,9 +376,9 @@ class CallbackHandler:
         he_name = table_names_he.get(table_name, table_name)
         
         await query.edit_message_text(
-            f"⚠️ *אזהרה חמורה!*\n\nהאם אתה בטוח שברצונך למחוק ולאפס את הטבלה: *{he_name}*?\n\nפעולה זו תמחק את כל הנתונים ולא ניתן לשחזר אותם!",
+            f"⚠️ <b>אזהרה חמורה!</b>\n\nהאם אתה בטוח שברצונך למחוק ולאפס את הטבלה: <b>{html.escape(he_name)}</b>?\n\nפעולה זו תמחק את כל הנתונים ולא ניתן לשחזר אותם!",
             reply_markup=InlineKeyboardMarkup(keyboard),
-            parse_mode="Markdown"
+            parse_mode="HTML"
         )
         
     async def _do_clear_table(self, query, table_name: str):
@@ -444,3 +459,358 @@ class CallbackHandler:
         await self._safe_edit_message_text(query, message, parse_mode='MarkdownV2')
         # Edit the message with the new inline keyboard as well
         await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup(keyboard))
+
+    async def _show_admin_dashboard(self, query, context):
+        """Go back to main admin panel screen."""
+        command_handler = context.bot_data.get("command_handler")
+        if command_handler:
+            dashboard, reply_markup = await command_handler.get_admin_dashboard_data()
+            await query.edit_message_text(
+                dashboard,
+                reply_markup=reply_markup,
+                parse_mode="HTML"
+            )
+
+    async def _show_admin_users(self, query, context):
+        """Show all registered users in-message."""
+        db = await get_db()
+        rule_repo = RuleRepository(db)
+        from datetime import datetime
+        import html
+        
+        # Get users
+        rows = await db.fetch_all("SELECT * FROM users ORDER BY created_at DESC LIMIT 30")
+        
+        if not rows:
+            msg = "אין משתמשים רשומים במערכת."
+        else:
+            msg = f"👤 <b>משתמשים רשומים במערכת ({len(rows)}):</b>\n\n"
+            for row in rows:
+                telegram_id = row["telegram_id"]
+                username = html.escape(row["username"] or "אין")
+                is_active = "פעיל ✅" if row["is_active"] else "כבוי ❌"
+                is_admin = "👑 מנהל" if row.get("is_admin") else "משתמש"
+                persona = html.escape(row.get("persona") or "barakush")
+                created_at = row["created_at"]
+                
+                # Count user's rules
+                rules = await rule_repo.get_user_rules(telegram_id)
+                rules_count = len(rules)
+                
+                # Try to format created_at nicely
+                try:
+                    dt = datetime.fromisoformat(created_at)
+                    date_str = dt.strftime("%d/%m/%Y %H:%M")
+                except Exception:
+                    date_str = created_at
+                    
+                msg += f"• <b>{telegram_id}</b> | @{username} | {is_admin}\n"
+                msg += f"  נציג: <code>{persona}</code> | סטטוס: {is_active} | כללים: {rules_count}\n"
+                msg += f"  הצטרף ב: {date_str}\n\n"
+                
+        # Append "Back" button
+        keyboard = [[InlineKeyboardButton("↩️ חזרה לתפריט ראשי", callback_data="admin_menu_main")]]
+        
+        await self._safe_edit_message_text(query, msg, parse_mode="HTML")
+        await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup(keyboard))
+
+    async def _show_admin_recent_listings(self, query, context):
+        """Show the last 10 enriched listings."""
+        db = await get_db()
+        rows = await db.fetch_all(
+            "SELECT title, source, url, extracted_price, extracted_bedrooms, extracted_neighborhood, enriched_at "
+            "FROM enriched_listings ORDER BY enriched_at DESC LIMIT 10"
+        )
+        import html
+        
+        if not rows:
+            msg = "לא נמצאו דירות מועשרות במערכת."
+        else:
+            msg = "🏠 <b>10 הדירות האחרונות שנסרקו והועשרו:</b>\n\n"
+            from datetime import datetime
+            for i, row in enumerate(rows):
+                title = html.escape(row["title"] or "ללא כותרת")
+                url = html.escape(row["url"] or "")
+                price = row["extracted_price"]
+                beds = row["extracted_bedrooms"]
+                neighborhood = html.escape(row["extracted_neighborhood"] or "לא ידוע")
+                source = html.escape(row["source"] or "לא ידוע")
+                
+                enriched_at = row["enriched_at"]
+                try:
+                    dt = datetime.fromisoformat(enriched_at)
+                    time_str = dt.strftime("%d/%m %H:%M")
+                except Exception:
+                    time_str = enriched_at
+                    
+                price_str = f"{price:,} ₪" if price else "לא צוין מחיר"
+                beds_str = f"{beds} חדרים" if beds else "לא צוין חדרים"
+                
+                msg += f"{i+1}. <b><a href=\"{url}\">{title[:40]}</a></b>\n"
+                msg += f"   💰 {price_str} | 🛏️ {beds_str} | 📍 {neighborhood}\n"
+                msg += f"   📱 מקור: {source} | ⏱️ נסרק ב: {time_str}\n\n"
+                
+        keyboard = [[InlineKeyboardButton("↩️ חזרה לתפריט ראשי", callback_data="admin_menu_main")]]
+        await self._safe_edit_message_text(query, msg, parse_mode="HTML")
+        await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup(keyboard))
+
+    async def _show_admin_logs(self, query, context):
+        """Show error logs summary in-message and send file."""
+        import json
+        from pathlib import Path
+        from datetime import datetime, timedelta, timezone
+        from io import BytesIO
+        import html
+        
+        errors_path = Path("logs/errors.log")
+        if not errors_path.exists():
+            await query.answer("❌ לא נמצא קובץ לוג שגיאות.", show_alert=True)
+            return
+            
+        now = datetime.now(timezone.utc)
+        cutoff = now - timedelta(days=1)
+        
+        recent_errors = []
+        error_counts = {}
+        
+        try:
+            with open(errors_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    if not line.strip():
+                        continue
+                    try:
+                        entry = json.loads(line)
+                        ts_str = entry.get("timestamp")
+                        if ts_str:
+                            ts = datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
+                            if ts >= cutoff:
+                                recent_errors.append(entry)
+                                msg = entry.get("message", "Unknown error")
+                                error_counts[msg] = error_counts.get(msg, 0) + 1
+                    except Exception:
+                        pass
+        except Exception as e:
+            await query.answer(f"❌ שגיאה בקריאת הלוגים: {e}", show_alert=True)
+            return
+            
+        if not recent_errors:
+            msg = "✅ אין שגיאות לוג ב-24 השעות האחרונות!"
+            keyboard = [[InlineKeyboardButton("↩️ חזרה לתפריט ראשי", callback_data="admin_menu_main")]]
+            await self._safe_edit_message_text(query, msg, parse_mode="HTML")
+            await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup(keyboard))
+            return
+            
+        # Format a summary of errors
+        summary = f"📋 <b>סיכום שגיאות ב-24 השעות האחרונות:</b>\n"
+        summary += f"סה\"כ שגיאות: {len(recent_errors)}\n\n"
+        summary += "<b>סוגי שגיאות נפוצים:</b>\n"
+        sorted_counts = sorted(error_counts.items(), key=lambda x: x[1], reverse=True)[:5]
+        for errMsg, count in sorted_counts:
+            short_msg = html.escape(errMsg[:60]) + ("..." if len(errMsg) > 60 else "")
+            summary += f"• <code>{short_msg}</code>: {count} פעמים\n"
+            
+        summary += "\n*5 השגיאות האחרונות במלואן:* (קובץ מלא נשלח בצ'אט)"
+        
+        # Send full log as a file attachment
+        try:
+            log_content = ""
+            for entry in reversed(recent_errors):
+                log_content += f"=== ERROR AT {entry.get('timestamp')} ===\n"
+                log_content += f"Logger: {entry.get('logger')} | Module: {entry.get('module')} | Func: {entry.get('function')}:{entry.get('line')}\n"
+                log_content += f"Message: {entry.get('message')}\n"
+                if entry.get("exception"):
+                     log_content += f"Traceback:\n{entry.get('exception')}\n"
+                log_content += "\n" + "="*50 + "\n\n"
+                
+            bio = BytesIO(log_content.encode("utf-8"))
+            bio.name = f"errors_last_24h_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+            await context.bot.send_document(
+                chat_id=query.message.chat_id,
+                document=bio,
+                caption="📄 קובץ שגיאות מלא ל-24 השעות האחרונות"
+            )
+        except Exception as e:
+            log.error(f"Failed to send logs file: {e}")
+            
+        keyboard = [[InlineKeyboardButton("↩️ חזרה לתפריט ראשי", callback_data="admin_menu_main")]]
+        await self._safe_edit_message_text(query, summary, parse_mode="HTML")
+        await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup(keyboard))
+
+    async def _show_admin_fb_menu(self, query, context):
+        """Show Facebook credentials and file status, plus launch login button."""
+        import os
+        from datetime import datetime
+        
+        storage_state_path = "data/fb_storage_state.json"
+        cookies_path = "data/fb_cookies.json"
+        
+        status_msg = "🔐 <b>ניהול וסטטיסטיקות פייסבוק:</b>\n\n"
+        
+        if os.path.exists(storage_state_path):
+            mtime = os.path.getmtime(storage_state_path)
+            date_str = datetime.fromtimestamp(mtime).strftime("%d/%m/%Y %H:%M")
+            size_kb = os.path.getsize(storage_state_path) / 1024
+            status_msg += f"✅ <b>קובץ Session:</b> קיים\n  עודכן: <code>{date_str}</code>\n  גודל: <code>{size_kb:.1f} KB</code>\n\n"
+        else:
+            status_msg += "❌ <b>קובץ Session:</b> חסר\n\n"
+            
+        if os.path.exists(cookies_path):
+            mtime = os.path.getmtime(cookies_path)
+            date_str = datetime.fromtimestamp(mtime).strftime("%d/%m/%Y %H:%M")
+            size_kb = os.path.getsize(cookies_path) / 1024
+            status_msg += f"✅ <b>קובץ Cookies:</b> קיים\n  עודכן: <code>{date_str}</code>\n  גודל: <code>{size_kb:.1f} KB</code>\n\n"
+        else:
+            status_msg += "❌ <b>קובץ Cookies:</b> חסר\n\n"
+            
+        status_msg += "_תוכל להתחיל התחברות אינטראקטיבית חדשה כדי לרענן את הסשן או ללחוץ על הרצה ידנית._"
+        
+        keyboard = [
+            [InlineKeyboardButton("🔑 התחל התחברות אינטראקטיבית", callback_data="admin_menu_fb_login_trigger")],
+            [InlineKeyboardButton("🔄 הרצת סורק ידנית", callback_data="admin_menu_fb_scrape_trigger")],
+            [InlineKeyboardButton("↩️ חזרה לתפריט ראשי", callback_data="admin_menu_main")]
+        ]
+        
+        # Route special action triggers
+        if query.data == "admin_menu_fb_login_trigger":
+            # Call fb login command
+            command_handler = context.bot_data.get("command_handler")
+            if command_handler:
+                await query.answer("מתנייד להתחברות לפייסבוק...", show_alert=False)
+                await command_handler.admin_fb_login(update=query, context=context)
+                return
+        elif query.data == "admin_menu_fb_scrape_trigger":
+            command_handler = context.bot_data.get("command_handler")
+            if command_handler:
+                await query.answer("מפעיל סריקה ידנית...", show_alert=False)
+                await command_handler.admin_scrape(update=query, context=context)
+                return
+                
+        await self._safe_edit_message_text(query, status_msg, parse_mode="HTML")
+        await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup(keyboard))
+
+    async def _show_admin_clear_menu(self, query, context):
+        """Show clean menu with dropping buttons."""
+        msg = (
+            "🧹 <b>תפריט ניקוי ואיפוס טבלאות במסד הנתונים</b>\n\n"
+            "⚠️ <b>אזהרה:</b> מחיקת טבלאות היא פעולה בלתי הפיכה ובלתי ניתנת לשחזור! "
+            "אנא השתמש בזהירות מירבית."
+        )
+        
+        keyboard = [
+            [
+                InlineKeyboardButton("🗑️ נקה היסטוריית סריקה (Seen)", callback_data="admin_clear_table:seen_listings"),
+                InlineKeyboardButton("🗑️ נקה דירות מועשרות", callback_data="admin_clear_table:enriched_listings")
+            ],
+            [
+                InlineKeyboardButton("🗑️ נקה יומני פסילות", callback_data="admin_clear_table:rejection_logs"),
+                InlineKeyboardButton("🗑️ נקה מטמון AI", callback_data="admin_clear_table:ai_cache")
+            ],
+            [
+                InlineKeyboardButton("💥 איפוס משתמשים וכללים", callback_data="admin_clear_table:users")
+            ],
+            [
+                InlineKeyboardButton("↩️ חזרה לתפריט ראשי", callback_data="admin_menu_main")
+            ]
+        ]
+        
+        await self._safe_edit_message_text(query, msg, parse_mode="HTML")
+        await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup(keyboard))
+
+    async def _show_admin_server_stats(self, query, context):
+        """Show diagnostic system and directory statistics."""
+        import platform
+        import os
+        import sys
+        import shutil
+        from pathlib import Path
+        import html
+        
+        # Disk usage
+        total, used, free = shutil.disk_usage(".")
+        total_gb = total / (1024**3)
+        used_gb = used / (1024**3)
+        free_gb = free / (1024**3)
+        
+        # DB sizes
+        db_size_mb = 0.0
+        db_path = Path("apartment_bot.db")
+        if db_path.exists():
+            db_size_mb = db_path.stat().st_size / (1024 * 1024)
+            
+        wal_size_mb = 0.0
+        wal_path = Path("apartment_bot.db-wal")
+        if wal_path.exists():
+            wal_size_mb = wal_path.stat().st_size / (1024 * 1024)
+            
+        msg = f"""🖥️ <b>אבחון וסטטיסטיקות שרת:</b>
+
+💻 <b>פרטי מערכת הפעלה:</b>
+• מערכת הפעלה: <code>{html.escape(platform.system())}</code>
+• גרסת הפצה: <code>{html.escape(platform.release())}</code>
+• ארכיטקטורה: <code>{html.escape(platform.machine())}</code>
+
+🐍 <b>סביבת ריצה:</b>
+• גרסת Python: <code>{html.escape(sys.version.split()[0])}</code>
+• מעבדים (CPU Cores): <code>{os.cpu_count()}</code>
+
+💾 <b>שטח אחסון בשרת:</b>
+• סה"כ דיסק: <code>{total_gb:.1f} GB</code>
+• בשימוש: <code>{used_gb:.1f} GB</code> (<code>{used/total*100:.1f}%</code>)
+• פנוי: <code>{free_gb:.1f} GB</code>
+
+🗄️ <b>קבצי מסד הנתונים:</b>
+• גודל DB: <code>{db_size_mb:.2f} MB</code>
+• גודל DB WAL: <code>{wal_size_mb:.2f} MB</code>"""
+        keyboard = [[InlineKeyboardButton("↩️ חזרה לתפריט ראשי", callback_data="admin_menu_main")]]
+        await self._safe_edit_message_text(query, msg, parse_mode="HTML")
+        await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup(keyboard))
+
+    async def _show_admin_gemini_test(self, query, context):
+        """Test Gemini AI engine connection."""
+        ai_engine = context.bot_data.get("ai_engine")
+        
+        if not ai_engine:
+            msg = "❌ מנוע AI (ai_engine) אינו מוגדר ב-bot_data!"
+        else:
+            await query.answer("בודק חיבור למנוע ה-AI... אנא המתן", show_alert=False)
+            try:
+                # Call Gemini content generator with a simple fast prompt
+                from datetime import datetime
+                t0 = datetime.now()
+                test_response = await ai_engine.generate_content("Respond with exactly: OK")
+                duration = (datetime.now() - t0).total_seconds()
+                
+                model_name = getattr(ai_engine, "current_model", "Gemini")
+                
+                msg = f"""🧪 <b>תוצאת בדיקת Gemini AI:</b>
+
+✅ <b>סטטוס:</b> מחובר ותקין!
+🤖 <b>מודל פעיל:</b> <code>{html.escape(model_name)}</code>
+⏱️ <b>זמן תגובה:</b> <code>{duration:.2f} שניות</code>
+💬 <b>תשובה מהספק:</b> <code>{html.escape(test_response.strip())}</code>"""
+            except Exception as e:
+                msg = f"""🧪 <b>תוצאת בדיקת Gemini AI:</b>
+
+❌ <b>שגיאה:</b> החיבור נכשל!
+⚠️ <b>פירוט:</b>
+<code>{html.escape(str(e))}</code>"""
+                
+        keyboard = [[InlineKeyboardButton("↩️ חזרה לתפריט ראשי", callback_data="admin_menu_main")]]
+        await self._safe_edit_message_text(query, msg, parse_mode="HTML")
+        await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup(keyboard))
+
+    async def _prompt_admin_broadcast(self, query, context):
+        """Prompt admin to enter the text message for broadcasting."""
+        context.user_data["admin_waiting_for_broadcast"] = True
+        
+        msg = (
+            "📢 <b>שידור הודעה מערכת לכלל המשתמשים</b>\n\n"
+            "אנא כתוב ושלח כעת את הודעת הטקסט שברצונך להפיץ לכולם.\n"
+            "אם ברצונך לבטל את השידור, שלח את המילה <code>cancel</code> או <code>ביטול</code>."
+        )
+        
+        keyboard = [[InlineKeyboardButton("❌ ביטול", callback_data="admin_menu_main")]]
+        
+        await self._safe_edit_message_text(query, msg, parse_mode="HTML")
+        await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup(keyboard))
+

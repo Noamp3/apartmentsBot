@@ -176,8 +176,21 @@ class ZeroAIUserMatcher:
                         area_failures.append("אזור גיאוגרפי מוגדר")
             
             if not area_passes:
+                # Build detailed description of where the listing actually is
+                actual_parts = []
+                if enriched.extracted_neighborhood:
+                    actual_parts.append(enriched.extracted_neighborhood)
+                if enriched.extracted_street:
+                    actual_parts.append(enriched.extracted_street)
+                
+                city_or_loc = enriched.extracted_location or enriched.listing.location
+                if city_or_loc and city_or_loc not in actual_parts:
+                    actual_parts.append(city_or_loc)
+                
+                actual_loc = ", ".join(actual_parts) if actual_parts else (enriched.extracted_location or enriched.listing.location or "לא ידוע")
+                
                 rejection_reasons.append(
-                    f"מיקום {enriched.extracted_location or enriched.listing.location} לא תואם אף אחד מהאזורים המבוקשים: {', '.join(area_failures)}"
+                    f"מיקום {actual_loc} לא תואם אף אחד מהאזורים המבוקשים: {', '.join(area_failures)}"
                 )
         
         # Check other soft rules (AND logic)

@@ -57,6 +57,71 @@ class MessageHandler:
         user_repo = UserRepository(db)
         user_obj = await user_repo.get_by_telegram_id(user.id)
         
+        # Intercept system broadcast from admin
+        if context.user_data.get("admin_waiting_for_broadcast"):
+            # Clear state first
+            context.user_data.pop("admin_waiting_for_broadcast", None)
+            
+            # Cancel option
+            if text.lower() in ("cancel", "ביטול"):
+                await update.message.reply_text("❌ שידור ההודעה בוטל.")
+                # Show main dashboard
+                command_handler = context.bot_data.get("command_handler")
+                if command_handler:
+                    dashboard, reply_markup = await command_handler.get_admin_dashboard_data()
+                    await update.message.reply_text(
+                        dashboard,
+                        reply_markup=reply_markup,
+                        parse_mode="Markdown"
+                    )
+                return
+                
+            # Perform broadcast
+            broadcast_text = text
+            await update.message.reply_text(f"📢 מתחיל שידור הודעה לכל המשתמשים הפעילים...")
+            
+            import asyncio
+            # Get all active users
+            users = await user_repo.get_all_active()
+            
+            if not users:
+                await update.message.reply_text("אין משתמשים פעילים במערכת לשידור.")
+                return
+                
+            sent_count = 0
+            failed_count = 0
+            
+            import html
+            for u in users:
+                try:
+                    await context.bot.send_message(
+                        chat_id=u.chat_id,
+                        text=f"📢 <b>הודעת מערכת:</b>\n\n{html.escape(broadcast_text)}",
+                        parse_mode="HTML"
+                    )
+                    sent_count += 1
+                    await asyncio.sleep(0.05)
+                except Exception as e:
+                    log.error(f"Failed to send broadcast to user {u.telegram_id}: {e}")
+                    failed_count += 1
+                    
+            await update.message.reply_text(
+                f"✅ השידור הושלם!\n"
+                f"• נשלח בהצלחה: {sent_count}\n"
+                f"• נכשל: {failed_count}"
+            )
+            
+            # Show dashboard again
+            command_handler = context.bot_data.get("command_handler")
+            if command_handler:
+                dashboard, reply_markup = await command_handler.get_admin_dashboard_data()
+                await update.message.reply_text(
+                    dashboard,
+                    reply_markup=reply_markup,
+                    parse_mode="Markdown"
+                )
+            return
+        
         # Intercept interactive Facebook login commands (highest priority)
         fb_interactive = context.bot_data.get("fb_interactive_login")
         if (fb_interactive 
@@ -614,6 +679,54 @@ class MessageHandler:
         
         return neighborhoods
 
+    def _should_bypass_ai(self, text: str, step: str) -> bool:
+        """Heuristics to check if input should bypass AI rule parsing during onboarding."""
+        import re
+        clean_text = text.strip()
+        
+        # Extract all numbers from the text (ignoring symbols/punctuation)
+        numbers = [float(n) for n in re.findall(r'\d+(?:\.\d+)?', clean_text.replace(',', ''))]
+        
+        # Keywords for other categories
+        price_keywords = ["שקל", "ש\"ח", "₪", "תקציב", "מחיר", "במחיר"]
+        bedroom_keywords = ["חדר", "חדרים", "חצי", "beds", "rooms"]
+        
+        # Helper: does text contain any keyword from a list?
+        def contains_any(kw_list):
+            return any(kw in clean_text for kw in kw_list)
+        
+        has_price_indicator = contains_any(price_keywords) or any(num > 100 for num in numbers)
+        has_bedroom_indicator = contains_any(bedroom_keywords) or any(0.5 <= num <= 10 for num in numbers)
+        
+        if step == "ask_location":
+            # Bypass AI if there are no price or bedroom indicators
+            return not (has_price_indicator or has_bedroom_indicator)
+            
+        elif step == "ask_budget":
+            # Bypass AI if there are no bedroom indicators AND it contains at least one number
+            return not has_bedroom_indicator and len(numbers) >= 1
+            
+        elif step == "ask_bedrooms":
+            # Bypass AI if there are no price indicators
+            return not has_price_indicator
+            
+        return False
+
+    def _is_multi_rule(self, rules_list: list) -> bool:
+        """Check if rules_list contains rules from at least 2 distinct categories."""
+        categories = set()
+        for r in rules_list:
+            r_type = r.get("type", "")
+            if r_type in ["area", "border_area"]:
+                categories.add("location")
+            elif r_type in ["price_min", "price_max"]:
+                categories.add("price")
+            elif r_type in ["bedrooms_min", "bedrooms_max"]:
+                categories.add("bedrooms")
+            elif r_type == "custom":
+                categories.add("custom")
+        return len(categories) >= 2
+
     async def handle_onboarding_step(self, update: Update, context: ContextTypes.DEFAULT_TYPE, user_obj: object, text: str):
         """Handle active onboarding step."""
         from telegram import InlineKeyboardButton, InlineKeyboardMarkup
@@ -628,6 +741,141 @@ class MessageHandler:
         step = user_obj.onboarding_step
         log.info("Processing onboarding step", user_id=user_id, step=step, text=text[:50])
         
+        if step in ["ask_location", "ask_budget", "ask_bedrooms"]:
+            # Check if we should bypass AI parsing for a single-rule input
+            bypass_ai = self._should_bypass_ai(text, step)
+            
+            # If we don't bypass AI AND we have an AI engine, attempt multi-rule parsing
+            if not bypass_ai and self.ai_engine:
+                try:
+                    rules_list, sass_response = await self.ai_engine.parse_user_rules(text, persona=persona_name)
+                    if rules_list and self._is_multi_rule(rules_list):
+                        log.info("Multi-rule onboarding input detected. Direct completion.", user_id=user_id, rules_count=len(rules_list))
+                        
+                        # Merge newly parsed rules with any existing accumulated onboarding rules
+                        existing_rules = context.user_data.get('onboarding_rules', [])
+                        all_rules_data = list(existing_rules)
+                        
+                        # Overwrite conflicting rule types with the new values
+                        for r_new in rules_list:
+                            r_new_type = r_new["type"]
+                            is_hard = r_new_type in ["price_max", "price_min", "bedrooms_min", "bedrooms_max"]
+                            if is_hard:
+                                all_rules_data = [r for r in all_rules_data if r["type"] != r_new_type]
+                            all_rules_data.append(r_new)
+                            
+                        # Pre-processing: Auto-generate max bedrooms if only min is present
+                        has_min_beds = False
+                        has_max_beds = False
+                        min_beds_val = 0.0
+                        for r in all_rules_data:
+                            if r["type"] == "bedrooms_min":
+                                has_min_beds = True
+                                try:
+                                    min_beds_val = float(r["value"])
+                                except ValueError:
+                                    min_beds_val = 0.0
+                            elif r["type"] == "bedrooms_max":
+                                has_max_beds = True
+                        if has_min_beds and not has_max_beds and min_beds_val > 0:
+                            max_val = min_beds_val + 3.0
+                            all_rules_data.append({
+                                "type": "bedrooms_max",
+                                "value": max_val,
+                                "original_text": f"מקסימום {max_val} חדרים (אוטומטי)"
+                            })
+                            
+                        # Complete onboarding and save all rules to DB
+                        await user_repo.update_onboarding_step(user_id, None)
+                        
+                        from database.repositories import RuleRepository
+                        from models.search_rule import SearchRule, RuleType
+                        rule_repo = RuleRepository(db)
+                        
+                        search_rules_list = []
+                        for r_data in all_rules_data:
+                            r_type_str = r_data["type"]
+                            rule_type = getattr(RuleType, r_type_str.upper(), RuleType.CUSTOM)
+                            rule_value = r_data["value"]
+                            original_text = r_data["original_text"]
+                            
+                            if rule_type == RuleType.BORDER_AREA:
+                                neighborhoods = await self._parse_border_constraints(str(rule_value))
+                                if neighborhoods:
+                                    rule_value = ",".join(neighborhoods)
+                                else:
+                                    rule_type = RuleType.AREA
+                                    
+                            rule = SearchRule(
+                                user_id=user_id,
+                                rule_type=rule_type,
+                                value=str(rule_value),
+                                original_text=original_text
+                            )
+                            await rule_repo.create(rule)
+                            search_rules_list.append(rule)
+                            
+                        context.user_data.pop('onboarding_rules', None)
+                        
+                        sass_extra = ""
+                        try:
+                            sass = await self.ai_engine.get_random_sass(persona=persona_name)
+                            sass_extra = f"\n\n_{self._escape_markdown(sass)}_"
+                        except Exception:
+                            pass
+                            
+                        rules_summary = []
+                        type_names = {
+                            RuleType.PRICE_MAX: "💰 מחיר מקסימלי",
+                            RuleType.PRICE_MIN: "💰 מחיר מינימלי",
+                            RuleType.BEDROOMS_MIN: "🛏️ מינימום חדרים",
+                            RuleType.BEDROOMS_MAX: "🛏️ מקסימום חדרים",
+                            RuleType.AREA: "📍 מיקום",
+                            RuleType.BORDER_AREA: "🗺️ אזור לפי גבולות",
+                            RuleType.CUSTOM: "✨ דרישה מותאמת",
+                        }
+                        for rule in search_rules_list:
+                            type_label = type_names.get(rule.rule_type, "• כלל")
+                            escaped_text = self._escape_markdown(rule.original_text)
+                            rules_summary.append(f"{type_label}: {escaped_text}")
+                            
+                        rules_summary_str = "\n".join(rules_summary)
+                        welcome_template = """
+🎉 *מזל טוב\! סיימנו להגדיר את החיפוש שלך\!* 🚀
+
+הנה הכללים ששמרתי בשבילך:
+{rules_summary_str}
+
+מכאן והלאה אני רץ כל כמה דקות על כל הפרסומים ביד2 ובקבוצות הפייסבוק הכי שוות, מסנן את כל הזבל ומביא לך רק מה שמתאים בול\!{sass_extra}
+"""
+                        from bot.handlers.command_handler import get_main_menu_keyboard
+                        await self._safe_reply_text(
+                            update,
+                            welcome_template.format(
+                                rules_summary_str=rules_summary_str,
+                                sass_extra=sass_extra
+                            ),
+                            parse_mode='MarkdownV2',
+                            reply_markup=get_main_menu_keyboard()
+                        )
+                        
+                        processing_service = context.bot_data.get("processing_service")
+                        if processing_service:
+                            from database.repositories import ListingRepository
+                            listing_repo = ListingRepository(db)
+                            recent_listings = await listing_repo.get_recent_enrichments(hours=24)
+                            if recent_listings:
+                                await update.message.reply_text("🔎 בודק אם יש משהו רלוונטי מהיממה האחרונה...")
+                                matches = await processing_service.match_user_to_listings(
+                                    user_obj, recent_listings, is_manual_trigger=True
+                                )
+                                if matches > 0:
+                                    await update.message.reply_text(f"✨ מצאתי {matches} דירות מתאימות מהיממה האחרונה!")
+                        return
+                except Exception as e:
+                    log.error(f"Failed to parse multi-rule onboarding message: {e}")
+                    # On error, fallback to step-by-step logic
+
         if step == "choose_persona":
             from core.personas import PERSONAS
             keyboard = []
@@ -691,7 +939,7 @@ class MessageHandler:
             
         elif step == "ask_budget":
             import re
-            digits = re.findall(r'\d+', text.replace(',', '').replace('.', ''))
+            digits = [int(d) for d in re.findall(r'\d+', text.replace(',', '').replace('.', ''))]
             if not digits:
                 error_msg = "אופס, לא מצאתי מספר בתשובה שלך. אנא הזן תקציב במספר בלבד (למשל: 5000):"
                 if persona_name == "barakush":
@@ -706,14 +954,37 @@ class MessageHandler:
                 await self._safe_reply_text(update, error_msg)
                 return
             
-            budget_val = int(digits[0])
-            
             onboarding_rules = context.user_data.get('onboarding_rules', [])
-            onboarding_rules.append({
-                "type": "price_max",
-                "value": budget_val,
-                "original_text": f"עד {budget_val}₪"
-            })
+            
+            if len(digits) >= 2:
+                min_price = min(digits)
+                max_price = max(digits)
+                onboarding_rules.append({
+                    "type": "price_min",
+                    "value": min_price,
+                    "original_text": f"מחיר מינימלי {min_price}₪"
+                })
+                onboarding_rules.append({
+                    "type": "price_max",
+                    "value": max_price,
+                    "original_text": f"עד {max_price}₪"
+                })
+            else:
+                price_val = digits[0]
+                is_min = any(x in text for x in ["לפחות", "מינימום", "מעל", "מ-"])
+                if is_min:
+                    onboarding_rules.append({
+                        "type": "price_min",
+                        "value": price_val,
+                        "original_text": f"מחיר מינימלי {price_val}₪"
+                    })
+                else:
+                    onboarding_rules.append({
+                        "type": "price_max",
+                        "value": price_val,
+                        "original_text": f"עד {price_val}₪"
+                    })
+                    
             context.user_data['onboarding_rules'] = onboarding_rules
             
             await user_repo.update_onboarding_step(user_id, "ask_bedrooms")

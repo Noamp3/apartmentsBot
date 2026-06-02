@@ -451,10 +451,8 @@ _הבוט פעיל וסורק דירות חדשות כל מספר דקות_
             reply_markup=get_main_menu_keyboard()
         )
 
-    @ensure_user_exists
-    @admin_required
-    async def admin_panel(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Show the admin dashboard."""
+    async def get_admin_dashboard_data(self) -> tuple[str, InlineKeyboardMarkup]:
+        """Fetch stats and build the admin dashboard text and keyboard."""
         db = await get_db()
         
         # Count stats
@@ -472,9 +470,9 @@ _הבוט פעיל וסורק דירות חדשות כל מספר דקות_
         if db_path.exists():
             db_size_mb = db_path.stat().st_size / (1024 * 1024)
             
-        dashboard = f"""👑 *לוח בקרה למנהל* 👑
+        dashboard = f"""👑 <b>לוח בקרה למנהל</b> 👑
 
-📊 *סטטיסטיקות כלליות:*
+📊 <b>סטטיסטיקות כלליות:</b>
 • סה\"כ משתמשים: {users_count} (פעילים: {active_users})
 • סה\"כ כללי חיפוש: {rules_count}
 • דירות שנסרקו (Seen): {seen_count}
@@ -482,35 +480,42 @@ _הבוט פעיל וסורק דירות חדשות כל מספר דקות_
 • דירות שנפסלו (Rejections): {rejections_count}
 • גודל מסד הנתונים: {db_size_mb:.2f} MB
 
-🤖 *פעולות ניהול:*
-• לצפייה במשתמשים: /admin_users
-• לצפייה בלוג שגיאות: /admin_logs
-• שידור הודעה לכולם: /admin_broadcast [הודעה]
-• הרצת סורק ידנית: /admin_scrape
-• מחיקת/איפוס טבלאות: לחץ על הכפתורים למטה
-
-⚠️ *שים לב: מחיקת טבלאות היא פעולה בלתי הפיכה!*"""
+🤖 <b>תפריט פעולות:</b>
+בחר אחת מהפעולות הבאות מתוך התפריט האינטראקטיבי:"""
         
-        # Keyboard for dropping tables
         keyboard = [
             [
-                InlineKeyboardButton("🗑️ נקה היסטוריית סריקה (Seen)", callback_data="admin_clear_table:seen_listings"),
-                InlineKeyboardButton("🗑️ נקה דירות מועשרות", callback_data="admin_clear_table:enriched_listings")
+                InlineKeyboardButton("👥 רשימת משתמשים", callback_data="admin_menu_users"),
+                InlineKeyboardButton("🏠 דירות אחרונות", callback_data="admin_menu_recent_listings")
             ],
             [
-                InlineKeyboardButton("🗑️ נקה יומני פסילות", callback_data="admin_clear_table:rejection_logs"),
-                InlineKeyboardButton("🗑️ נקה מטמון AI", callback_data="admin_clear_table:ai_cache")
+                InlineKeyboardButton("📋 לוג שגיאות", callback_data="admin_menu_logs"),
+                InlineKeyboardButton("📢 שידור הודעה", callback_data="admin_broadcast_prompt")
             ],
             [
-                InlineKeyboardButton("💥 איפוס משתמשים וכללים", callback_data="admin_clear_table:users")
+                InlineKeyboardButton("🔐 פייסבוק וסורק", callback_data="admin_menu_fb"),
+                InlineKeyboardButton("🧹 ניקוי טבלאות", callback_data="admin_menu_clear")
+            ],
+            [
+                InlineKeyboardButton("🧪 בדיקת Gemini AI", callback_data="admin_menu_gemini"),
+                InlineKeyboardButton("🖥️ סטטוס שרת", callback_data="admin_menu_server")
             ]
         ]
         
+        return dashboard, InlineKeyboardMarkup(keyboard)
+
+    @ensure_user_exists
+    @admin_required
+    async def admin_panel(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Show the admin dashboard."""
+        dashboard, reply_markup = await self.get_admin_dashboard_data()
         await update.message.reply_text(
             dashboard,
-            reply_markup=InlineKeyboardMarkup(keyboard),
-            parse_mode="Markdown"
+            reply_markup=reply_markup,
+            parse_mode="HTML"
         )
+
+
 
     @ensure_user_exists
     @admin_required
@@ -681,12 +686,13 @@ _הבוט פעיל וסורק דירות חדשות כל מספר דקות_
         sent_count = 0
         failed_count = 0
         
+        import html
         for user in users:
             try:
                 await context.bot.send_message(
                     chat_id=user.chat_id,
-                    text=f"📢 *הודעת מערכת:*\n\n{broadcast_text}",
-                    parse_mode="Markdown"
+                    text=f"📢 <b>הודעת מערכת:</b>\n\n{html.escape(broadcast_text)}",
+                    parse_mode="HTML"
                 )
                 sent_count += 1
                 await asyncio.sleep(0.05)
@@ -700,20 +706,27 @@ _הבוט פעיל וסורק דירות חדשות כל מספר דקות_
     @admin_required
     async def admin_scrape(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Manually trigger a scraping cycle."""
+        chat_id = update.effective_chat.id
+        async def send_reply(text, **kwargs):
+            if update.message:
+                return await update.message.reply_text(text, **kwargs)
+            else:
+                return await context.bot.send_message(chat_id=chat_id, text=text, **kwargs)
+
         app_instance = context.bot_data.get("app_instance")
         
         if not app_instance:
-            await update.message.reply_text("❌ לא ניתן למצוא את מופע האפליקציה ב-bot_data.")
+            await send_reply("❌ לא ניתן למצוא את מופע האפליקציה ב-bot_data.")
             return
             
-        await update.message.reply_text("🔄 מתחיל מחזור סריקה והתאמה ידני (זה עשוי לקחת דקה-שתיים)...")
+        await send_reply("🔄 מתחיל מחזור סריקה והתאמה ידני (זה עשוי לקחת דקה-שתיים)...")
         
         try:
             await app_instance.run_processing_cycle()
-            await update.message.reply_text("✅ מחזור סריקה והתאמה ידני הושלם בהצלחה!")
+            await send_reply("✅ מחזור סריקה והתאמה ידני הושלם בהצלחה!")
         except Exception as e:
             log.error(f"Manual scrape failed: {e}", exc_info=True)
-            await update.message.reply_text(f"❌ הרצת הסריקה נכשלה: {e}")
+            await send_reply(f"❌ הרצת הסריקה נכשלה: {e}")
 
     @ensure_user_exists
     @admin_required
@@ -727,16 +740,21 @@ _הבוט פעיל וסורק דירות חדשות כל מספר דקות_
         import asyncio
         
         chat_id = update.effective_chat.id
+        async def send_reply(text, **kwargs):
+            if update.message:
+                return await update.message.reply_text(text, **kwargs)
+            else:
+                return await context.bot.send_message(chat_id=chat_id, text=text, **kwargs)
         
         # Check if there is already an active session running
         if context.bot_data.get("fb_interactive_login", {}).get("active"):
-            await update.message.reply_text("❌ יש כבר תהליך התחברות אינטראקטיבי פעיל!")
+            await send_reply("❌ יש כבר תהליך התחברות אינטראקטיבי פעיל!")
             return
         if context.bot_data.get("fb_login_waiting_for_2fa") is not None:
-            await update.message.reply_text("❌ יש כבר תהליך התחברות פעיל שממתין לקוד 2FA!")
+            await send_reply("❌ יש כבר תהליך התחברות פעיל שממתין לקוד 2FA!")
             return
             
-        await update.message.reply_text(
+        await send_reply(
             "🔐 *מתחיל התחברות אינטראקטיבית לפייסבוק...*\n"
             "הדפדפן מופעל כעת. אמלא פרטים אוטומטית ואז תוכל/י לנווט דרך Telegram.",
             parse_mode='Markdown'
