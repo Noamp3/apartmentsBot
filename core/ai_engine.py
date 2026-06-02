@@ -312,7 +312,7 @@ class BaseAIEngine(ABC):
             return None
     
     @abstractmethod
-    async def generate_content(self, prompt: str, image_path: Optional[str] = None, max_retries: int = 3) -> str:
+    async def generate_content(self, prompt: str, image_path: Optional[str] = None, max_retries: Optional[int] = None) -> str:
         """Generate content from a prompt, optionally including a screenshot path."""
         pass
     
@@ -553,8 +553,10 @@ class GeminiAIEngine(BaseAIEngine):
     def current_model(self) -> str:
         return self.models[self.current_model_index]
     
-    async def generate_content(self, prompt: str, image_path: Optional[str] = None, max_retries: int = 3) -> str:
+    async def generate_content(self, prompt: str, image_path: Optional[str] = None, max_retries: Optional[int] = None) -> str:
         """Generate content with model rotation on rate limits, with multimodal image support."""
+        if max_retries is None:
+            max_retries = settings.GEMINI_503_RETRIES
         
         # We try to fulfill the request by trying available models.
         # We allow for a few failures per model before giving up entirely.
@@ -688,8 +690,9 @@ class OpenAIEngine(BaseAIEngine):
         
         log.info(f"Initialized OpenAI engine", model=self.model_name)
     
-    async def generate_content(self, prompt: str, image_path: Optional[str] = None, max_retries: int = 3) -> str:
+    async def generate_content(self, prompt: str, image_path: Optional[str] = None, max_retries: Optional[int] = None) -> str:
         """Generate content using OpenAI API."""
+        max_retries = max_retries if max_retries is not None else 3
         for attempt in range(max_retries):
             try:
                 await self.rate_limiter.acquire()
@@ -744,8 +747,9 @@ class AnthropicEngine(BaseAIEngine):
         
         log.info(f"Initialized Anthropic engine", model=self.model_name)
     
-    async def generate_content(self, prompt: str, image_path: Optional[str] = None, max_retries: int = 3) -> str:
+    async def generate_content(self, prompt: str, image_path: Optional[str] = None, max_retries: Optional[int] = None) -> str:
         """Generate content using Anthropic API."""
+        max_retries = max_retries if max_retries is not None else 3
         for attempt in range(max_retries):
             try:
                 await self.rate_limiter.acquire()
@@ -799,8 +803,9 @@ class OllamaEngine(BaseAIEngine):
         
         log.info(f"Initialized Ollama engine", model=self.model_name, base_url=self.base_url)
     
-    async def generate_content(self, prompt: str, image_path: Optional[str] = None, max_retries: int = 3) -> str:
+    async def generate_content(self, prompt: str, image_path: Optional[str] = None, max_retries: Optional[int] = None) -> str:
         """Generate content using Ollama API."""
+        max_retries = max_retries if max_retries is not None else 3
         import aiohttp
         
         async def _call_ollama():
@@ -866,8 +871,9 @@ class GroqEngine(BaseAIEngine):
         
         log.info(f"Initialized Groq engine", model=self.model_name)
     
-    async def generate_content(self, prompt: str, image_path: Optional[str] = None, max_retries: int = 3) -> str:
+    async def generate_content(self, prompt: str, image_path: Optional[str] = None, max_retries: Optional[int] = None) -> str:
         """Generate content using Groq API."""
+        max_retries = max_retries if max_retries is not None else 3
         for attempt in range(max_retries):
             try:
                 await self.rate_limiter.acquire()
@@ -963,26 +969,32 @@ class ListingEnricher:
         self.batch_size = batch_size or settings.AI_BATCH_SIZE
     
     async def enrich_listings(self, listings: List[Listing]) -> List[EnrichedListing]:
-        """Enrich all listings in batches. ONE AI call per batch."""
+        """Enrich all listings in batches in parallel."""
         if not listings:
             return []
         
-        all_enriched = []
-        
+        batches = []
         for i in range(0, len(listings), self.batch_size):
-            batch = listings[i:i + self.batch_size]
-            log.info(f"Enriching batch {i // self.batch_size + 1}",
-                    batch_size=len(batch), total=len(listings))
+            batches.append(listings[i:i + self.batch_size])
             
+        async def enrich_batch_safe(batch_idx: int, batch: List[Listing]) -> List[EnrichedListing]:
+            log.info(f"Enriching batch {batch_idx + 1}",
+                     batch_size=len(batch), total=len(listings))
             try:
-                enriched_batch = await self._enrich_batch(batch)
-                all_enriched.extend(enriched_batch)
+                return await self._enrich_batch(batch)
             except Exception as e:
-                log.error(f"Failed to enrich batch", error=str(e))
-                for listing in batch:
-                    all_enriched.append(self._basic_enrich(listing))
+                log.error(f"Failed to enrich batch {batch_idx + 1}", error=str(e))
+                return [self._basic_enrich(listing) for listing in batch]
+                
+        tasks = [enrich_batch_safe(idx, batch) for idx, batch in enumerate(batches)]
+        results = await asyncio.gather(*tasks)
         
+        all_enriched = []
+        for res in results:
+            all_enriched.extend(res)
+            
         return all_enriched
+
     
     async def _enrich_batch(self, listings: List[Listing]) -> List[EnrichedListing]:
         """Single AI call to extract all data from a batch of listings."""

@@ -209,3 +209,24 @@ async def test_gemini_engine_rotation_on_503():
         assert calls_model_2 == 1
         assert engine.current_model == "model-2"
 
+
+@pytest.mark.asyncio
+async def test_gemini_engine_uses_configurable_retries():
+    """Test GeminiAIEngine uses config.settings.GEMINI_503_RETRIES by default."""
+    with patch("google.genai.Client") as mock_client_cls:
+        mock_client = MagicMock()
+        mock_client_cls.return_value = mock_client
+        
+        # Configure GeminiAIEngine with custom retries settings
+        with patch("config.settings.GEMINI_503_RETRIES", 42):
+            engine = GeminiAIEngine(api_key="test_key", model="gemini-3-flash-preview")
+            
+            with patch("core.ai_engine.retry_with_backoff", new_callable=AsyncMock) as mock_retry:
+                await engine.generate_content("hello")
+                
+                # Check that retry_with_backoff was called with max_retries=42
+                mock_retry.assert_called_once()
+                kwargs_passed = mock_retry.call_args[1]
+                assert kwargs_passed.get("max_retries") == 42
+
+

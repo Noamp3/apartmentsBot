@@ -46,6 +46,7 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: str = ""
     # Comma-separated list of models to rotate through. First one is primary.
     GEMINI_MODEL: str = "gemini-3-flash-preview,gemini-2.0-flash-exp,gemini-1.5-flash,gemini-1.5-flash-8b,gemini-1.5-pro"
+    GEMINI_503_RETRIES: int = 20
     
     # OpenAI Settings
     OPENAI_API_KEY: str = ""
