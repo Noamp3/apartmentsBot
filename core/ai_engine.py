@@ -385,7 +385,9 @@ Example output:
         try:
             response = await self.generate_content(prompt)
             data = self._parse_json_response(response)
-            return data.get("neighborhoods", [])
+            neighborhoods = data.get("neighborhoods", [])
+            # Drop any neighborhood that does not exist in the supported list (schema)
+            return [n for n in neighborhoods if n in supported_neighborhoods]
         except Exception as e:
             log.error(f"Failed to resolve neighborhoods via LLM: {e}")
             return []
