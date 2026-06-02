@@ -51,12 +51,42 @@ class IsraeliLocationDatabase:
             # Default to locations.json in the same directory as this file
             schema_path = os.path.join(os.path.dirname(__file__), "locations.json")
         self.schema_path = schema_path
+        self.custom_schema_path = os.path.join(os.path.dirname(schema_path), "locations_custom.json")
         self._lock = asyncio.Lock()
         self._load_database()
         
     def _load_database(self):
         with open(self.schema_path, "r", encoding="utf-8") as f:
             data = json.load(f)
+            
+        # Merge custom locations if the file exists
+        custom_schema_path = getattr(self, "custom_schema_path", None)
+        if custom_schema_path and os.path.exists(custom_schema_path):
+            try:
+                with open(custom_schema_path, "r", encoding="utf-8") as f:
+                    custom_data = json.load(f)
+                
+                # Create a map of existing neighborhoods in base data for quick lookup
+                base_neighborhoods = {nb["name"]: nb for nb in data.get("neighborhoods", [])}
+                
+                for cust_nb in custom_data.get("neighborhoods", []):
+                    nb_name = cust_nb.get("name")
+                    if not nb_name:
+                        continue
+                    
+                    if nb_name in base_neighborhoods:
+                        # Merge custom streets and aliases into existing neighborhood
+                        base_nb = base_neighborhoods[nb_name]
+                        for field_name in ("streets", "aliases", "bordering"):
+                            existing = base_nb.setdefault(field_name, [])
+                            for val in cust_nb.get(field_name, []):
+                                if val not in existing:
+                                    existing.append(val)
+                    else:
+                        # Append completely new neighborhood
+                        data.setdefault("neighborhoods", []).append(cust_nb)
+            except Exception as e:
+                log.error(f"Failed to merge custom locations from {custom_schema_path}: {e}")
             
         # City aliases (common variations)
         self.city_aliases: Dict[str, List[str]] = {}
@@ -430,15 +460,27 @@ CRITICAL: Return ONLY a valid, raw JSON block. Your entire response must start w
                 matched_nb = matched_nb.strip()
                 
                 async with self._lock:
+                    custom_data = {"neighborhoods": []}
+                    if os.path.exists(self.custom_schema_path):
+                        try:
+                            with open(self.custom_schema_path, "r", encoding="utf-8") as f:
+                                custom_data = json.load(f)
+                        except Exception as e:
+                            log.error(f"Failed to load custom locations file for updating: {e}")
+                    
+                    # Read base config to check if neighborhood exists in base schema
                     with open(self.schema_path, "r", encoding="utf-8") as f:
-                        schema_data = json.load(f)
-                        
+                        base_data = json.load(f)
+                    
+                    base_nb_names = {nb["name"] for nb in base_data.get("neighborhoods", [])}
+                    
                     updated = False
-                    # Find neighborhood in schema
-                    nb_entry = next((nb for nb in schema_data.get("neighborhoods", []) if nb["name"] == matched_nb), None)
+                    
+                    # Find neighborhood in custom schema
+                    nb_entry = next((nb for nb in custom_data.get("neighborhoods", []) if nb["name"] == matched_nb), None)
                     
                     if nb_entry:
-                        # Existing neighborhood
+                        # Existing custom entry: add street/alias
                         if name_type == "street":
                             streets = nb_entry.setdefault("streets", [])
                             if name_to_add.lower() not in [s.lower() for s in streets]:
@@ -449,9 +491,25 @@ CRITICAL: Return ONLY a valid, raw JSON block. Your entire response must start w
                             if name_to_add.lower() not in [a.lower() for a in aliases]:
                                 aliases.append(name_to_add)
                                 updated = True
+                    elif matched_nb in base_nb_names:
+                        # In base schema, but not yet in custom schema. Create custom entry to override/extend it.
+                        new_nb = {
+                            "name": matched_nb,
+                            "city": city,
+                            "aliases": [],
+                            "bordering": [],
+                            "area_type": "unknown",
+                            "streets": []
+                        }
+                        if name_type == "street":
+                            new_nb["streets"].append(name_to_add)
+                        else:
+                            new_nb["aliases"].append(name_to_add)
+                        custom_data.setdefault("neighborhoods", []).append(new_nb)
+                        updated = True
                     else:
-                        # New neighborhood discovered!
-                        log.info(f"Discovered new neighborhood: '{matched_nb}' in city '{city}'! Adding to schema.")
+                        # Completely new neighborhood discovered!
+                        log.info(f"Discovered new neighborhood: '{matched_nb}' in city '{city}'! Adding to custom schema.")
                         new_nb = {
                             "name": matched_nb,
                             "city": city,
@@ -465,15 +523,15 @@ CRITICAL: Return ONLY a valid, raw JSON block. Your entire response must start w
                         else:
                             new_nb["aliases"].append(name_to_add)
                         
-                        schema_data.setdefault("neighborhoods", []).append(new_nb)
+                        custom_data.setdefault("neighborhoods", []).append(new_nb)
                         updated = True
                         
                     if updated:
-                        with open(self.schema_path, "w", encoding="utf-8") as f:
-                            json.dump(schema_data, f, indent=2, ensure_ascii=False)
+                        with open(self.custom_schema_path, "w", encoding="utf-8") as f:
+                            json.dump(custom_data, f, indent=2, ensure_ascii=False)
                         self._load_database()
                         log.info(
-                            f"Self-healed location schema: added '{name_to_add}' as {name_type} for neighborhood '{matched_nb}'"
+                            f"Self-healed location schema: added '{name_to_add}' as {name_type} for neighborhood '{matched_nb}' to custom schema"
                         )
                         return self.normalize_location(raw_location)
         except Exception as e:

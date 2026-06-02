@@ -309,6 +309,85 @@ async def test_area_rule_modification_and_cleaning():
     print()
 
 
+@pytest.mark.asyncio
+async def test_custom_location_merging():
+    """Test that custom locations are saved in locations_custom.json and merged on reload."""
+    print("\n=== Testing Custom Location Merging and Decoupling ===\n")
+    import tempfile
+    import json
+    
+    # 1. Create a temporary schema locations.json
+    with tempfile.TemporaryDirectory() as tmpdir:
+        schema_path = os.path.join(tmpdir, "locations.json")
+        custom_schema_path = os.path.join(tmpdir, "locations_custom.json")
+        
+        base_data = {
+            "cities": {
+                "תל אביב": {
+                    "aliases": ["tel aviv"],
+                    "latitude": 32.0853,
+                    "longitude": 34.7818
+                }
+            },
+            "neighborhoods": [
+                {
+                    "name": "לב העיר",
+                    "city": "תל אביב",
+                    "aliases": ["מרכז"],
+                    "bordering": [],
+                    "area_type": "central",
+                    "streets": ["בוגרשוב"]
+                }
+            ]
+        }
+        
+        with open(schema_path, "w", encoding="utf-8") as f:
+            json.dump(base_data, f, ensure_ascii=False, indent=2)
+            
+        # 2. Instantiate IsraeliLocationDatabase with this custom schema_path
+        from utils.israeli_locations import IsraeliLocationDatabase
+        db = IsraeliLocationDatabase(schema_path=schema_path)
+        
+        # Override custom_schema_path dynamically for the test instance
+        db.custom_schema_path = custom_schema_path
+        
+        # 3. Simulate resolving a location with a new street
+        mock_ai = AsyncMock()
+        mock_ai.generate_content.return_value = '{"matched_neighborhood": "לב העיר", "name_to_add": "מלצ\'ט", "type": "street"}'
+        
+        # Mock _parse_json_response (since it's implemented on base AI engine)
+        mock_ai._parse_json_response.return_value = {
+            "matched_neighborhood": "לב העיר", 
+            "name_to_add": "מלצ'ט", 
+            "type": "street"
+        }
+        
+        # Call resolution
+        result = await db.async_resolve_unknown_location(
+            raw_location="מלצ'ט",
+            listing_details="מלצ'ט 5 לב העיר",
+            ai_engine=mock_ai
+        )
+        
+        # Assertions
+        assert result["neighborhood"] == "לב העיר"
+        
+        # Verify custom file was created and contains the street
+        assert os.path.exists(custom_schema_path)
+        with open(custom_schema_path, "r", encoding="utf-8") as f:
+            custom_data = json.load(f)
+            
+        custom_nb = next((n for n in custom_data["neighborhoods"] if n["name"] == "לב העיר"), None)
+        assert custom_nb is not None
+        assert "מלצ'ט" in custom_nb["streets"]
+        
+        # Verify that reload successfully merged it
+        assert "מלצ'ט".lower() in db.neighborhood_lookup
+        
+        print("✓ Custom locations decoupled storage and loading verified successfully!")
+        print()
+
+
 def main():
     """Run all tests."""
     print("="*60)
@@ -324,6 +403,7 @@ def main():
         asyncio.run(test_llm_fallback())
         asyncio.run(test_conversational_rule_modification())
         asyncio.run(test_area_rule_modification_and_cleaning())
+        asyncio.run(test_custom_location_merging())
         
         print("\n" + "="*60)
         print("All tests completed successfully!")

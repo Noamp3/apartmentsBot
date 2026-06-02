@@ -35,3 +35,6 @@ logs/
 /remote_pull.*
 /restart_bot.sh
 /stop_bot.sh
+
+# Dynamic location data
+utils/locations_custom.json
