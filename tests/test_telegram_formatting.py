@@ -138,6 +138,9 @@ def test_rules_list_markdown_v2_escaping():
     
     rules_msg = ListingFormatter.format_rules_list(rules, allow_bordering=True)
     validate_markdown_v2(rules_msg)
+    assert "נווה צדק" in rules_msg
+    assert "כרם התימנים" in rules_msg
+    assert "שכונות שנבחרו" in rules_msg
     
     # Test empty rules
     empty_msg = ListingFormatter.format_rules_list([], allow_bordering=False)

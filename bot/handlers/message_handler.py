@@ -837,7 +837,17 @@ class MessageHandler:
                         for rule in search_rules_list:
                             type_label = type_names.get(rule.rule_type, "• כלל")
                             escaped_text = self._escape_markdown(rule.original_text)
-                            rules_summary.append(f"{type_label}: {escaped_text}")
+                            if rule.rule_type == RuleType.BORDER_AREA:
+                                neighborhoods = [n.strip() for n in rule.value.split(",") if n.strip()]
+                                count = len(neighborhoods)
+                                neighborhoods_list_str = ", ".join(neighborhoods)
+                                escaped_list = self._escape_markdown(neighborhoods_list_str)
+                                rules_summary.append(
+                                    f"{type_label}: {escaped_text} \\({count} שכונות\\)\n"
+                                    f"  └ *שכונות שנבחרו:* {escaped_list}"
+                                )
+                            else:
+                                rules_summary.append(f"{type_label}: {escaped_text}")
                             
                         rules_summary_str = "\n".join(rules_summary)
                         welcome_template = """
@@ -1074,7 +1084,17 @@ class MessageHandler:
             for rule in search_rules_list:
                 type_label = type_names.get(rule.rule_type, "• כלל")
                 escaped_text = self._escape_markdown(rule.original_text)
-                rules_summary.append(f"{type_label}: {escaped_text}")
+                if rule.rule_type == RuleType.BORDER_AREA:
+                    neighborhoods = [n.strip() for n in rule.value.split(",") if n.strip()]
+                    count = len(neighborhoods)
+                    neighborhoods_list_str = ", ".join(neighborhoods)
+                    escaped_list = self._escape_markdown(neighborhoods_list_str)
+                    rules_summary.append(
+                        f"{type_label}: {escaped_text} \\({count} שכונות\\)\n"
+                        f"  └ *שכונות שנבחרו:* {escaped_list}"
+                    )
+                else:
+                    rules_summary.append(f"{type_label}: {escaped_text}")
                 
             rules_summary_str = "\n".join(rules_summary)
             

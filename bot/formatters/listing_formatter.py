@@ -197,15 +197,18 @@ class ListingFormatter:
             }
             
             icon = type_icons.get(rule.rule_type.value, "•")
-            text = rule.original_text or rule.value
+            escaped_text = ListingFormatter._escape_markdown(rule.original_text or rule.value)
             
-            # For border rules, add neighborhood count
-            if rule.rule_type.value == "border_area" and rule.value and "," in rule.value:
-                count = len(rule.value.split(","))
-                text = f"{text} ({count} שכונות)"
+            # For border rules, add neighborhood count and list all neighborhoods
+            if rule.rule_type.value == "border_area" and rule.value:
+                neighborhoods = [n.strip() for n in rule.value.split(",") if n.strip()]
+                count = len(neighborhoods)
+                neighborhoods_list_str = ", ".join(neighborhoods)
+                escaped_list = ListingFormatter._escape_markdown(neighborhoods_list_str)
+                text = f"{escaped_text} \\({count} שכונות\\)\n   └ *שכונות שנבחרו:* {escaped_list}"
+            else:
+                text = escaped_text
             
-            # Escape rule text
-            text = ListingFormatter._escape_markdown(text)
             lines.append(f"{i}\\. {icon} {text}")
         
         lines.append("")
