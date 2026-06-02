@@ -160,3 +160,52 @@ async def test_openai_engine_retry():
             
         assert result == "openai_success"
         assert calls == 2
+
+
+@pytest.mark.asyncio
+async def test_gemini_engine_rotation_on_503():
+    """Test GeminiAIEngine rotates to the next model when it encounters a 503 error."""
+    with patch("google.genai.Client") as mock_client_cls:
+        mock_client = MagicMock()
+        mock_client_cls.return_value = mock_client
+        
+        # Configure GeminiAIEngine with multiple models
+        with patch("config.settings.GEMINI_MODEL", "model-1,model-2"):
+            engine = GeminiAIEngine(api_key="test_key")
+        
+        # Ensure we have both models in rotation
+        assert engine.models == ["model-1", "model-2"]
+        
+        calls_model_1 = 0
+        calls_model_2 = 0
+        
+        def mock_generate(*args, **kwargs):
+            nonlocal calls_model_1, calls_model_2
+            model_used = kwargs.get("model")
+            if model_used == "model-1":
+                calls_model_1 += 1
+                raise MockAPIError("503 UNAVAILABLE: Model demand is high", code=503)
+            elif model_used == "model-2":
+                calls_model_2 += 1
+                mock_resp = MagicMock()
+                mock_resp.text = "success_model_2"
+                return mock_resp
+            else:
+                raise ValueError(f"Unknown model: {model_used}")
+                
+        mock_client.models.generate_content.side_effect = mock_generate
+        
+        # Patch retry_with_backoff to use low max_retries for model_1 call so it fails quickly
+        with patch("core.ai_engine.retry_with_backoff") as mock_retry:
+            async def side_effect_fn(func, *args, **kwargs):
+                kwargs.pop("max_retries", None)
+                return await retry_with_backoff(func, *args, max_retries=1, base_delay=0.01, **kwargs)
+            mock_retry.side_effect = side_effect_fn
+            
+            result = await engine.generate_content("hello")
+            
+        assert result == "success_model_2"
+        assert calls_model_1 == 1
+        assert calls_model_2 == 1
+        assert engine.current_model == "model-2"
+

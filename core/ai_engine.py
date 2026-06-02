@@ -619,12 +619,14 @@ class GeminiAIEngine(BaseAIEngine):
             except Exception as e:
                 # Handle API errors
                 err_str = str(e)
-                # Check for various rate limit indicators
+                # Check for various rate limit indicators or temporary server overloads (e.g. 503 UNAVAILABLE)
                 is_rate_limit = (
                     "429" in err_str or 
                     "RESOURCE_EXHAUSTED" in err_str or
                     "Quota exceeded" in err_str or
-                    "Too Many Requests" in err_str
+                    "Too Many Requests" in err_str or
+                    "503" in err_str or
+                    "UNAVAILABLE" in err_str
                 )
                 
                 if is_rate_limit:
