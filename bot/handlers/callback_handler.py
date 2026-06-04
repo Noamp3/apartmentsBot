@@ -491,11 +491,12 @@ class CallbackHandler:
         else:
             msg = f"👤 <b>משתמשים רשומים במערכת ({len(rows)}):</b>\n\n"
             for row in rows:
-                telegram_id = row["telegram_id"]
-                username = html.escape(row["username"] or "אין")
-                is_active = "פעיל ✅" if row["is_active"] else "כבוי ❌"
-                is_admin = "👑 מנהל" if row.get("is_admin") else "משתמש"
-                persona = html.escape(row.get("persona") or "barakush")
+                row_dict = dict(row)
+                telegram_id = row_dict["telegram_id"]
+                username = html.escape(row_dict["username"] or "אין")
+                is_active = "פעיל ✅" if row_dict["is_active"] else "כבוי ❌"
+                is_admin = "👑 מנהל" if row_dict.get("is_admin") else "משתמש"
+                persona = html.escape(row_dict.get("persona") or "barakush")
                 created_at = row["created_at"]
                 
                 # Count user's rules
