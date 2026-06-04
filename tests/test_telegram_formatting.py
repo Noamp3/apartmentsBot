@@ -284,12 +284,67 @@ async def test_admin_callbacks_html():
         validate_html(sent_messages[0][0])
         assert "gemini-2.5-flash" in sent_messages[0][0]
         
+        
         # 7. Test _prompt_admin_broadcast
         sent_messages.clear()
         await cb._prompt_admin_broadcast(mock_query, mock_context)
         assert len(sent_messages) == 1
         assert sent_messages[0][1] == "HTML"
         validate_html(sent_messages[0][0])
+
+
+def test_listing_formatter_location_variations():
+    """Verify that ListingFormatter formats location lines correctly for neighborhoods, streets, and landmarks."""
+    listing = Listing(
+        id="fb_loc_test",
+        source="facebook",
+        url="https://facebook.com/posts/1",
+        title="דירה במיקום מעולה",
+        description="במיקום מעולה בתל אביב",
+        location="תל אביב",
+        raw_text="במיקום מעולה בתל אביב",
+        posted_at="2026-06-01T12:00:00"
+    )
+    
+    # Case 1: Only neighborhood, no street, no area matches
+    enriched = EnrichedListing(
+        listing=listing,
+        extracted_price=5000,
+        extracted_bedrooms=2.0,
+        extracted_location="תל אביב",
+        extracted_neighborhood="הצפון הישן",
+        area_matches={}
+    )
+    msg = ListingFormatter.format_listing(enriched)
+    assert "📍 *מיקום:* הצפון הישן" in msg
+    assert "(" not in msg.split("מיקום:")[1].split("\n")[0]
+    
+    # Case 2: Neighborhood + area match (landmark)
+    enriched = EnrichedListing(
+        listing=listing,
+        extracted_price=5000,
+        extracted_bedrooms=2.0,
+        extracted_location="תל אביב",
+        extracted_neighborhood="הצפון הישן",
+        area_matches={"כיכר רבין": True}
+    )
+    msg = ListingFormatter.format_listing(enriched)
+    assert "📍 *מיקום:* הצפון הישן \\(כיכר רבין\\)" in msg
+
+    # Case 3: Neighborhood + street + landmark
+    enriched = EnrichedListing(
+        listing=listing,
+        extracted_price=5000,
+        extracted_bedrooms=2.0,
+        extracted_location="תל אביב",
+        extracted_neighborhood="הצפון הישן",
+        extracted_street="ריינס",
+        area_matches={"כיכר דיזנגוף": True}
+    )
+    msg = ListingFormatter.format_listing(enriched)
+    # The formatted string should contain "הצפון הישן \(כיכר דיזנגוף\), ריינס"
+    assert "📍 *מיקום:* הצפון הישן \\(כיכר דיזנגוף\\), ריינס" in msg
+
 
 def test_static_telegram_calls_formatting_escaping():
     """Statically analyze the entire codebase to ensure Telegram formatting safety.

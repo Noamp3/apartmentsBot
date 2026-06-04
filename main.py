@@ -373,6 +373,14 @@ class ApartmentBotApplication:
                 location_signals.append(enriched.extracted_neighborhood)
             if enriched.extracted_street:
                 location_signals.append(enriched.extracted_street)
+                
+            # Include all parsed mentioned areas (excluding generic city names)
+            city_names = {"תל אביב", "תל אביב יפו", "תל אביב-יפו", "tel aviv"}
+            if enriched.area_matches:
+                for area in enriched.area_matches.keys():
+                    if area.strip() and area.strip().lower() not in city_names:
+                        location_signals.append(area.strip())
+                        
             location_signals.append(enriched.extracted_location or enriched.listing.location)
             
             listing_loc = ", ".join(location_signals)
@@ -380,7 +388,13 @@ class ApartmentBotApplication:
             from utils.israeli_locations import get_location_db
             loc_db = get_location_db()
             norm = loc_db.normalize_location(listing_loc)
-            if not norm["neighborhood"] and self.geo_grounding_ai_engine:
+            
+            if norm["neighborhood"]:
+                # Successfully resolved via database schema lookup (including custom schema)
+                enriched.extracted_neighborhood = norm["neighborhood"]
+                if norm["city"]:
+                    enriched.extracted_location = norm["city"]
+            elif self.geo_grounding_ai_engine:
                 log.info(
                     f"Location uncertainty detected for listing {enriched.listing.id[:8]} ('{listing_loc}'). Invoking AI location self-healing..."
                 )

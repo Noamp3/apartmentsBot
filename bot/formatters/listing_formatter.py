@@ -60,7 +60,22 @@ class ListingFormatter:
             loc_val = ListingFormatter._escape_markdown(location)
             loc_str = f"📍 *מיקום:* {loc_val}"
             
-            if street:
+            # Show specific landmarks/streets in parentheses if available
+            city_names = {"תל אביב", "תל אביב יפו", "תל אביב-יפו", "tel aviv"}
+            additional_areas = []
+            if enriched.area_matches:
+                for area in enriched.area_matches.keys():
+                    area_stripped = area.strip()
+                    if (area_stripped 
+                        and area_stripped.lower() not in city_names 
+                        and area_stripped != enriched.extracted_neighborhood):
+                        additional_areas.append(area_stripped)
+            
+            if additional_areas:
+                add_str = ", ".join(additional_areas)
+                loc_str += f" \\({ListingFormatter._escape_markdown(add_str)}\\)"
+                
+            if street and street not in additional_areas:
                 street_val = ListingFormatter._escape_markdown(street)
                 loc_str += f", {street_val}"
                 

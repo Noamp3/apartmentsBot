@@ -120,8 +120,8 @@ async def test_location_self_healing_street_success(temp_locations_schema):
     assert healed_norm["neighborhood"] == "פלורנטין"
     assert healed_norm["city"] == "תל אביב"
     
-    # Verify that "סלמה" is added to the temporary JSON file under 'streets'
-    with open(temp_locations_schema, "r", encoding="utf-8") as f:
+    # Verify that "סלמה" is added to the temporary custom JSON file under 'streets'
+    with open(db.custom_schema_path, "r", encoding="utf-8") as f:
         schema_data = json.load(f)
         
     flor_nb = next(nb for nb in schema_data["neighborhoods"] if nb["name"] == "פלורנטין")
@@ -155,8 +155,8 @@ async def test_location_self_healing_alias_success(temp_locations_schema):
     assert healed_norm["neighborhood"] == "פלורנטין"
     assert healed_norm["city"] == "תל אביב"
     
-    # Verify that "שכונת פלורה" is added to the temporary JSON file under 'aliases'
-    with open(temp_locations_schema, "r", encoding="utf-8") as f:
+    # Verify that "שכונת פלורה" is added to the temporary custom JSON file under 'aliases'
+    with open(db.custom_schema_path, "r", encoding="utf-8") as f:
         schema_data = json.load(f)
         
     flor_nb = next(nb for nb in schema_data["neighborhoods"] if nb["name"] == "פלורנטין")
@@ -201,13 +201,14 @@ async def test_location_self_healing_unmatched(temp_locations_schema):
     
     assert healed_norm["neighborhood"] is None
     
-    # Verify schema file was NOT updated
-    with open(temp_locations_schema, "r", encoding="utf-8") as f:
-        schema_data = json.load(f)
-        
-    flor_nb = next(nb for nb in schema_data["neighborhoods"] if nb["name"] == "פלורנטין")
-    assert "סלמה" not in flor_nb.get("streets", [])
-    assert "סלמה" not in flor_nb["aliases"]
+    # Verify custom schema file was NOT updated or created with the change
+    if os.path.exists(db.custom_schema_path):
+        with open(db.custom_schema_path, "r", encoding="utf-8") as f:
+            schema_data = json.load(f)
+        flor_nb = next((nb for nb in schema_data.get("neighborhoods", []) if nb["name"] == "פלורנטין"), None)
+        if flor_nb:
+            assert "סלמה" not in flor_nb.get("streets", [])
+            assert "סלמה" not in flor_nb.get("aliases", [])
 
 
 @pytest.mark.asyncio
@@ -236,8 +237,8 @@ async def test_location_self_healing_new_neighborhood_discovered(temp_locations_
     assert db.tel_aviv_neighborhoods["נווה גולן"].area_type == "unknown"
     assert "רחוב חדש" in db.tel_aviv_neighborhoods["נווה גולן"].streets
     
-    # Verify the schema file was actually written with the new neighborhood
-    with open(temp_locations_schema, "r", encoding="utf-8") as f:
+    # Verify the custom schema file was actually written with the new neighborhood
+    with open(db.custom_schema_path, "r", encoding="utf-8") as f:
         schema_data = json.load(f)
         
     new_entry = next((nb for nb in schema_data["neighborhoods"] if nb["name"] == "נווה גולן"), None)
