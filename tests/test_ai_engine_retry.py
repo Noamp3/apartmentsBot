@@ -163,8 +163,8 @@ async def test_openai_engine_retry():
 
 
 @pytest.mark.asyncio
-async def test_gemini_engine_rotation_on_503():
-    """Test GeminiAIEngine rotates to the next model when it encounters a 503 error."""
+async def test_gemini_engine_no_rotation_on_503():
+    """Test GeminiAIEngine raises 503 error directly and does NOT rotate to the next model."""
     with patch("google.genai.Client") as mock_client_cls:
         mock_client = MagicMock()
         mock_client_cls.return_value = mock_client
@@ -202,12 +202,14 @@ async def test_gemini_engine_rotation_on_503():
                 return await retry_with_backoff(func, *args, max_retries=1, base_delay=0.01, **kwargs)
             mock_retry.side_effect = side_effect_fn
             
-            result = await engine.generate_content("hello")
+            with pytest.raises(MockAPIError) as exc_info:
+                await engine.generate_content("hello")
+                
+            assert "503 UNAVAILABLE" in str(exc_info.value)
             
-        assert result == "success_model_2"
         assert calls_model_1 == 1
-        assert calls_model_2 == 1
-        assert engine.current_model == "model-2"
+        assert calls_model_2 == 0
+        assert engine.current_model == "model-1"
 
 
 @pytest.mark.asyncio

@@ -680,33 +680,24 @@ class GeminiAIEngine(BaseAIEngine):
             except Exception as e:
                 # Handle API errors
                 err_str = str(e)
-                # Check for various rate limit indicators or temporary server overloads (e.g. 503 UNAVAILABLE)
-                is_503_or_unavailable = "503" in err_str or "UNAVAILABLE" in err_str
+                # Check for various rate limit indicators
                 is_rate_limit = (
                     "429" in err_str or 
                     "RESOURCE_EXHAUSTED" in err_str or
                     "Quota exceeded" in err_str or
-                    "Too Many Requests" in err_str or
-                    is_503_or_unavailable
+                    "Too Many Requests" in err_str
                 )
                 
                 if is_rate_limit:
-                    if is_503_or_unavailable:
-                        log.warning(
-                            f"API Server Overload (503/UNAVAILABLE) hit for {model_name}. "
-                            f"Rotating to next model without exhausting rate limiter...", 
-                            error=err_str
-                        )
-                    else:
-                        log.warning(
-                            f"API Rate limit hit for {model_name} (Server side). "
-                            f"Rotating to next model...", 
-                            error=err_str
-                        )
-                        # Mark local limiter as exhausted to prevent immediate retry on this model
-                        # Set daily count to limit so it fails locally next time
-                        if limiter.daily_limit:
-                            limiter.daily_count = limiter.daily_limit
+                    log.warning(
+                        f"API Rate limit hit for {model_name} (Server side). "
+                        f"Rotating to next model...", 
+                        error=err_str
+                    )
+                    # Mark local limiter as exhausted to prevent immediate retry on this model
+                    # Set daily count to limit so it fails locally next time
+                    if limiter.daily_limit:
+                        limiter.daily_count = limiter.daily_limit
                     
                     self._rotate_model()
                     attempts_across_models += 1
@@ -715,7 +706,7 @@ class GeminiAIEngine(BaseAIEngine):
                     await asyncio.sleep(1) 
                     continue
                 else:
-                    # Genuine error (e.g. 400 Bad Request, 500 Server Error)
+                    # Genuine error (e.g. 400 Bad Request, 500/503 Server Error)
                     # We might want to retry SAME model if it's a 500, or fail if 400
                     log.error(f"AI generation failed on {model_name}", error=err_str)
                     raise
