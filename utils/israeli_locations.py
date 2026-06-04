@@ -429,7 +429,7 @@ Your task:
 
 In the JSON output:
 - "matched_neighborhood" must be the name of the matched neighborhood (e.g. "הצפון הישן").
-- "name_to_add" MUST NOT be null if we are mapping a specific street or alias that is not currently listed under this neighborhood. You MUST specify the exact street name (e.g. "ירמיהו" or "יהודה המכבי" or "שלמה המלך" or "סירקין") or neighborhood alias from the raw location or details to add. Only return null if the raw location itself is simply the exact name of the neighborhood and does not specify a street or landmark.
+- "name_to_add" MUST NOT be null if we are mapping a specific street or alias that is not currently listed under this neighborhood. You MUST specify the exact street name (e.g. "ירמיהו" or "יהודה המכבי" or "שלמה המלך" or "סירקין") or neighborhood alias from the raw location or details to add. Only return null if the raw location itself is simply the exact name of the neighborhood and does not specify a street or landmark. CRITICAL: Strip any relational prepositions or prefixes such as "מול", "ליד", "בקרבת", "צמוד ל", "ליד ה", "ב", "מ" from the landmark/street name (e.g., if the raw location is "מול קאנטרי העלייה", the name_to_add should be "קאנטרי העלייה").
 - "type" MUST be "street" if the name_to_add is a street name, or "alias" if it is a neighborhood alias/name variation. It MUST NOT be null if name_to_add is not null.
 
 Return a JSON object with this schema:
