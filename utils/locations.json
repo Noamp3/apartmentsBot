@@ -17,85 +17,115 @@
         "י-ם",
         "ירושלים עיר",
         "jerusalem"
-      ]
+      ],
+      "latitude": 31.7683,
+      "longitude": 35.2137
     },
     "חיפה": {
       "aliases": [
         "haifa"
-      ]
+      ],
+      "latitude": 32.7940,
+      "longitude": 34.9896
     },
     "רמת גן": {
       "aliases": [
         "רמת-גן",
         "ר\"ג",
         "ramat gan"
-      ]
+      ],
+      "latitude": 32.0780,
+      "longitude": 34.8140
     },
     "גבעתיים": {
       "aliases": [
         "גבעתים",
         "givatayim"
-      ]
+      ],
+      "latitude": 32.0720,
+      "longitude": 34.8100
     },
     "הרצליה": {
       "aliases": [
         "herzliya"
-      ]
+      ],
+      "latitude": 32.1624,
+      "longitude": 34.8447
     },
     "רעננה": {
       "aliases": [
         "raanana"
-      ]
+      ],
+      "latitude": 32.1848,
+      "longitude": 34.8713
     },
     "פתח תקווה": {
       "aliases": [
         "פ\"ת",
         "פתח-תקווה",
         "petah tikva"
-      ]
+      ],
+      "latitude": 32.0870,
+      "longitude": 34.8870
     },
     "ראשון לציון": {
       "aliases": [
         "ראשל\"צ",
         "ראשון-לציון",
         "rishon"
-      ]
+      ],
+      "latitude": 31.9730,
+      "longitude": 34.7925
     },
     "הוד השרון": {
       "aliases": [
         "hod hasharon"
-      ]
+      ],
+      "latitude": 32.1550,
+      "longitude": 34.8930
     },
     "כפר סבא": {
       "aliases": [
         "kfar saba"
-      ]
+      ],
+      "latitude": 32.1782,
+      "longitude": 34.9076
     },
     "נתניה": {
       "aliases": [
         "netanya"
-      ]
+      ],
+      "latitude": 32.3290,
+      "longitude": 34.8560
     },
     "באר שבע": {
       "aliases": [
         "ב\"ש",
         "beer sheva"
-      ]
+      ],
+      "latitude": 31.2518,
+      "longitude": 34.7984
     },
     "חולון": {
       "aliases": [
         "holon"
-      ]
+      ],
+      "latitude": 32.0163,
+      "longitude": 34.7749
     },
     "בת ים": {
       "aliases": [
         "bat yam"
-      ]
+      ],
+      "latitude": 32.0166,
+      "longitude": 34.7431
     },
     "בני ברק": {
       "aliases": [
         "bnei brak"
-      ]
+      ],
+      "latitude": 32.0839,
+      "longitude": 34.8315
     }
   },
   "neighborhoods": [

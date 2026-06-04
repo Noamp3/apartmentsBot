@@ -62,6 +62,20 @@ class EnrichedListing:
     area_matches: Dict[str, bool] = field(default_factory=dict)
     bordering_areas: Dict[str, str] = field(default_factory=dict)
     
+    def __post_init__(self):
+        """Handle type conversions and safety check for numeric fields."""
+        if self.extracted_price is not None:
+            try:
+                self.extracted_price = int(float(self.extracted_price))
+            except (ValueError, TypeError):
+                self.extracted_price = None
+                
+        if self.extracted_bedrooms is not None:
+            try:
+                self.extracted_bedrooms = int(float(self.extracted_bedrooms))
+            except (ValueError, TypeError):
+                self.extracted_bedrooms = None
+    
     @property
     def effective_monthly_price(self) -> Optional[int]:
         """Calculate effective monthly price including amortized broker fee.

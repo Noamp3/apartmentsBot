@@ -317,29 +317,52 @@ class BaseAIEngine(ABC):
         pass
     
     def _parse_json_response(self, text: str) -> dict:
-        """Parse JSON from AI response, handling markdown code blocks."""
-        # Remove markdown code blocks
-        text = re.sub(r"```json\s*", "", text)
-        text = re.sub(r"```\s*", "", text)
-        text = text.strip()
+        """Parse JSON from AI response, handling markdown code blocks and surrounding text robustly."""
+        # 1. Try direct parsing after stripping markdown code blocks
+        clean_text = re.sub(r"```json\s*", "", text)
+        clean_text = re.sub(r"```\s*", "", clean_text)
+        clean_text = clean_text.strip()
         
-        # Robustness: Escape unescaped double quotes inside Hebrew abbreviations (e.g. ש"ח, ת"א)
-        # because LLMs often return them unescaped in JSON strings, causing parse failures.
-        text = re.sub(r'(?<=[א-ת])"(?=[א-ת])', r'\"', text)
+        # Escape unescaped double quotes inside Hebrew abbreviations (e.g. ש"ח, ת"א)
+        clean_text = re.sub(r'(?<=[א-ת])"(?=[א-ת])', r'\"', clean_text)
         
         try:
-            return json.loads(text)
+            return json.loads(clean_text)
         except json.JSONDecodeError:
-            # Try to extract JSON from text
-            match = re.search(r"\{.*\}", text, re.DOTALL)
-            if match:
-                try:
-                    return json.loads(match.group())
-                except json.JSONDecodeError:
-                    pass
+            pass
             
-            log.warning("Failed to parse JSON response", response=text[:200])
-            return {}
+        # 2. Try to find JSON blocks within ```json ... ```
+        for m in re.finditer(r"```json\s*(.*?)\s*```", text, re.DOTALL):
+            candidate = m.group(1).strip()
+            candidate = re.sub(r'(?<=[א-ת])"(?=[א-ת])', r'\"', candidate)
+            try:
+                return json.loads(candidate)
+            except json.JSONDecodeError:
+                pass
+                
+        # 3. Try to find any curly brace blocks by balancing braces (from right to left, i.e., last one first)
+        # LLMs usually output the JSON block at the end of their response.
+        brace_pairs = []
+        stack = []
+        for i, char in enumerate(text):
+            if char == '{':
+                stack.append(i)
+            elif char == '}' and stack:
+                start = stack.pop()
+                brace_pairs.append((start, i))
+                
+        # Sort candidate substrings by length descending to find the outermost valid JSON
+        brace_pairs.sort(key=lambda x: (x[1] - x[0]), reverse=True)
+        for start, end in brace_pairs:
+            candidate = text[start:end+1].strip()
+            candidate = re.sub(r'(?<=[א-ת])"(?=[א-ת])', r'\"', candidate)
+            try:
+                return json.loads(candidate)
+            except json.JSONDecodeError:
+                pass
+                
+        log.warning("Failed to parse JSON response", response=text[:200])
+        return {}
     
     async def parse_user_rules(self, hebrew_text: str, persona: str = "barakush") -> Tuple[List[Dict], str]:
         """Parse natural Hebrew text into structured rules."""
