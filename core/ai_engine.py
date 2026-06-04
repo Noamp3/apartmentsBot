@@ -681,22 +681,32 @@ class GeminiAIEngine(BaseAIEngine):
                 # Handle API errors
                 err_str = str(e)
                 # Check for various rate limit indicators or temporary server overloads (e.g. 503 UNAVAILABLE)
+                is_503_or_unavailable = "503" in err_str or "UNAVAILABLE" in err_str
                 is_rate_limit = (
                     "429" in err_str or 
                     "RESOURCE_EXHAUSTED" in err_str or
                     "Quota exceeded" in err_str or
                     "Too Many Requests" in err_str or
-                    "503" in err_str or
-                    "UNAVAILABLE" in err_str
+                    is_503_or_unavailable
                 )
                 
                 if is_rate_limit:
-                    log.warning(f"API Rate limit hit for {model_name} (Server side). Rotating to next model...", error=err_str)
-                    
-                    # Mark local limiter as exhausted to prevent immediate retry on this model
-                    # Set daily count to limit so it fails locally next time
-                    if limiter.daily_limit:
-                        limiter.daily_count = limiter.daily_limit
+                    if is_503_or_unavailable:
+                        log.warning(
+                            f"API Server Overload (503/UNAVAILABLE) hit for {model_name}. "
+                            f"Rotating to next model without exhausting rate limiter...", 
+                            error=err_str
+                        )
+                    else:
+                        log.warning(
+                            f"API Rate limit hit for {model_name} (Server side). "
+                            f"Rotating to next model...", 
+                            error=err_str
+                        )
+                        # Mark local limiter as exhausted to prevent immediate retry on this model
+                        # Set daily count to limit so it fails locally next time
+                        if limiter.daily_limit:
+                            limiter.daily_count = limiter.daily_limit
                     
                     self._rotate_model()
                     attempts_across_models += 1
