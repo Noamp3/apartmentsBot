@@ -89,6 +89,15 @@ class CallbackHandler:
             elif data.startswith("admin_do_clear_table:"):
                 table_name = data.split(":")[1]
                 await self._do_clear_table(query, table_name)
+            elif data.startswith("admin_view_user:"):
+                user_id_to_view = int(data.split(":")[1])
+                await self._show_admin_user_detail(query, context, user_id_to_view)
+            elif data.startswith("admin_user_rules:"):
+                user_id_to_view = int(data.split(":")[1])
+                await self._show_admin_user_rules(query, context, user_id_to_view)
+            elif data.startswith("admin_user_matches:"):
+                user_id_to_view = int(data.split(":")[1])
+                await self._show_admin_user_matches(query, context, user_id_to_view)
     
     async def _delete_rule(self, query, rule_id: int, user_id: int):
         """Delete a specific rule."""
@@ -488,8 +497,12 @@ class CallbackHandler:
         
         if not rows:
             msg = "אין משתמשים רשומים במערכת."
+            keyboard = [[InlineKeyboardButton("↩️ חזרה לתפריט ראשי", callback_data="admin_menu_main")]]
         else:
             msg = f"👤 <b>משתמשים רשומים במערכת ({len(rows)}):</b>\n\n"
+            keyboard = []
+            user_buttons = []
+            
             for row in rows:
                 row_dict = dict(row)
                 telegram_id = row_dict["telegram_id"]
@@ -514,9 +527,17 @@ class CallbackHandler:
                 msg += f"  נציג: <code>{persona}</code> | סטטוס: {is_active} | כללים: {rules_count}\n"
                 msg += f"  הצטרף ב: {date_str}\n\n"
                 
-        # Append "Back" button
-        keyboard = [[InlineKeyboardButton("↩️ חזרה לתפריט ראשי", callback_data="admin_menu_main")]]
-        
+                # Create user button
+                btn_label = f"👤 @{row_dict['username']}" if row_dict["username"] else f"👤 {telegram_id}"
+                user_buttons.append(InlineKeyboardButton(btn_label, callback_data=f"admin_view_user:{telegram_id}"))
+                
+            # Chunk user buttons into pairs of 2
+            for i in range(0, len(user_buttons), 2):
+                keyboard.append(user_buttons[i:i+2])
+                
+            # Add back button
+            keyboard.append([InlineKeyboardButton("↩️ חזרה לתפריט ראשי", callback_data="admin_menu_main")])
+            
         await self._safe_edit_message_text(query, msg, parse_mode="HTML")
         await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup(keyboard))
 
@@ -816,6 +837,172 @@ class CallbackHandler:
         )
         
         keyboard = [[InlineKeyboardButton("❌ ביטול", callback_data="admin_menu_main")]]
+        
+        await self._safe_edit_message_text(query, msg, parse_mode="HTML")
+        await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup(keyboard))
+
+    async def _show_admin_user_detail(self, query, context, user_id: int):
+        """Show details of a specific user."""
+        db = await get_db()
+        user_repo = UserRepository(db)
+        rule_repo = RuleRepository(db)
+        
+        user = await user_repo.get_by_telegram_id(user_id)
+        if not user:
+            await query.answer("❌ המשתמש לא נמצא במערכת", show_alert=True)
+            return
+            
+        # Count rules
+        rules = await rule_repo.get_user_rules(user_id)
+        rules_count = len(rules)
+        
+        # Count matches (sent notifications)
+        row = await db.fetch_one("SELECT COUNT(*) as count FROM sent_notifications WHERE user_id = ?", (user_id,))
+        matches_count = row["count"] if row else 0
+        
+        import html
+        from datetime import datetime
+        
+        username = html.escape(user.username or "אין")
+        is_active = "פעיל ✅" if user.is_active else "כבוי ❌"
+        is_admin = "👑 מנהל" if user.is_admin else "משתמש"
+        persona = html.escape(user.persona or "barakush")
+        bordering = "מאופשר ✅" if user.allow_bordering_neighborhoods else "מנוטרל ❌"
+        
+        try:
+            dt = datetime.fromisoformat(user.created_at)
+            date_str = dt.strftime("%d/%m/%Y %H:%M")
+        except Exception:
+            date_str = user.created_at
+            
+        msg = f"""👤 <b>פרטי משתמש: @{username}</b>
+
+• <b>מזהה טלגרם:</b> <code>{user_id}</code>
+• <b>מזהה צ'אט:</b> <code>{user.chat_id}</code>
+• <b>תפקיד:</b> {is_admin}
+• <b>סטטוס:</b> {is_active}
+• <b>נציג מלווה:</b> <code>{persona}</code>
+• <b>שכונות גובלות:</b> {bordering}
+• <b>תאריך הצטרפות:</b> {date_str}
+• <b>סה"כ כללים:</b> <code>{rules_count}</code>
+• <b>סה"כ התאמות (שידוכים):</b> <code>{matches_count}</code>"""
+
+        keyboard = [
+            [
+                InlineKeyboardButton(f"📋 כללי חיפוש ({rules_count})", callback_data=f"admin_user_rules:{user_id}"),
+                InlineKeyboardButton(f"🏠 דירות שהתאימו ({matches_count})", callback_data=f"admin_user_matches:{user_id}")
+            ],
+            [
+                InlineKeyboardButton("↩️ חזרה לרשימת משתמשים", callback_data="admin_menu_users")
+            ]
+        ]
+        
+        await self._safe_edit_message_text(query, msg, parse_mode="HTML")
+        await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup(keyboard))
+
+    async def _show_admin_user_rules(self, query, context, user_id: int):
+        """Show active rules for a specific user."""
+        db = await get_db()
+        user_repo = UserRepository(db)
+        rule_repo = RuleRepository(db)
+        
+        user = await user_repo.get_by_telegram_id(user_id)
+        if not user:
+            await query.answer("❌ המשתמש לא נמצא במערכת", show_alert=True)
+            return
+            
+        rules = await rule_repo.get_user_rules(user_id)
+        rules_count = len(rules)
+        
+        row = await db.fetch_one("SELECT COUNT(*) as count FROM sent_notifications WHERE user_id = ?", (user_id,))
+        matches_count = row["count"] if row else 0
+        
+        from bot.formatters.listing_formatter import ListingFormatter
+        rules_text = ListingFormatter.format_rules_list(rules, user.allow_bordering_neighborhoods)
+        
+        username_esc = ListingFormatter._escape_markdown(user.username or str(user_id))
+        msg = f"📋 *כללי חיפוש עבור @{username_esc}:*\n\n{rules_text}"
+        
+        keyboard = [
+            [
+                InlineKeyboardButton("👤 פרטי משתמש", callback_data=f"admin_view_user:{user_id}"),
+                InlineKeyboardButton(f"🏠 דירות שהתאימו ({matches_count})", callback_data=f"admin_user_matches:{user_id}")
+            ],
+            [
+                InlineKeyboardButton("↩️ חזרה לרשימת משתמשים", callback_data="admin_menu_users")
+            ]
+        ]
+        
+        await self._safe_edit_message_text(query, msg, parse_mode="MarkdownV2")
+        await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup(keyboard))
+
+    async def _show_admin_user_matches(self, query, context, user_id: int):
+        """Show matching listings sent to a specific user."""
+        db = await get_db()
+        user_repo = UserRepository(db)
+        rule_repo = RuleRepository(db)
+        
+        user = await user_repo.get_by_telegram_id(user_id)
+        if not user:
+            await query.answer("❌ המשתמש לא נמצא במערכת", show_alert=True)
+            return
+            
+        rules = await rule_repo.get_user_rules(user_id)
+        rules_count = len(rules)
+        
+        rows = await db.fetch_all(
+            """
+            SELECT el.title, el.url, el.extracted_price, el.extracted_bedrooms, el.extracted_neighborhood, el.source, sn.sent_at
+            FROM enriched_listings el
+            JOIN sent_notifications sn ON el.listing_id = sn.listing_id
+            WHERE sn.user_id = ?
+            ORDER BY sn.sent_at DESC
+            LIMIT 10
+            """,
+            (user_id,)
+        )
+        
+        import html
+        from datetime import datetime
+        
+        username = html.escape(user.username or str(user_id))
+        
+        if not rows:
+            msg = f"🏠 <b>דירות שהתאימו עבור @{username}:</b>\n\nלא נמצאו התאמות שנשלחו למשתמש זה."
+        else:
+            msg = f"🏠 <b>10 הדירות האחרונות שהתאימו עבור @{username}:</b>\n\n"
+            for i, row in enumerate(rows):
+                title = html.escape(row["title"] or "ללא כותרת")
+                url = html.escape(row["url"] or "")
+                price = row["extracted_price"]
+                beds = row["extracted_bedrooms"]
+                neighborhood = html.escape(row["extracted_neighborhood"] or "לא ידוע")
+                source = html.escape(row["source"] or "לא ידוע")
+                sent_at = row["sent_at"]
+                
+                try:
+                    dt = datetime.fromisoformat(sent_at)
+                    time_str = dt.strftime("%d/%m %H:%M")
+                except Exception:
+                    time_str = sent_at
+                    
+                price_str = f"{price:,} ₪" if price else "לא צוין מחיר"
+                beds_str = f"{beds} חדרים" if beds else "לא צוין חדרים"
+                source_name = "פייסבוק" if source == "facebook" else "Yad2"
+                
+                msg += f"{i+1}. <b><a href=\"{url}\">{title[:40]}</a></b>\n"
+                msg += f"   💰 {price_str} | 🛏️ {beds_str} | 📍 {neighborhood}\n"
+                msg += f"   📱 מקור: {source_name} | ⏱️ נשלח ב: {time_str}\n\n"
+                
+        keyboard = [
+            [
+                InlineKeyboardButton("👤 פרטי משתמש", callback_data=f"admin_view_user:{user_id}"),
+                InlineKeyboardButton(f"📋 כללי חיפוש ({rules_count})", callback_data=f"admin_user_rules:{user_id}")
+            ],
+            [
+                InlineKeyboardButton("↩️ חזרה לרשימת משתמשים", callback_data="admin_menu_users")
+            ]
+        ]
         
         await self._safe_edit_message_text(query, msg, parse_mode="HTML")
         await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup(keyboard))
