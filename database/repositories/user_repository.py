@@ -18,13 +18,13 @@ class UserRepository:
         """Create a new user record."""
         await self.db.execute(
             """
-            INSERT OR REPLACE INTO users (telegram_id, chat_id, username, created_at, is_active, first_notified_at, persona, is_admin, onboarding_step, allow_bordering_neighborhoods)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT OR REPLACE INTO users (telegram_id, chat_id, username, created_at, is_active, first_notified_at, persona, is_admin, onboarding_step, allow_bordering_neighborhoods, allow_roomies)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (user.telegram_id, user.chat_id, user.username, 
              user.created_at.isoformat(), user.is_active,
              user.first_notified_at.isoformat() if user.first_notified_at else None,
-             user.persona, user.is_admin, user.onboarding_step, user.allow_bordering_neighborhoods)
+             user.persona, user.is_admin, user.onboarding_step, user.allow_bordering_neighborhoods, user.allow_roomies)
         )
         return user
     
@@ -122,6 +122,12 @@ class UserRepository:
         except (KeyError, IndexError, TypeError):
             pass
             
+        allow_roomies = True
+        try:
+            allow_roomies = bool(row["allow_roomies"])
+        except (KeyError, IndexError, TypeError):
+            pass
+            
         return User(
             telegram_id=row["telegram_id"],
             chat_id=row["chat_id"],
@@ -133,6 +139,7 @@ class UserRepository:
             is_admin=is_admin,
             onboarding_step=onboarding_step,
             allow_bordering_neighborhoods=allow_bordering,
+            allow_roomies=allow_roomies,
         )
         
     async def update_persona(self, telegram_id: int, persona: str):
@@ -154,6 +161,13 @@ class UserRepository:
         await self.db.execute(
             "UPDATE users SET allow_bordering_neighborhoods = ? WHERE telegram_id = ?",
             (allow_bordering, telegram_id)
+        )
+        
+    async def update_allow_roomies(self, telegram_id: int, allow_roomies: bool):
+        """Update a user's roommate preference."""
+        await self.db.execute(
+            "UPDATE users SET allow_roomies = ? WHERE telegram_id = ?",
+            (allow_roomies, telegram_id)
         )
     
     async def mark_first_notification(self, telegram_id: int):

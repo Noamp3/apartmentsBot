@@ -7,7 +7,8 @@ from utils.hebrew_utils import (
     extract_bedrooms,
     extract_floor,
     has_broker_fee,
-    is_direct_from_owner
+    is_direct_from_owner,
+    is_looking_for_roomie
 )
 
 
@@ -82,3 +83,38 @@ class TestBrokerFee:
     
     def test_not_direct(self):
         assert not is_direct_from_owner("דירה להשכרה")
+
+
+class TestRoomiesExtraction:
+    """Test roomies/flatmate detection from Hebrew text."""
+    
+    def test_looking_for_roomie_male(self):
+        assert is_looking_for_roomie("מחפש שותף לדירה מהממת בפלורנטין")
+        
+    def test_looking_for_roomie_female(self):
+        assert is_looking_for_roomie("מחפשת שותפה לדירה")
+        
+    def test_looking_for_roomies_plural(self):
+        assert is_looking_for_roomie("מחפשים שותפים לדירה")
+        
+    def test_roomie_needed(self):
+        assert is_looking_for_roomie("דרושה שותפה לחדר")
+        assert is_looking_for_roomie("דרוש שותף")
+        
+    def test_room_for_rent(self):
+        assert is_looking_for_roomie("להשכרה חדר בדירת שותפים")
+        assert is_looking_for_roomie("להשכרה חדר בדירה, שותף אחד בן 28")
+        
+    def test_suitable_for_roommates_only(self):
+        """'Suitable for roommates' should NOT be detected as looking for roomies."""
+        assert not is_looking_for_roomie("דירת 3 חדרים מהממת מתאימה לשותפים")
+        assert not is_looking_for_roomie("דירה מעולה לשותפים, 3 חדרים גדולים")
+        
+    def test_mixed_suitability_and_search(self):
+        """Should be True if looking for roomie, even if suitability is also mentioned."""
+        assert is_looking_for_roomie("מחפשת שותפה לדירה מהממת. הדירה עצמה מאוד מתאימה לשותפים!")
+        
+    def test_empty_or_no_mentions(self):
+        assert not is_looking_for_roomie("דירה להשכרה, 3 חדרים")
+        assert not is_looking_for_roomie("")
+        assert not is_looking_for_roomie(None)

@@ -52,6 +52,9 @@ class CallbackHandler:
         elif data == "toggle_bordering":
             await self._toggle_bordering(query, user_id)
             
+        elif data == "toggle_roomies":
+            await self._toggle_roomies(query, user_id)
+            
         elif data.startswith("set_persona:"):
             persona_name = data.split(":")[1]
             await self._set_persona(query, context, persona_name)
@@ -433,12 +436,14 @@ class CallbackHandler:
         
         # Get formatted rules list
         from bot.formatters.listing_formatter import ListingFormatter
-        message = ListingFormatter.format_rules_list(rules, new_status)
+        message = ListingFormatter.format_rules_list(rules, new_status, user_obj.allow_roomies)
         
-        # Re-build toggle inline button
-        button_text = "❌ השבת שכונות גובלות" if new_status else "✅ הפעל שכונות גובלות"
+        # Re-build toggle inline buttons
+        button_border = "❌ השבת שכונות גובלות" if new_status else "✅ הפעל שכונות גובלות"
+        button_roomies = "❌ השבת דירות שותפים" if user_obj.allow_roomies else "✅ הפעל דירות שותפים"
         keyboard = [
-            [InlineKeyboardButton(button_text, callback_data="toggle_bordering")]
+            [InlineKeyboardButton(button_border, callback_data="toggle_bordering")],
+            [InlineKeyboardButton(button_roomies, callback_data="toggle_roomies")]
         ]
         
         # Friendly feedback
@@ -450,6 +455,50 @@ class CallbackHandler:
         
         # Show alert with feedback
         await query.answer(f"{persona_def.emoji} חיפוש בשכונות גובלות {status_text}", show_alert=True)
+        
+        # Edit the message to show the updated status
+        await self._safe_edit_message_text(query, message, parse_mode='MarkdownV2')
+        # Edit the message with the new inline keyboard as well
+        await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup(keyboard))
+        
+    async def _toggle_roomies(self, query, user_id: int):
+        """Toggle roommate search preference."""
+        db = await get_db()
+        user_repo = UserRepository(db)
+        rule_repo = RuleRepository(db)
+        
+        user_obj = await user_repo.get_by_telegram_id(user_id)
+        if not user_obj:
+            await query.answer("❌ משתמש לא נמצא")
+            return
+            
+        new_status = not user_obj.allow_roomies
+        await user_repo.update_allow_roomies(user_id, new_status)
+        
+        # Reload rules and user object
+        rules = await rule_repo.get_user_rules(user_id)
+        
+        # Get formatted rules list
+        from bot.formatters.listing_formatter import ListingFormatter
+        message = ListingFormatter.format_rules_list(rules, user_obj.allow_bordering_neighborhoods, new_status)
+        
+        # Re-build toggles inline buttons
+        button_border = "❌ השבת שכונות גובלות" if user_obj.allow_bordering_neighborhoods else "✅ הפעל שכונות גובלות"
+        button_roomies = "❌ השבת דירות שותפים" if new_status else "✅ הפעל דירות שותפים"
+        keyboard = [
+            [InlineKeyboardButton(button_border, callback_data="toggle_bordering")],
+            [InlineKeyboardButton(button_roomies, callback_data="toggle_roomies")]
+        ]
+        
+        # Friendly feedback
+        persona_name = user_obj.persona
+        from core.personas import get_persona
+        persona_def = get_persona(persona_name)
+        
+        status_text = "מאופשר כעת! אשלח לך גם דירות שותפים 😉" if new_status else "מנוטרל! אשלח לך אך ורק דירות שלמות (ללא שותפים) 🎯"
+        
+        # Show alert with feedback
+        await query.answer(f"{persona_def.emoji} קבלת דירות שותפים {status_text}", show_alert=True)
         
         # Edit the message to show the updated status
         await self._safe_edit_message_text(query, message, parse_mode='MarkdownV2')
@@ -850,6 +899,7 @@ class CallbackHandler:
         is_admin = "👑 מנהל" if user.is_admin else "משתמש"
         persona = html.escape(user.persona or "barakush")
         bordering = "מאופשר ✅" if user.allow_bordering_neighborhoods else "מנוטרל ❌"
+        roomies_status = "מאופשר ✅" if user.allow_roomies else "מנוטרל ❌"
         
         try:
             dt = datetime.fromisoformat(user.created_at)
@@ -865,6 +915,7 @@ class CallbackHandler:
 • <b>סטטוס:</b> {is_active}
 • <b>נציג מלווה:</b> <code>{persona}</code>
 • <b>שכונות גובלות:</b> {bordering}
+• <b>דירות שותפים:</b> {roomies_status}
 • <b>תאריך הצטרפות:</b> {date_str}
 • <b>סה"כ כללים:</b> <code>{rules_count}</code>
 • <b>סה"כ התאמות (שידוכים):</b> <code>{matches_count}</code>"""

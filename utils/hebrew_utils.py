@@ -274,3 +274,97 @@ def has_immediate_entry(text: str) -> bool:
     
     return any(re.search(p, text, re.IGNORECASE) for p in patterns)
 
+
+def is_looking_for_roomie(text: str) -> bool:
+    """Check if the text indicates looking for a roommate/flatmate.
+    
+    Returns True if the listing is looking for a roommate (e.g. renting a room,
+    looking for a flatmate), but False if it just says 'suitable for roommates'
+    (מתאים לשותפים) without indicating a search for a roommate.
+    """
+    if not text:
+        return False
+        
+    text_normalized = text.lower().strip()
+    
+    # 1. Look for patterns indicating we are looking/searching for a roommate
+    # E.g., מחפש שותף, מחפשת שותפה, דרוש שותף, מחפשים שותפים, מחפש/ת שותף/ה
+    search_patterns = [
+        r"מחפש\s*(?:/|ות|ים|ה)?\s*שות[פף]",
+        r"מחפש\s*שות[פף]",
+        r"מחפשת\s*שות[פף]",
+        r"מחפשים\s*שות[פף]",
+        r"מחפש/ת\s*שות[פף]",
+        r"דרוש\s*(?:/|ות|ים|ה)?\s*שות[פף]",
+        r"דרוש\s*שות[פף]",
+        r"דרושה\s*שות[פף]",
+        r"דרושים\s*שות[פף]",
+        r"שות[פף]/ה",
+        r"שות[פף]ים/ות",
+        r"שותפות\s*בדירה",
+        r"להיכנס\s+לשותפות",
+        r"להשתלב\s+בדירת\s+שות[פף]ים",
+        r"מחפש\s*להיכנס\s*לדירה",
+        r"נכנס/ת\s*שות[פף]",
+        r"שות[פף]\s*נוסף",
+        r"שות[פף]ה\s*נוספת",
+        r"שות[פף]\s*שלישי",
+        r"שות[פף]ה\s*שלישית",
+    ]
+    
+    # 2. Look for patterns indicating renting out a single room in an apartment (which implies roommates)
+    # E.g., חדר בדירת שותפים, חדר להשכרה בדירה, להשכרה חדר בדירה
+    room_patterns = [
+        r"חדר\s*(?:פנוי\s*)?בדירת\s*שות[פף]ים",
+        r"להשכרה\s*חדר\s*בדירת\s*שות[פף]ים",
+        r"חדר\s*בדירה\s*שות[פף]ים",
+        r"חדר\s*בדירת\s*שותפות",
+        r"להשכרה\s*חדר\s*בדירה",
+        r"חדר\s*להשכרה\s*בדירה",
+        r"חדר\s*להשכרה\s*(?:ב)?פלורנטין",
+        r"חדר\s*פנוי\s*(?:ב)?דירה",
+        r"סאבלט\s*של\s*חדר",
+        r"חדר\s*בסאבלט",
+    ]
+    
+    # Check if any room pattern matches
+    if any(re.search(p, text_normalized) for p in room_patterns):
+        return True
+        
+    # Check if any search pattern matches
+    if any(re.search(p, text_normalized) for p in search_patterns):
+        # We found roommate-related words. However, we must ensure that these are not 
+        # solely in the context of suitability (e.g. "מתאים לשותפים").
+        
+        # Let's count how many times "שותף/שותפה/שותפים" appears in the text, allowing prefix prepositions
+        all_roomie_mentions = re.findall(r"\b[בלהמווכ]?שות[פף][א-ת]*/?[א-ת]*\b", text_normalized)
+        
+        # Find all occurrences of "suitability for roommates"
+        # E.g., מתאים לשותפים, מתאימה לשותפים, מעולה לשותפים, סבבה לשותפים, מתאימים לשותפים, מתאימות לשותפים
+        suitability_patterns = [
+            r"מתאים\s*(?:גם\s*)?לשות[פף]",
+            r"מתאימה\s*(?:גם\s*)?לשות[פף]",
+            r"מתאימים\s*(?:גם\s*)?לשות[פף]",
+            r"מתאימות\s*(?:גם\s*)?לשות[פף]",
+            r"סבבה\s*לשות[פף]",
+            r"מעולה\s*לשות[פף]",
+            r"טוב\s*לשות[פף]",
+            r"מושלם\s*לשות[פף]",
+            r"מושלמת\s*לשות[פף]",
+            r"פחות\s*מתאים\s*לשות[פף]",
+            r"לא\s*מתאים\s*לשות[פף]",
+        ]
+        
+        suitability_matches = []
+        for p in suitability_patterns:
+            suitability_matches.extend(re.findall(p, text_normalized))
+            
+        # If the number of suitability mentions is equal to or greater than the total number of
+        # roommate mentions, it means every roommate mention is just a suitability claim.
+        if len(suitability_matches) >= len(all_roomie_mentions):
+            return False
+            
+        return True
+        
+    return False
+

@@ -83,6 +83,33 @@ class ProcessingService:
         
         for enriched in candidates:
             try:
+                # Roomies filter check
+                allow_roomies = getattr(user, 'allow_roomies', True)
+                if not allow_roomies and enriched.roomies:
+                    actual_parts = []
+                    if enriched.extracted_neighborhood:
+                        actual_parts.append(enriched.extracted_neighborhood)
+                    if enriched.extracted_street:
+                        actual_parts.append(enriched.extracted_street)
+                    
+                    city_or_loc = enriched.extracted_location or enriched.listing.location
+                    if city_or_loc and city_or_loc not in actual_parts:
+                        actual_parts.append(city_or_loc)
+                    
+                    actual_loc = ", ".join(actual_parts) if actual_parts else (enriched.extracted_location or enriched.listing.location or "לא ידוע")
+                    
+                    await rejection_repo.log_rejection(
+                        listing_id=enriched.listing.id,
+                        user_id=user.telegram_id,
+                        failed_rules=["הגדרת שותפים"],
+                        reasons=["דירת שותפים (קבלה מנוטרלת בהגדרות שלך)"],
+                        listing_url=enriched.listing.url,
+                        listing_price=enriched.extracted_price,
+                        listing_location=actual_loc,
+                        match_method="roomies_filter"
+                    )
+                    continue
+                    
                 allow_bordering = getattr(user, 'allow_bordering_neighborhoods', True)
                 is_match, reasons = self.matcher.evaluate_listing(enriched, rules, allow_bordering=allow_bordering)
                 

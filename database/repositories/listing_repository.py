@@ -336,8 +336,8 @@ class ListingRepository:
             INSERT OR REPLACE INTO enriched_listings 
             (listing_id, source, url, title, description, location, raw_text, images,
              extracted_price, extracted_bedrooms, extracted_location, extracted_neighborhood,
-             has_broker_fee, attributes, area_matches, bordering_areas, posted_at, scraped_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             has_broker_fee, roomies, attributes, area_matches, bordering_areas, posted_at, scraped_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 enriched.listing.id,
@@ -353,6 +353,7 @@ class ListingRepository:
                 enriched.extracted_location,
                 enriched.extracted_neighborhood,
                 enriched.has_broker_fee,
+                enriched.roomies,
                 json.dumps(enriched.attributes, ensure_ascii=False),
                 json.dumps(enriched.area_matches, ensure_ascii=False),
                 json.dumps(enriched.bordering_areas, ensure_ascii=False),
@@ -445,6 +446,7 @@ class ListingRepository:
             extracted_location=row["extracted_location"] or "",
             extracted_neighborhood=row["extracted_neighborhood"] or "",
             has_broker_fee=bool(row["has_broker_fee"]),
+            roomies=bool(row["roomies"]) if "roomies" in row.keys() else False,
             attributes=json.loads(row["attributes"]) if row["attributes"] else {},
             area_matches=json.loads(row["area_matches"]) if row["area_matches"] else {},
             bordering_areas=json.loads(row["bordering_areas"]) if row["bordering_areas"] else {},

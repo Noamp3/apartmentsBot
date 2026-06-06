@@ -230,196 +230,236 @@ async def test_agentic_bot_evaluation(tmp_path):
     """Comprehensive agentic E2E integration test: LLMs act as users and judge the bot."""
     print("\n--- Starting E2E Agentic Bot Evaluation ---")
     
-    # 1. Setup Isolated In-Memory Database
-    db_manager = DatabaseManager(db_url="sqlite:///:memory:")
+    is_remote = os.environ.get("TEST_REMOTE") == "true"
+    
+    # 1. Setup Database
+    if is_remote:
+        print("Running in REMOTE mode. Using production/actual database...")
+        db_manager = DatabaseManager(db_url=settings.DATABASE_URL)
+    else:
+        print("Running in LOCAL mode. Using isolated in-memory database...")
+        db_manager = DatabaseManager(db_url="sqlite:///:memory:")
     await db_manager.initialize()
-    
-    # 2. Write Mock HTML Yad2 Page to Temp File
-    mock_html_file = tmp_path / "mock_yad2_e2e.html"
-    with open(mock_html_file, "w", encoding="utf-8") as f:
-        f.write(MOCK_YAD2_HTML)
-    
-    mock_html_url = mock_html_file.as_uri()
-    print(f"Mock HTML path created: {mock_html_url}")
-    
-    # 3. Create Scraper & Patch for Local File navigation
-    # Force headless mode during test
-    with patch("config.settings.HEADLESS_MODE", True):
-        scraper = Yad2PlaywrightScraper(max_pages=1, max_listings=5)
-        # Patch full URL building to return local file URI
-        scraper._build_full_url = lambda params: mock_html_url
-        
-        # Execute real scraping (runs Playwright headlessly on local HTML file)
-        print("Running scraper on mock local HTML...")
-        listings = await scraper.scrape()
-        
-    assert len(listings) == 2, f"Should have scraped 2 listings, got {len(listings)}"
-    print(f"Scraped 2 listings successfully. Listing 1: {listings[0].title}, Listing 2: {listings[1].title}")
-    
-    # 4. Initialize AI Engines
-    # Default AI Engine for simulated users and bot chat interaction
-    chat_ai = create_ai_engine(
-        provider=settings.chat_provider,
-        api_key=settings.chat_api_key,
-        model_name=settings.chat_model
-    )
-    
-    # Healing/Judge AI Engine
-    judge_provider = settings.SELF_HEALING_AI_PROVIDER or AIProvider.GEMINI
-    judge_model = settings.SELF_HEALING_MODEL or "gemma-4-31b-it"
-    judge_api_key = settings.get_provider_api_key(judge_provider)
-    
-    print(f"Default Chat AI Engine: {settings.chat_provider.value} ({settings.chat_model})")
-    print(f"Healing/Judge AI Engine: {judge_provider.value} ({judge_model})")
-    
-    judge_ai = create_ai_engine(
-        provider=judge_provider,
-        api_key=judge_api_key,
-        model_name=judge_model
-    )
-    
-    # 5. Enrich Scraped Listings using Real AI Enricher
-    from core.ai_engine import ListingEnricher
-    enricher = ListingEnricher(chat_ai)
-    print("Enriching listings via AI...")
-    enriched_listings = await enricher.enrich_listings(listings)
-    assert len(enriched_listings) == 2
-    
-    # Save enriched listings to the DB
-    listing_repo = ListingRepository(db_manager)
-    for enriched in enriched_listings:
-        await listing_repo.save_enriched(enriched)
-    print("Saved enriched listings to DB.")
-    
-    # 6. Initialize Bot and Simulated Users
-    bot = ApartmentBot(ai_engine=chat_ai)
-    await bot.setup()
     
     user_repo = UserRepository(db_manager)
     rule_repo = RuleRepository(db_manager)
+    listing_repo = ListingRepository(db_manager)
     
-    # Create 2 Simulated User Agents
-    shir = SimulatedLLMUser(
-        telegram_id=11111111,
-        username="שיר (Shir)",
-        persona="barakush",
-        target_desc="3-room apartment in Florentin, Tel Aviv with budget up to 6,000 NIS. Speak casually.",
-        style_desc="Casual Israeli student, using slang and typing in standard step-by-step Hebrew."
-    )
-    
-    arnon = SimulatedLLMUser(
-        telegram_id=22222222,
-        username="ארנון (Arnon)",
-        persona="yekke",
-        target_desc="2-room apartment in Kerem HaTeimanim, Tel Aviv for up to 5,000 NIS.",
-        style_desc="Professional, polite, wants to test direct multi-rule onboarding by combining everything into one single input."
-    )
-    
-    users = [shir, arnon]
-    users_dict = {u.telegram_id: u for u in users}
-    
-    # Callback to log bot responses to user history
-    def record_bot_reply(chat_id, text):
-        user = users_dict.get(chat_id)
-        if user:
-            user.chat_history.append(("Bot", text))
-            print(f"[{user.username}] Bot: {text}")
+    try:
+        # 2. Initialize AI Engines
+        # Default AI Engine for simulated users and bot chat interaction
+        chat_ai = create_ai_engine(
+            provider=settings.chat_provider,
+            api_key=settings.chat_api_key,
+            model_name=settings.chat_model
+        )
+        
+        # Healing/Judge AI Engine
+        judge_provider = settings.SELF_HEALING_AI_PROVIDER or AIProvider.GEMINI
+        judge_model = settings.SELF_HEALING_MODEL or "gemma-4-31b-it"
+        judge_api_key = settings.get_provider_api_key(judge_provider)
+        
+        print(f"Default Chat AI Engine: {settings.chat_provider.value} ({settings.chat_model})")
+        print(f"Healing/Judge AI Engine: {judge_provider.value} ({judge_model})")
+        
+        judge_ai = create_ai_engine(
+            provider=judge_provider,
+            api_key=judge_api_key,
+            model_name=judge_model
+        )
+        
+        # 3. Load or scrape listings
+        enriched_listings = []
+        if is_remote:
+            print("Attempting to load actual listings from remote DB...")
+            db_listings = await listing_repo.get_recent(limit=10)
+            if len(db_listings) >= 2:
+                enriched_listings = db_listings
+                print(f"Loaded {len(enriched_listings)} listings from remote DB. Skipping scraping.")
+            else:
+                print(f"Only found {len(db_listings)} listings in remote DB. Falling back to scraping...")
+                
+        if not enriched_listings:
+            # Write Mock HTML Yad2 Page to Temp File
+            mock_html_file = tmp_path / "mock_yad2_e2e.html"
+            with open(mock_html_file, "w", encoding="utf-8") as f:
+                f.write(MOCK_YAD2_HTML)
             
-    # Mock bot's notification sender to capture notifications
-    async def mock_send_listing_notification(chat_id: int, enriched: EnrichedListing, bordering_note: str = "", sass_intro: str = ""):
-        msg = bot.formatter.format_listing(enriched, bordering_note, sass_intro)
-        user = users_dict.get(chat_id)
-        if user:
-            user.notifications_received.append(msg)
-            user.chat_history.append(("Bot Notification", msg))
-            print(f"[{user.username}] MATCH NOTIFICATION:\n{msg}")
+            mock_html_url = mock_html_file.as_uri()
+            print(f"Mock HTML path created: {mock_html_url}")
             
-    bot.send_listing_notification = mock_send_listing_notification
-    
-    # 7. Run Simulated Onboarding Loop
-    print("\n--- Starting Simulated Onboarding Dialogues ---")
-    
-    with patch("database.get_db", return_value=db_manager), \
-         patch("database.connection.get_db", return_value=db_manager):
-         
-         for user in users:
-             print(f"\n--- Onboarding {user.username} ---")
+            # Create Scraper & Patch for Local File navigation
+            # Force headless mode during test
+            with patch("config.settings.HEADLESS_MODE", True):
+                scraper = Yad2PlaywrightScraper(max_pages=1, max_listings=5)
+                # Patch full URL building to return local file URI
+                scraper._build_full_url = lambda params: mock_html_url
+                
+                # Execute real scraping (runs Playwright headlessly on local HTML file)
+                print("Running scraper on mock local HTML...")
+                listings = await scraper.scrape()
+                
+            assert len(listings) == 2, f"Should have scraped 2 listings, got {len(listings)}"
+            print(f"Scraped 2 listings successfully. Listing 1: {listings[0].title}, Listing 2: {listings[1].title}")
+            
+            # Enrich Scraped Listings using Real AI Enricher
+            from core.ai_engine import ListingEnricher
+            enricher = ListingEnricher(chat_ai)
+            print("Enriching listings via AI...")
+            enriched_listings = await enricher.enrich_listings(listings)
+            assert len(enriched_listings) == 2
+            
+            # Save enriched listings to the DB
+            for enriched in enriched_listings:
+                await listing_repo.save_enriched(enriched)
+            print("Saved enriched listings to DB.")
+            
+        # 4. Dynamically configure user criteria based on loaded listings to guarantee matches
+        shir_target = "3-room apartment in Florentin, Tel Aviv with budget up to 6,000 NIS. Speak casually."
+        arnon_target = "2-room apartment in Kerem HaTeimanim, Tel Aviv for up to 5,000 NIS."
+        
+        if len(enriched_listings) >= 1:
+            l1 = enriched_listings[0]
+            loc1 = l1.extracted_neighborhood or l1.extracted_location or "Florentin"
+            rooms1 = l1.extracted_bedrooms or 3
+            price1 = l1.extracted_price or 6000
+            shir_target = f"{rooms1}-room apartment in {loc1} with budget up to {price1 + 500} NIS. Speak casually."
+            print(f"Dynamically set Shir target: {shir_target} (based on listing {l1.listing.id[:8]})")
+            
+        if len(enriched_listings) >= 2:
+            l2 = enriched_listings[1]
+            loc2 = l2.extracted_neighborhood or l2.extracted_location or "Kerem HaTeimanim"
+            rooms2 = l2.extracted_bedrooms or 2
+            price2 = l2.extracted_price or 5000
+            arnon_target = f"{rooms2}-room apartment in {loc2} for up to {price2 + 500} NIS."
+            print(f"Dynamically set Arnon target: {arnon_target} (based on listing {l2.listing.id[:8]})")
+            
+        # 5. Initialize Bot and Simulated Users
+        bot = ApartmentBot(ai_engine=chat_ai)
+        await bot.setup()
+        
+        # Create 2 Simulated User Agents
+        shir = SimulatedLLMUser(
+            telegram_id=11111111,
+            username="שיר (Shir)",
+            persona="barakush",
+            target_desc=shir_target,
+            style_desc="Casual Israeli student, using slang and typing in standard step-by-step Hebrew."
+        )
+        
+        arnon = SimulatedLLMUser(
+            telegram_id=22222222,
+            username="ארנון (Arnon)",
+            persona="yekke",
+            target_desc=arnon_target,
+            style_desc="Professional, polite, wants to test direct multi-rule onboarding by combining everything into one single input."
+        )
+        
+        users = [shir, arnon]
+        users_dict = {u.telegram_id: u for u in users}
+        
+        # Callback to log bot responses to user history
+        def record_bot_reply(chat_id, text):
+            user = users_dict.get(chat_id)
+            if user:
+                user.chat_history.append(("Bot", text))
+                print(f"[{user.username}] Bot: {text}")
+                
+        # Mock bot's notification sender to capture notifications
+        async def mock_send_listing_notification(chat_id: int, enriched: EnrichedListing, bordering_note: str = "", sass_intro: str = ""):
+            msg = bot.formatter.format_listing(enriched, bordering_note, sass_intro)
+            user = users_dict.get(chat_id)
+            if user:
+                user.notifications_received.append(msg)
+                user.chat_history.append(("Bot Notification", msg))
+                print(f"[{user.username}] MATCH NOTIFICATION:\n{msg}")
+                
+        bot.send_listing_notification = mock_send_listing_notification
+        
+        # 6. Run Simulated Onboarding Loop
+        print("\n--- Starting Simulated Onboarding Dialogues ---")
+        
+        with patch("database.get_db", return_value=db_manager), \
+             patch("database.connection.get_db", return_value=db_manager):
              
-             # Create TG user record in DB
-             await user_repo.get_or_create(
-                 telegram_id=user.telegram_id,
-                 chat_id=user.telegram_id,
-                 username=user.username
-             )
-             await user_repo.update_onboarding_step(user.telegram_id, "choose_persona")
-             
-             context_mock = MagicMock(spec=ContextTypes.DEFAULT_TYPE)
-             context_mock.bot_data = {"ai_engine": chat_ai, "processing_service": None}
-             context_mock.user_data = {}
-             
-             # Send /start
-             user.chat_history.append(("User", "/start"))
-             await simulate_telegram_interaction(user, "/start", bot, db_manager, context_mock, record_bot_reply)
-             
-             db_user = await user_repo.get_by_telegram_id(user.telegram_id)
-             
-             turn = 0
-             while db_user.onboarding_step is not None and turn < 10:
-                 turn += 1
-                 step = db_user.onboarding_step
+             for user in users:
+                 print(f"\n--- Onboarding {user.username} ---")
                  
-                 if step == "choose_persona":
-                     callback_data = f"set_persona:{user.persona}"
-                     user.chat_history.append(("User Callback", callback_data))
-                     await simulate_callback_query(user, callback_data, bot, db_manager, context_mock, record_bot_reply)
-                 else:
-                     reply = await user.generate_response(chat_ai, step)
-                     user.chat_history.append(("User", reply))
-                     print(f"[{user.username}] User: {reply}")
-                     await simulate_telegram_interaction(user, reply, bot, db_manager, context_mock, record_bot_reply)
-                     
+                 # Create TG user record in DB
+                 await user_repo.get_or_create(
+                     telegram_id=user.telegram_id,
+                     chat_id=user.telegram_id,
+                     username=user.username
+                 )
+                 await user_repo.update_onboarding_step(user.telegram_id, "choose_persona")
+                 
+                 context_mock = MagicMock(spec=ContextTypes.DEFAULT_TYPE)
+                 context_mock.bot_data = {"ai_engine": chat_ai, "processing_service": None}
+                 context_mock.user_data = {}
+                 
+                 # Send /start
+                 user.chat_history.append(("User", "/start"))
+                 await simulate_telegram_interaction(user, "/start", bot, db_manager, context_mock, record_bot_reply)
+                 
                  db_user = await user_repo.get_by_telegram_id(user.telegram_id)
                  
-             print(f"Finished onboarding {user.username} in {turn} turns. Onboarding step is: {db_user.onboarding_step}")
-             
-             # Verify rules were successfully written to DB
-             saved_rules = await rule_repo.get_user_rules(user.telegram_id)
-             assert len(saved_rules) >= 2, f"User {user.username} should have rules saved in database, found {len(saved_rules)}"
-             print(f"Saved {len(saved_rules)} rules for {user.username}: {[f'{r.rule_type.name}: {r.value}' for r in saved_rules]}")
-    
-    # 8. Run Matching Engine Processing Cycle
-    print("\n--- Running Matcher Cycle ---")
-    processing_service = ProcessingService(bot, chat_ai)
-    
-    # Patch get_db to return our test database during the cycle
-    with patch("database.get_db", return_value=db_manager), \
-         patch("database.connection.get_db", return_value=db_manager), \
-         patch("core.processing.get_db", return_value=db_manager):
-         
-         await processing_service.process_cycle(enriched_listings)
-         
-    # Verify matches were received by users
-    assert len(shir.notifications_received) >= 1, "Shir should have received Florentin listing match"
-    assert len(arnon.notifications_received) >= 1, "Arnon should have received Kerem HaTeimanim listing match"
-    print("Matches checked and delivered successfully to both users!")
-    
-    # 9. Generate User Reviews
-    print("\n--- Generating User Reviews via LLM ---")
-    reviews = {}
-    for user in users:
-        review = await user.generate_feedback(chat_ai)
-        reviews[user.username] = review
-        print(f"\nFeedback from {user.username}:\n{review}")
+                 turn = 0
+                 while db_user.onboarding_step is not None and turn < 10:
+                     turn += 1
+                     step = db_user.onboarding_step
+                     
+                     if step == "choose_persona":
+                         callback_data = f"set_persona:{user.persona}"
+                         user.chat_history.append(("User Callback", callback_data))
+                         await simulate_callback_query(user, callback_data, bot, db_manager, context_mock, record_bot_reply)
+                     else:
+                         reply = await user.generate_response(chat_ai, step)
+                         user.chat_history.append(("User", reply))
+                         print(f"[{user.username}] User: {reply}")
+                         await simulate_telegram_interaction(user, reply, bot, db_manager, context_mock, record_bot_reply)
+                         
+                     db_user = await user_repo.get_by_telegram_id(user.telegram_id)
+                     
+                 print(f"Finished onboarding {user.username} in {turn} turns. Onboarding step is: {db_user.onboarding_step}")
+                 
+                 # Verify rules were successfully written to DB
+                 saved_rules = await rule_repo.get_user_rules(user.telegram_id)
+                 assert len(saved_rules) >= 2, f"User {user.username} should have rules saved in database, found {len(saved_rules)}"
+                 print(f"Saved {len(saved_rules)} rules for {user.username}: {[f'{r.rule_type.name}: {r.value}' for r in saved_rules]}")
         
-    # 10. Judge compiles Evaluation Report (using self-healing provider)
-    print("\n--- Compiling Final Judge Evaluation Report ---")
-    
-    user_data_compiled = []
-    for user in users:
-        convo_lines = [f"{speaker}: {msg}" for speaker, msg in user.chat_history]
-        convo_str = "\n".join(convo_lines)
-        review = reviews[user.username]
-        user_data_compiled.append(f"""
+        # 7. Run Matching Engine Processing Cycle
+        print("\n--- Running Matcher Cycle ---")
+        processing_service = ProcessingService(bot, chat_ai)
+        
+        # Patch get_db to return our test database during the cycle
+        with patch("database.get_db", return_value=db_manager), \
+             patch("database.connection.get_db", return_value=db_manager), \
+             patch("core.processing.get_db", return_value=db_manager):
+             
+             await processing_service.process_cycle(enriched_listings)
+             
+        # Verify matches were received by users
+        assert len(shir.notifications_received) >= 1, "Shir should have received a matched listing notification"
+        assert len(arnon.notifications_received) >= 1, "Arnon should have received a matched listing notification"
+        print("Matches checked and delivered successfully to both users!")
+        
+        # 8. Generate User Reviews
+        print("\n--- Generating User Reviews via LLM ---")
+        reviews = {}
+        for user in users:
+            review = await user.generate_feedback(chat_ai)
+            reviews[user.username] = review
+            print(f"\nFeedback from {user.username}:\n{review}")
+            
+        # 9. Judge compiles Evaluation Report (using self-healing provider)
+        print("\n--- Compiling Final Judge Evaluation Report ---")
+        
+        user_data_compiled = []
+        for user in users:
+            convo_lines = [f"{speaker}: {msg}" for speaker, msg in user.chat_history]
+            convo_str = "\n".join(convo_lines)
+            review = reviews[user.username]
+            user_data_compiled.append(f"""
 === User: {user.username} ===
 Persona: {user.persona}
 Target Criteria: {user.target_desc}
@@ -428,10 +468,10 @@ Conversation Transcript:
 Feedback Review:
 {review}
 """)
-    
-    compiled_inputs = "\n".join(user_data_compiled)
-    
-    judge_prompt = f"""
+        
+        compiled_inputs = "\n".join(user_data_compiled)
+        
+        judge_prompt = f"""
 You are the Agentic E2E Integration Test Judge.
 We completed an E2E test of the Israeli Apartment Search Bot using simulated LLM users.
 Here is the raw conversation logs and feedback reviews compiled from the test:
@@ -442,27 +482,36 @@ Analyze this data and compile a comprehensive evaluation report in Markdown.
 The report must include:
 1. Executive Summary: Overall success rate and bot rating (out of 5 stars).
 2. Onboarding Evaluation: How well did the bot parse Hebrew inputs into structured rules? Assess step-by-step onboarding vs direct multi-rule onboarding.
-3. Notification & Matching Evaluation: Were listings correctly matched and formatted?
+3. Notification & Matching Evaluation: Were listings correctly matched and formatted? Judge the quality and relevance of the matched results (e.g. price alignment, location accuracy, and details) relative to the users' preferences.
 4. Tone & Persona Evaluation: Did the bot maintain its sassy (Barakush) or professional (Yekke) persona?
 5. Identified Issues & Bugs: Highlight any bugs, awkward formatting, or issues reported by the users or visible in the logs.
 6. Recommendations: Actionable steps for improvement.
 
 Use clean, professional Markdown. Do not include extra comments outside the Markdown report.
 """
-    
-    report_md = await judge_ai.generate_content(judge_prompt)
-    
-    # Save report to docs/agentic_eval_report.md
-    docs_dir = Path("docs")
-    os.makedirs(docs_dir, exist_ok=True)
-    report_file = docs_dir / "agentic_eval_report.md"
-    
-    with open(report_file, "w", encoding="utf-8") as f:
-        f.write(report_md)
         
-    print(f"\n✅ Final Judge Report written successfully to: {report_file}")
-    
-    # Clean up database
-    await db_manager.close()
-    
-    assert report_file.exists(), "Final report file was not written."
+        report_md = await judge_ai.generate_content(judge_prompt)
+        
+        # Save report to docs/agentic_eval_report.md
+        docs_dir = Path("docs")
+        os.makedirs(docs_dir, exist_ok=True)
+        report_file = docs_dir / "agentic_eval_report.md"
+        
+        with open(report_file, "w", encoding="utf-8") as f:
+            f.write(report_md)
+            
+        print(f"\n✅ Final Judge Report written successfully to: {report_file}")
+        assert report_file.exists(), "Final report file was not written."
+        
+    finally:
+        # 10. Clean up database
+        print("\n--- Cleaning up Database ---")
+        try:
+            # Always delete the test users to avoid cluttering remote/production DB
+            await user_repo.delete_user(11111111)
+            await user_repo.delete_user(22222222)
+            print("Successfully deleted E2E test users from database.")
+        except Exception as e:
+            print(f"Error during user cleanup: {e}")
+            
+        await db_manager.close()

@@ -1113,6 +1113,7 @@ class ListingEnricher:
             "neighborhood": "שם השכונה המפורש כפי שהוא כתוב ישירות בפוסט בלבד. אל תנחש, אל תסיק מהרחוב, ואל תשלים שכונה מהראש (למניעת הזיות/hallucinations)! אם לא כתוב במפורש בטקסט, רשום null.",
             "street": "שם הרחוב המפורש כפי שהוא כתוב ישירות בפוסט בלבד (בלי מספר). אל תנחש, אל תסיק מהתיאור, ואל תשלים שם רחוב מהראש (למניעת הזיות/hallucinations)! אם לא כתוב במפורש בטקסט, רשום null.",
             "has_broker": true/false (האם מוזכר תיווך),
+            "roomies": true/false (האם המודעה מחפשת שותף/ה לדירה - למשל להשכרת חדר בדירה, שותף שיכנס לחדר פנוי, או שותפים שמחפשים שותף נוסף. שים לב: ביטויים כמו "מתאים לשותפים" או "סבבה לשותפים" אומרים רק שהדירה מתאימה לזה אך לא שמחפשים שותף, ולכן במקרה כזה השדה צריך להיות false),
             "attributes": {{
                 "has_parking": true/false/null,
                 "has_balcony": true/false/null,
@@ -1194,6 +1195,17 @@ class ListingEnricher:
             # Same for bedrooms
             final_bedrooms = data.get("bedrooms") or listing.bedrooms or extract_bedrooms(listing.raw_text)
             
+            # Same for roomies
+            final_roomies = data.get("roomies")
+            if final_roomies is None:
+                from utils.hebrew_utils import is_looking_for_roomie
+                final_roomies = is_looking_for_roomie(listing.raw_text or listing.description or listing.title)
+                
+            attrs = data.get("attributes", {})
+            if not isinstance(attrs, dict):
+                attrs = {}
+            attrs["roomies"] = final_roomies
+            
             enriched.append(EnrichedListing(
                 listing=listing,
                 extracted_price=final_price,
@@ -1202,7 +1214,8 @@ class ListingEnricher:
                 extracted_neighborhood=data.get("neighborhood", ""),
                 extracted_street=data.get("street", ""),
                 has_broker_fee=data.get("has_broker", False) or has_broker_fee(listing.raw_text),
-                attributes=data.get("attributes", {}),
+                roomies=final_roomies,
+                attributes=attrs,
                 area_matches={area: True for area in data.get("all_mentioned_areas", [])},
                 bordering_areas={}
             ))
@@ -1213,7 +1226,9 @@ class ListingEnricher:
     def _basic_enrich(self, listing: Listing) -> EnrichedListing:
         """Basic enrichment without AI (fallback)."""
         log.debug(f"Using basic enrichment fallback for {listing.title}")
-        from utils.hebrew_utils import extract_price, extract_bedrooms
+        from utils.hebrew_utils import extract_price, extract_bedrooms, is_looking_for_roomie
+        
+        final_roomies = is_looking_for_roomie(listing.raw_text or listing.description or listing.title)
         
         return EnrichedListing(
             listing=listing,
@@ -1223,7 +1238,8 @@ class ListingEnricher:
             extracted_neighborhood="",
             extracted_street="",
             has_broker_fee=has_broker_fee(listing.raw_text),
-            attributes={},
+            roomies=final_roomies,
+            attributes={"roomies": final_roomies},
             area_matches={},
             bordering_areas={}
         )

@@ -21,7 +21,8 @@ CREATE TABLE IF NOT EXISTS users (
     first_notified_at TIMESTAMP,
     persona TEXT DEFAULT 'barakush',
     is_admin BOOLEAN DEFAULT FALSE,
-    allow_bordering_neighborhoods BOOLEAN DEFAULT TRUE
+    allow_bordering_neighborhoods BOOLEAN DEFAULT TRUE,
+    allow_roomies BOOLEAN DEFAULT TRUE
 );
 
 -- Search rules table
@@ -59,6 +60,7 @@ CREATE TABLE IF NOT EXISTS enriched_listings (
     extracted_location TEXT,
     extracted_neighborhood TEXT,
     has_broker_fee BOOLEAN DEFAULT FALSE,
+    roomies BOOLEAN DEFAULT FALSE,
     attributes TEXT,  -- JSON
     area_matches TEXT,  -- JSON
     bordering_areas TEXT,  -- JSON
@@ -185,6 +187,20 @@ class DatabaseManager:
         # Safe migration: Add 'allow_bordering_neighborhoods' column if it doesn't exist
         try:
             await self._connection.execute("ALTER TABLE users ADD COLUMN allow_bordering_neighborhoods BOOLEAN DEFAULT TRUE")
+            await self._connection.commit()
+        except aiosqlite.OperationalError:
+            pass
+            
+        # Safe migration: Add 'allow_roomies' column to users if it doesn't exist
+        try:
+            await self._connection.execute("ALTER TABLE users ADD COLUMN allow_roomies BOOLEAN DEFAULT TRUE")
+            await self._connection.commit()
+        except aiosqlite.OperationalError:
+            pass
+            
+        # Safe migration: Add 'roomies' column to enriched_listings if it doesn't exist
+        try:
+            await self._connection.execute("ALTER TABLE enriched_listings ADD COLUMN roomies BOOLEAN DEFAULT FALSE")
             await self._connection.commit()
         except aiosqlite.OperationalError:
             pass

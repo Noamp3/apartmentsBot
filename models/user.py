@@ -20,6 +20,7 @@ class User:
     is_admin: bool = False
     onboarding_step: Optional[str] = None
     allow_bordering_neighborhoods: bool = True
+    allow_roomies: bool = True
     
     @property
     def is_new_user(self) -> bool:

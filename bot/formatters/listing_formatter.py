@@ -190,11 +190,12 @@ class ListingFormatter:
         return "\n".join(lines)
     
     @staticmethod
-    def format_rules_list(rules: list, allow_bordering: bool = True) -> str:
+    def format_rules_list(rules: list, allow_bordering: bool = True, allow_roomies: bool = True) -> str:
         """Format user's active search rules."""
         if not rules:
             status_val = "פעיל ✅" if allow_bordering else "כבוי ❌"
-            return f"📋 *אין לך כללי חיפוש פעילים\\.*\n📍 *חיפוש בשכונות גובלות:* {status_val}\n\nשלח הודעה עם הדרישות שלך ואני אוסיף אותן\\!"
+            roomies_val = "פעיל ✅" if allow_roomies else "כבוי ❌"
+            return f"📋 *אין לך כללי חיפוש פעילים\\.*\n📍 *חיפוש בשכונות גובלות:* {status_val}\n🏠 *קבלת דירות שותפים:* {roomies_val}\n\nשלח הודעה עם הדרישות שלך ואני אוסיף אותן\\!"
         
         lines = []
         lines.append("📋 *כללי החיפוש שלך:*")
@@ -229,6 +230,8 @@ class ListingFormatter:
         lines.append("")
         status_val = "פעיל ✅" if allow_bordering else "כבוי ❌"
         lines.append(f"📍 *חיפוש בשכונות גובלות:* {status_val}")
+        roomies_val = "פעיל ✅" if allow_roomies else "כבוי ❌"
+        lines.append(f"🏠 *קבלת דירות שותפים:* {roomies_val}")
         lines.append("")
         lines.append("_שלח הודעה כדי להוסיף כלל חדש_")
         lines.append("_או /clear למחיקת כל הכללים_")

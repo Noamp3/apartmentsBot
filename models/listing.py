@@ -55,6 +55,9 @@ class EnrichedListing:
     # Broker fee handling
     has_broker_fee: bool = False  # True if listing mentions תיווך
     
+    # Flatmate/roommate listing
+    roomies: bool = False  # True if looking for a flatmate/roommate (excluding "suitable for roommates")
+    
     # AI-computed attributes for custom rule matching
     attributes: Dict[str, Any] = field(default_factory=dict)
     
