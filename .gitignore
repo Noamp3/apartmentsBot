@@ -38,3 +38,4 @@ logs/
 
 # Dynamic location data
 utils/locations_custom.json
+docs/agentic_eval_report.md
