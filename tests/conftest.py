@@ -23,3 +23,20 @@ async def db():
     await db_manager.initialize()
     yield db_manager
     await db_manager.close()
+
+
+def pytest_addoption(parser):
+    parser.addoption(
+        "--run-llm", action="store_true", default=False, help="run tests that call live LLM APIs"
+    )
+
+
+def pytest_collection_modifyitems(config, items):
+    if config.getoption("--run-llm"):
+        return
+    
+    skip_llm = pytest.mark.skip(reason="requires --run-llm to run")
+    for item in items:
+        if "llm" in item.keywords:
+            item.add_marker(skip_llm)
+

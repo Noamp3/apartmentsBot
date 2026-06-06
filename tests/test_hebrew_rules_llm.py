@@ -8,6 +8,10 @@ from unittest.mock import MagicMock, AsyncMock, patch
 from datetime import datetime
 
 from config import settings, AIProvider
+
+# Mark all tests in this file as LLM-calling tests
+pytestmark = pytest.mark.llm
+
 from core.ai_engine import create_ai_engine, GeminiAIEngine
 from bot.handlers.message_handler import MessageHandler
 from database.connection import DatabaseManager

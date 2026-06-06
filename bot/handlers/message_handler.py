@@ -6,7 +6,7 @@ from telegram.ext import ContextTypes
 from telegram.error import BadRequest
 
 from database import get_db
-from database.repositories import UserRepository, RuleRepository
+from database.repositories import UserRepository, RuleRepository, ListingRepository
 from core.ai_engine import GeminiAIEngine
 from models.search_rule import SearchRule, RuleType
 from utils.validators import parse_rule_input
@@ -46,24 +46,9 @@ class MessageHandler:
         self.ai_engine = ai_engine
     
     async def _safe_reply_text(self, update: Update, text: str, parse_mode: str = None, **kwargs):
-        """Send message safely, handling Markdown errors gracefully."""
-        try:
-            await update.message.reply_text(text, parse_mode=parse_mode, **kwargs)
-        except BadRequest as e:
-            if "can't parse entities" in str(e).lower():
-                log.exception(f"Markdown parsing failed for message: {text[:200]}... Falling back to plain text.")
-                # Fallback to plain text
-                fallback_text = text.replace("_", "").replace("*", "") + "\n\n(שגיאת עיצוב - מציג טקסט רגיל)"
-                try:
-                    await update.message.reply_text(fallback_text, parse_mode=None, **kwargs)
-                except Exception as e2:
-                    log.error(f"Failed to send fallback message: {e2}")
-            else:
-                log.error(f"Telegram API error sending message: {e}")
-                # Re-raise if it's not a parsing error (e.g. Chat Not Found)
-                raise e
-        except Exception as e:
-            log.error(f"Unexpected error sending message: {e}")
+        """Send message safely, handling Markdown errors gracefully (using central helper)."""
+        from bot.handlers.bot_utils import safe_reply_text
+        await safe_reply_text(update, text, parse_mode=parse_mode, **kwargs)
 
     @ensure_user_exists
     async def handle_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -88,9 +73,9 @@ class MessageHandler:
             if text.lower() in ("cancel", "ביטול"):
                 await update.message.reply_text("❌ שידור ההודעה בוטל.")
                 # Show main dashboard
-                command_handler = context.bot_data.get("command_handler")
-                if command_handler:
-                    dashboard, reply_markup = await command_handler.get_admin_dashboard_data()
+                admin_command_handler = context.bot_data.get("admin_command_handler")
+                if admin_command_handler:
+                    dashboard, reply_markup = await admin_command_handler.get_admin_dashboard_data()
                     await update.message.reply_text(
                         dashboard,
                         reply_markup=reply_markup,
@@ -134,9 +119,9 @@ class MessageHandler:
             )
             
             # Show dashboard again
-            command_handler = context.bot_data.get("command_handler")
-            if command_handler:
-                dashboard, reply_markup = await command_handler.get_admin_dashboard_data()
+            admin_command_handler = context.bot_data.get("admin_command_handler")
+            if admin_command_handler:
+                dashboard, reply_markup = await admin_command_handler.get_admin_dashboard_data()
                 await update.message.reply_text(
                     dashboard,
                     reply_markup=reply_markup,
@@ -205,7 +190,6 @@ class MessageHandler:
                     
             if has_mod_keywords:
                 db = await get_db()
-                from database.repositories import RuleRepository
                 rule_repo = RuleRepository(db)
                 active_rules = await rule_repo.get_user_rules(user.id, active_only=True)
                 
@@ -648,14 +632,10 @@ class MessageHandler:
         return icons.get(rule_type, "•")
     
     def _escape_markdown(self, text: str) -> str:
-        """Escape special Markdown V2 characters."""
-        special_chars = ['_', '*', '[', ']', '(', ')', '~', '`', '>', 
-                        '#', '+', '-', '=', '|', '{', '}', '.', '!']
-        for char in special_chars:
-            text = text.replace(char, f'\\{char}')
-        return text
-    
-        return message
+        """Escape special Markdown V2 characters (using central helper)."""
+        from utils.text_utils import escape_markdown
+        return escape_markdown(text)
+
     
     def _format_border_confirmation_message(self, border_rules_data: list) -> str:
         """Format a confirmation message for border area rules.
@@ -883,8 +863,6 @@ class MessageHandler:
                         # Complete onboarding and save all rules to DB
                         await user_repo.update_onboarding_step(user_id, None)
                         
-                        from database.repositories import RuleRepository
-                        from models.search_rule import SearchRule, RuleType
                         rule_repo = RuleRepository(db)
                         
                         search_rules_list = []
@@ -951,12 +929,12 @@ class MessageHandler:
                             
                         rules_summary_str = "\n".join(rules_summary)
                         welcome_template = """
-🎉 *מזל טוב\! סיימנו להגדיר את החיפוש שלך\!* 🚀
+🎉 *מזל טוב\\! סיימנו להגדיר את החיפוש שלך\\!* 🚀
 
 הנה הכללים ששמרתי בשבילך:
 {rules_summary_str}
 
-מכאן והלאה אני רץ כל כמה דקות על כל הפרסומים ביד2 ובקבוצות הפייסבוק הכי שוות, מסנן את כל הזבל ומביא לך רק מה שמתאים בול\!{sass_extra}
+מכאן והלאה אני רץ כל כמה דקות על כל הפרסומים ביד2 ובקבוצות הפייסבוק הכי שוות, מסנן את כל הזבל ומביא לך רק מה שמתאים בול\\!{sass_extra}
 """
                         from bot.handlers.command_handler import get_main_menu_keyboard
                         await self._safe_reply_text(
@@ -971,7 +949,6 @@ class MessageHandler:
                         
                         processing_service = context.bot_data.get("processing_service")
                         if processing_service:
-                            from database.repositories import ListingRepository
                             listing_repo = ListingRepository(db)
                             recent_listings = await listing_repo.get_recent_enrichments(hours=24)
                             if recent_listings:
@@ -1152,8 +1129,6 @@ class MessageHandler:
             
             await user_repo.update_onboarding_step(user_id, None)
             
-            from database.repositories import RuleRepository
-            from models.search_rule import SearchRule, RuleType
             rule_repo = RuleRepository(db)
             
             search_rules_list = []
@@ -1229,7 +1204,6 @@ class MessageHandler:
             
             processing_service = context.bot_data.get("processing_service")
             if processing_service:
-                from database.repositories import ListingRepository
                 listing_repo = ListingRepository(db)
                 
                 recent_listings = await listing_repo.get_recent_enrichments(hours=24)

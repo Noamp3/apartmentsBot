@@ -2,7 +2,7 @@
 """Scheduling for periodic scraping tasks."""
 
 from datetime import datetime, timedelta
-from typing import Callable, List, Optional
+from typing import Callable, List, Optional, Awaitable, Any
 import asyncio
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -19,13 +19,13 @@ class ScrapingScheduler:
     
     def __init__(
         self,
-        process_callback: Callable,
-        interval_minutes: int = None
+        process_callback: Callable[[], Awaitable[None]],
+        interval_minutes: Optional[int] = None
     ):
-        self.scheduler = AsyncIOScheduler()
-        self.process_callback = process_callback
-        self.interval = interval_minutes or settings.SCRAPE_INTERVAL_MINUTES
-        self._running = False
+        self.scheduler: AsyncIOScheduler = AsyncIOScheduler()
+        self.process_callback: Callable[[], Awaitable[None]] = process_callback
+        self.interval: int = interval_minutes or settings.SCRAPE_INTERVAL_MINUTES
+        self._running: bool = False
         
         # Blackout period state
         self._blackout_jitter_start = 0
@@ -138,10 +138,18 @@ class ScrapingScheduler:
 class QuotaAwareScheduler(ScrapingScheduler):
     """Scheduler that adapts to API quota availability."""
     
+    DEFAULT_UNLIMITED_INTERVAL = 5
+    LOW_QUOTA_THRESHOLD = 10
+    LOW_QUOTA_INTERVAL = 30
+    MAX_INTERVAL = 15
+    MIN_INTERVAL = 5
+    ESTIMATED_CALLS_PER_CYCLE = 6
+    MIN_DAILY_REMAINING_QUOTA = 20
+    
     def __init__(
         self,
-        process_callback: Callable,
-        rate_limiter: 'GeminiRateLimiter',
+        process_callback: Callable[[], Awaitable[None]],
+        rate_limiter: Any,
         target_cycles_per_day: int = 200
     ):
         super().__init__(process_callback)
@@ -151,37 +159,42 @@ class QuotaAwareScheduler(ScrapingScheduler):
     def calculate_optimal_interval(self) -> int:
         """Calculate optimal minutes between cycles based on quota."""
         quota = self.rate_limiter.get_remaining_quota()
+        daily_remaining = quota["daily_remaining"]
+        
+        # Handle unlimited quota (e.g., OpenAI models without daily limits)
+        if not isinstance(daily_remaining, (int, float)):
+            return self.DEFAULT_UNLIMITED_INTERVAL
+        
         hours_remaining = (self.rate_limiter.daily_reset - datetime.now()).seconds / 3600
         
         if hours_remaining <= 0:
-            return 5  # New day starting, normal interval
-        
-        # Estimate calls per cycle (5-7 typically)
-        calls_per_cycle = 6
+            return self.DEFAULT_UNLIMITED_INTERVAL
         
         # Calculate how many cycles we can do
-        remaining_cycles = quota["daily_remaining"] / calls_per_cycle
+        remaining_cycles = daily_remaining / self.ESTIMATED_CALLS_PER_CYCLE
         
-        if remaining_cycles < 10:
+        if remaining_cycles < self.LOW_QUOTA_THRESHOLD:
             log.warning("Low quota - extending intervals",
                        remaining_cycles=remaining_cycles)
-            return 30  # Long interval when low on quota
+            return self.LOW_QUOTA_INTERVAL
         
         # Distribute remaining cycles across remaining hours
         cycles_per_hour = remaining_cycles / hours_remaining
         
-        minutes_between_cycles = max(5, int(60 / cycles_per_hour))
+        minutes_between_cycles = max(self.MIN_INTERVAL, int(60 / cycles_per_hour))
         
-        return min(minutes_between_cycles, 15)  # Cap at 15 minutes
+        return min(minutes_between_cycles, self.MAX_INTERVAL)
     
     async def _run_cycle(self):
         """Run cycle with quota awareness."""
         # Check quota before running
         quota = self.rate_limiter.get_remaining_quota()
+        daily_remaining = quota["daily_remaining"]
         
-        if quota["daily_remaining"] < 20:
+        # Skip quota check for unlimited-quota providers
+        if isinstance(daily_remaining, (int, float)) and daily_remaining < self.MIN_DAILY_REMAINING_QUOTA:
             log.warning("Quota too low, skipping cycle",
-                       daily_remaining=quota["daily_remaining"])
+                       daily_remaining=daily_remaining)
             return
         
         await super()._run_cycle()

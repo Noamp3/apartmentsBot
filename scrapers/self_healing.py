@@ -163,7 +163,7 @@ class SelfHealingManager:
                     if feed_element:
                         log.info(f"Found feed element with selector: {container_sel}")
                         break
-                except:
+                except Exception:
                     continue
 
             if feed_element:
@@ -287,7 +287,7 @@ CRITICAL: Return ONLY a valid, raw JSON block. Your entire response must start w
                 try:
                     await page.screenshot(path=screenshot_path)
                     log.info(f"Captured debug screenshot of page for attribute healing audit: '{screenshot_path}'")
-                except:
+                except Exception:
                     pass
         except Exception as se:
             log.warning(f"Could not capture screenshot before healing attribute: {se}")

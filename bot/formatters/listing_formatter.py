@@ -237,9 +237,6 @@ class ListingFormatter:
     
     @staticmethod
     def _escape_markdown(text: str) -> str:
-        """Escape special Markdown V2 characters."""
-        special_chars = ['_', '*', '[', ']', '(', ')', '~', '`', '>', 
-                        '#', '+', '-', '=', '|', '{', '}', '.', '!']
-        for char in special_chars:
-            text = text.replace(char, f'\\{char}')
-        return text
+        """Escape special Markdown V2 characters (using central helper)."""
+        from utils.text_utils import escape_markdown
+        return escape_markdown(text)

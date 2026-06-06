@@ -9,11 +9,15 @@ from scrapers.facebook_scraper import FacebookScraper
 from core.ai_engine import create_ai_engine
 from config import settings
 
-# Apply skip if AI API credentials are not set in the environment
-pytestmark = pytest.mark.skipif(
-    not settings.active_api_key,
-    reason="Skipping real LLM test: no active API key configured in environment."
-)
+# Apply skip if AI API credentials are not set in the environment, and mark as LLM test
+pytestmark = [
+    pytest.mark.llm,
+    pytest.mark.skipif(
+        not settings.active_api_key,
+        reason="Skipping real LLM test: no active API key configured in environment."
+    )
+]
+
 
 
 @pytest.mark.asyncio

@@ -8,7 +8,7 @@ import random
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
 from collections import deque
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Callable, Awaitable
 
 from config import settings, AIProvider
 from utils.logger import Loggers
@@ -26,12 +26,12 @@ class RateLimitExceeded(Exception):
 
 
 async def retry_with_backoff(
-    coro_func, 
-    *args, 
+    coro_func: Callable[..., Any], 
+    *args: Any, 
     max_retries: int = 10,
     base_delay: float = 2.0, 
     max_delay: float = 30.0,
-    **kwargs
+    **kwargs: Any
 ) -> Any:
     """Executes a coroutine (or sync function in thread) with safe exponential backoff
     for transient, non-rate-limit errors.

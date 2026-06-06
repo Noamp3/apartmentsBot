@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from database.repositories import RuleRepository
 from bot.formatters.listing_formatter import ListingFormatter
 from bot.handlers.command_handler import CommandHandler
+from bot.handlers.admin_command_handler import AdminCommandHandler
 from bot.handlers.callback_handler import CallbackHandler
 from models.listing import Listing, EnrichedListing
 from models.rejection_log import RejectionLog
@@ -149,8 +150,8 @@ def test_rules_list_markdown_v2_escaping():
 
 @pytest.mark.asyncio
 async def test_admin_dashboard_html():
-    """Verify CommandHandler.get_admin_dashboard_data builds valid HTML."""
-    handler = CommandHandler()
+    """Verify AdminCommandHandler.get_admin_dashboard_data builds valid HTML."""
+    handler = AdminCommandHandler()
     
     # Mock get_db results
     mock_db = MagicMock()
@@ -206,11 +207,12 @@ async def test_admin_callbacks_html():
     
     # Setup context
     mock_context = MagicMock()
-    mock_command_handler = CommandHandler()
-    mock_context.bot_data = {"command_handler": mock_command_handler}
+    mock_admin_command_handler = AdminCommandHandler()
+    mock_context.bot_data = {"admin_command_handler": mock_admin_command_handler}
     
     with patch('bot.handlers.callback_handler.get_db', return_value=mock_db), \
-         patch('bot.handlers.command_handler.get_db', return_value=mock_db):
+         patch('bot.handlers.command_handler.get_db', return_value=mock_db), \
+         patch('bot.handlers.admin_command_handler.get_db', return_value=mock_db):
         
         # 1. Test _show_admin_users
         mock_db.fetch_all.return_value = [

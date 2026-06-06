@@ -283,7 +283,7 @@ class CallbackHandler:
                     user, recent_listings, is_manual_trigger=True
                 )
                 if matches > 0:
-                    await query.message.reply_text(f"✨ מצאתי {matches} שידוכים קודמים\!")
+                    await query.message.reply_text(f"✨ מצאתי {matches} שידוכים קודמים\\!")
     
     async def _confirm_rules_no(self, query, context: ContextTypes.DEFAULT_TYPE):
         """User declined - clear pending rules and ask to try again."""
@@ -300,32 +300,14 @@ class CallbackHandler:
         log.info("Rules declined by user", user_id=query.from_user.id)
     
     def _escape_markdown(self, text: str) -> str:
-        """Escape special Markdown V2 characters."""
-        special_chars = ['_', '*', '[', ']', '(', ')', '~', '`', '>', 
-                        '#', '+', '-', '=', '|', '{', '}', '.', '!']
-        for char in special_chars:
-            text = text.replace(char, f'\\{char}')
-        return text
+        """Escape special Markdown V2 characters (using central helper)."""
+        from utils.text_utils import escape_markdown
+        return escape_markdown(text)
     
     async def _safe_edit_message_text(self, query, text: str, parse_mode: str = None):
-        """Edit message safely, handling Markdown errors gracefully."""
-        from telegram.error import BadRequest
-        try:
-            await query.edit_message_text(text, parse_mode=parse_mode)
-        except BadRequest as e:
-            if "can't parse entities" in str(e).lower():
-                log.exception(f"Markdown parsing failed in callback. Message: {text[:200]}...")
-                # Fallback to plain text
-                fallback_text = text.replace("_", "").replace("*", "").replace("\\", "") + "\n\n(שגיאת עיצוב)"
-                try:
-                    await query.edit_message_text(fallback_text, parse_mode=None)
-                except Exception as e2:
-                    log.error(f"Failed to send fallback message: {e2}")
-            else:
-                log.error(f"Telegram API error editing message: {e}")
-                raise e
-        except Exception as e:
-            log.error(f"Unexpected error editing message: {e}")
+        """Edit message safely, handling Markdown errors gracefully (using central helper)."""
+        from bot.handlers.bot_utils import safe_edit_message_text
+        await safe_edit_message_text(query, text, parse_mode=parse_mode)
     
     @staticmethod
     def create_rules_confirmation_keyboard() -> InlineKeyboardMarkup:
@@ -476,9 +458,9 @@ class CallbackHandler:
 
     async def _show_admin_dashboard(self, query, context):
         """Go back to main admin panel screen."""
-        command_handler = context.bot_data.get("command_handler")
-        if command_handler:
-            dashboard, reply_markup = await command_handler.get_admin_dashboard_data()
+        admin_command_handler = context.bot_data.get("admin_command_handler")
+        if admin_command_handler:
+            dashboard, reply_markup = await admin_command_handler.get_admin_dashboard_data()
             await query.edit_message_text(
                 dashboard,
                 reply_markup=reply_markup,
@@ -700,16 +682,16 @@ class CallbackHandler:
         # Route special action triggers
         if query.data == "admin_menu_fb_login_trigger":
             # Call fb login command
-            command_handler = context.bot_data.get("command_handler")
-            if command_handler:
+            admin_command_handler = context.bot_data.get("admin_command_handler")
+            if admin_command_handler:
                 await query.answer("מתנייד להתחברות לפייסבוק...", show_alert=False)
-                await command_handler.admin_fb_login(update=query, context=context)
+                await admin_command_handler.admin_fb_login(update=query, context=context)
                 return
         elif query.data == "admin_menu_fb_scrape_trigger":
-            command_handler = context.bot_data.get("command_handler")
-            if command_handler:
+            admin_command_handler = context.bot_data.get("admin_command_handler")
+            if admin_command_handler:
                 await query.answer("מפעיל סריקה ידנית...", show_alert=False)
-                await command_handler.admin_scrape(update=query, context=context)
+                await admin_command_handler.admin_scrape(update=query, context=context)
                 return
                 
         await self._safe_edit_message_text(query, status_msg, parse_mode="HTML")

@@ -14,6 +14,7 @@ from telegram.ext import (
 from config import settings
 from core.ai_engine import GeminiAIEngine
 from bot.handlers.command_handler import CommandHandler
+from bot.handlers.admin_command_handler import AdminCommandHandler
 from bot.handlers.message_handler import MessageHandler
 from bot.handlers.callback_handler import CallbackHandler
 from bot.formatters.listing_formatter import ListingFormatter
@@ -34,6 +35,7 @@ class ApartmentBot:
         
         # Initialize handlers
         self.command_handler = CommandHandler()
+        self.admin_command_handler = AdminCommandHandler()
         self.message_handler = MessageHandler(ai_engine=ai_engine)
         self.callback_handler = CallbackHandler()
         self.formatter = ListingFormatter()
@@ -48,6 +50,7 @@ class ApartmentBot:
         # Store AI engine in bot_data for handlers
         self.application.bot_data["ai_engine"] = self.ai_engine
         self.application.bot_data["command_handler"] = self.command_handler
+        self.application.bot_data["admin_command_handler"] = self.admin_command_handler
         
         # Store processing service in bot_data (injected from main.py)
         if hasattr(self, "processing_service"):
@@ -88,22 +91,22 @@ class ApartmentBot:
             TGCommandHandler("persona", self.command_handler.persona)
         )
         self.application.add_handler(
-            TGCommandHandler("admin", self.command_handler.admin_panel)
+            TGCommandHandler("admin", self.admin_command_handler.admin_panel)
         )
         self.application.add_handler(
-            TGCommandHandler("admin_users", self.command_handler.admin_users)
+            TGCommandHandler("admin_users", self.admin_command_handler.admin_users)
         )
         self.application.add_handler(
-            TGCommandHandler("admin_logs", self.command_handler.admin_logs)
+            TGCommandHandler("admin_logs", self.admin_command_handler.admin_logs)
         )
         self.application.add_handler(
-            TGCommandHandler("admin_broadcast", self.command_handler.admin_broadcast)
+            TGCommandHandler("admin_broadcast", self.admin_command_handler.admin_broadcast)
         )
         self.application.add_handler(
-            TGCommandHandler("admin_scrape", self.command_handler.admin_scrape)
+            TGCommandHandler("admin_scrape", self.admin_command_handler.admin_scrape)
         )
         self.application.add_handler(
-            TGCommandHandler("admin_fb_login", self.command_handler.admin_fb_login)
+            TGCommandHandler("admin_fb_login", self.admin_command_handler.admin_fb_login)
         )
         
         # Add message handler for natural language
@@ -261,7 +264,7 @@ class ApartmentBot:
                     user = await user_repo.get_by_chat_id(update.effective_chat.id)
                     if user:
                         persona_name = user.persona
-                except:
+                except Exception:
                     pass
                 
                 fallback = "אופס, משהו השתבש... נסה שוב מאוחר יותר!"

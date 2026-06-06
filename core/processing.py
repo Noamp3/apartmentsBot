@@ -95,7 +95,7 @@ class ProcessingService:
                         try:
                             persona_name = user.persona if hasattr(user, 'persona') else 'barakush'
                             sass_for_first = await self.ai_engine.get_random_sass(persona=persona_name)
-                        except:
+                        except Exception:
                             sass_for_first = ""
                             
                     # Send notification

@@ -38,3 +38,19 @@ DATABASE_URL=sqlite:///apartment_bot.db
 - 📍 Smart location matching with neighborhood support
 - 💰 Broker fee calculation in price matching
 - 📋 Rejection logging for transparency
+
+## Running Tests
+
+Test execution is separated so that tests requiring external/real LLM API calls are skipped by default.
+
+```bash
+# Run the core test suite (excludes live LLM calls)
+.venv\Scripts\pytest
+
+# Run all tests, including those calling live LLMs
+.venv\Scripts\pytest --run-llm
+
+# Run only the LLM integration tests
+.venv\Scripts\pytest -m llm --run-llm
+```
+
