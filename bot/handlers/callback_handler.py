@@ -77,7 +77,7 @@ class CallbackHandler:
             elif data == "admin_menu_logs":
                 await self._show_admin_logs(query, context)
             elif data.startswith("admin_menu_fb"):
-                await self._show_admin_fb_menu(query, context)
+                await self._show_admin_fb_menu(update, context)
             elif data == "admin_menu_clear":
                 await self._show_admin_clear_menu(query, context)
             elif data == "admin_menu_server":
@@ -128,6 +128,10 @@ class CallbackHandler:
                     matches = await processing_service.match_user_to_listings(user, recent_listings, is_manual_trigger=True)
                     if matches > 0:
                         await query.message.reply_text(f"✨ מצאתי {matches} דירות שפספסנו קודם\\!")
+                    else:
+                        from core.personas import get_persona
+                        p = get_persona(user.persona)
+                        await query.message.reply_text(p.no_matches_found)
         else:
             await query.edit_message_text("❌ לא נמצא כלל למחיקה")
     
@@ -287,6 +291,10 @@ class CallbackHandler:
                 )
                 if matches > 0:
                     await query.message.reply_text(f"✨ מצאתי {matches} שידוכים קודמים\\!")
+                else:
+                    from core.personas import get_persona
+                    p = get_persona(user.persona)
+                    await query.message.reply_text(p.no_matches_found)
     
     async def _confirm_rules_no(self, query, context: ContextTypes.DEFAULT_TYPE):
         """User declined - clear pending rules and ask to try again."""
@@ -694,11 +702,12 @@ class CallbackHandler:
         await self._safe_edit_message_text(query, summary, parse_mode="HTML")
         await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup(keyboard))
 
-    async def _show_admin_fb_menu(self, query, context):
+    async def _show_admin_fb_menu(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Show Facebook credentials and file status, plus launch login button."""
         import os
         from datetime import datetime
         
+        query = update.callback_query
         storage_state_path = "data/fb_storage_state.json"
         cookies_path = "data/fb_cookies.json"
         
@@ -734,13 +743,13 @@ class CallbackHandler:
             admin_command_handler = context.bot_data.get("admin_command_handler")
             if admin_command_handler:
                 await query.answer("מתנייד להתחברות לפייסבוק...", show_alert=False)
-                await admin_command_handler.admin_fb_login(update=query, context=context)
+                await admin_command_handler.admin_fb_login(update=update, context=context)
                 return
         elif query.data == "admin_menu_fb_scrape_trigger":
             admin_command_handler = context.bot_data.get("admin_command_handler")
             if admin_command_handler:
                 await query.answer("מפעיל סריקה ידנית...", show_alert=False)
-                await admin_command_handler.admin_scrape(update=query, context=context)
+                await admin_command_handler.admin_scrape(update=update, context=context)
                 return
                 
         await self._safe_edit_message_text(query, status_msg, parse_mode="HTML")

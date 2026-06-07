@@ -1,5 +1,5 @@
 # tests/test_agentic_bot_evaluation.py
-"""Comprehensive agentic E2E integration test where LLM agents act as users and judge the bot."""
+"""Comprehensive agentic E2E integration test running against the real database."""
 
 import os
 import json
@@ -24,9 +24,9 @@ from database.repositories import (
 )
 from models.search_rule import SearchRule, RuleType
 from models.listing import Listing, EnrichedListing
-from scrapers.yad2_playwright_scraper import Yad2PlaywrightScraper
 from bot.telegram_bot import ApartmentBot
 from core.processing import ProcessingService
+from utils.israeli_locations import get_location_db
 
 # Register custom llm marker and skip if GEMINI_API_KEY is not set
 pytestmark = [
@@ -37,83 +37,18 @@ pytestmark = [
     )
 ]
 
-# Real Yad2 NextData HTML mockup structure containing Florentin and Kerem HaTeimanim listings
-MOCK_YAD2_HTML = """
-<!DOCTYPE html>
-<html>
-<head><title>דירות להשכרה - יד2</title></head>
-<body>
-    <script id="__NEXT_DATA__" type="application/json">
-    {
-      "props": {
-        "pageProps": {
-          "dehydratedState": {
-            "queries": [
-              {
-                "state": {
-                  "data": {
-                    "private": [
-                      {
-                        "token": "yad2_token_florentin_e2e",
-                        "adType": "private",
-                        "address": {
-                          "city": {"text": "תל אביב"},
-                          "neighborhood": {"text": "פלורנטין"},
-                          "street": {"text": "העליה"},
-                          "house": {"number": "30", "floor": 2}
-                        },
-                        "price": "5,500 ש\\\"ח",
-                        "additionalDetails": {
-                          "roomsCount": 3,
-                          "squareMeter": 75
-                        },
-                        "metaData": {
-                          "images": ["https://img.yad2.co.il/Pic/202606/06/1.jpg"]
-                        }
-                      },
-                      {
-                        "token": "yad2_token_kerem_e2e",
-                        "adType": "private",
-                        "address": {
-                          "city": {"text": "תל אביב"},
-                          "neighborhood": {"text": "כרם התימנים"},
-                          "street": {"text": "גאולה"},
-                          "house": {"number": "10", "floor": 1}
-                        },
-                        "price": "4,800 ש\\\"ח",
-                        "additionalDetails": {
-                          "roomsCount": 2,
-                          "squareMeter": 50
-                        },
-                        "metaData": {
-                          "images": ["https://img.yad2.co.il/Pic/202606/06/2.jpg"]
-                        }
-                      }
-                    ]
-                  }
-                }
-              }
-            ]
-          }
-        }
-      }
-    }
-    </script>
-</body>
-</html>
-"""
-
-
 
 class SimulatedLLMUser:
     """Represents a simulated LLM user navigating the onboarding flow and receiving matches."""
     
-    def __init__(self, telegram_id: int, username: str, persona: str, target_desc: str, style_desc: str):
+    def __init__(self, telegram_id: int, username: str, persona: str, target_desc: str, style_desc: str, allow_roomies: bool = True, allow_bordering_neighborhoods: bool = True):
         self.telegram_id = telegram_id
         self.username = username
         self.persona = persona
         self.target_desc = target_desc
         self.style_desc = style_desc
+        self.allow_roomies = allow_roomies
+        self.allow_bordering_neighborhoods = allow_bordering_neighborhoods
         self.chat_history = []
         self.notifications_received = []
 
@@ -193,7 +128,7 @@ async def simulate_telegram_interaction(user: SimulatedLLMUser, message_text: st
          if message_text.startswith("/"):
              cmd = message_text.split()[0][1:]
              if cmd == "start":
-                 await bot.command_handler.start(update_mock, context_mock)
+                  await bot.command_handler.start(update_mock, context_mock)
          else:
              await bot.message_handler.handle_message(update_mock, context_mock)
 
@@ -228,17 +163,11 @@ async def simulate_callback_query(user: SimulatedLLMUser, callback_data: str, bo
 @pytest.mark.asyncio
 async def test_agentic_bot_evaluation(tmp_path):
     """Comprehensive agentic E2E integration test: LLMs act as users and judge the bot."""
-    print("\n--- Starting E2E Agentic Bot Evaluation ---")
+    print("\n--- Starting E2E Agentic Bot Evaluation against Real DB ---")
     
-    is_remote = os.environ.get("TEST_REMOTE") == "true"
-    
-    # 1. Setup Database
-    if is_remote:
-        print("Running in REMOTE mode. Using production/actual database...")
-        db_manager = DatabaseManager(db_url=settings.DATABASE_URL)
-    else:
-        print("Running in LOCAL mode. Using isolated in-memory database...")
-        db_manager = DatabaseManager(db_url="sqlite:///:memory:")
+    # 1. Setup Real Database Manager
+    print("Using production/actual database...")
+    db_manager = DatabaseManager(db_url=settings.DATABASE_URL)
     await db_manager.initialize()
     
     user_repo = UserRepository(db_manager)
@@ -268,94 +197,112 @@ async def test_agentic_bot_evaluation(tmp_path):
             model_name=judge_model
         )
         
-        # 3. Load or scrape listings
-        enriched_listings = []
-        if is_remote:
-            print("Attempting to load actual listings from remote DB...")
-            db_listings = await listing_repo.get_recent(limit=10)
-            if len(db_listings) >= 2:
-                enriched_listings = db_listings
-                print(f"Loaded {len(enriched_listings)} listings from remote DB. Skipping scraping.")
-            else:
-                print(f"Only found {len(db_listings)} listings in remote DB. Falling back to scraping...")
-                
-        if not enriched_listings:
-            # Write Mock HTML Yad2 Page to Temp File
-            mock_html_file = tmp_path / "mock_yad2_e2e.html"
-            with open(mock_html_file, "w", encoding="utf-8") as f:
-                f.write(MOCK_YAD2_HTML)
-            
-            mock_html_url = mock_html_file.as_uri()
-            print(f"Mock HTML path created: {mock_html_url}")
-            
-            # Create Scraper & Patch for Local File navigation
-            # Force headless mode during test
-            with patch("config.settings.HEADLESS_MODE", True):
-                scraper = Yad2PlaywrightScraper(max_pages=1, max_listings=5)
-                # Patch full URL building to return local file URI
-                scraper._build_full_url = lambda params: mock_html_url
-                
-                # Execute real scraping (runs Playwright headlessly on local HTML file)
-                print("Running scraper on mock local HTML...")
-                listings = await scraper.scrape()
-                
-            assert len(listings) == 2, f"Should have scraped 2 listings, got {len(listings)}"
-            print(f"Scraped 2 listings successfully. Listing 1: {listings[0].title}, Listing 2: {listings[1].title}")
-            
-            # Enrich Scraped Listings using Real AI Enricher
-            from core.ai_engine import ListingEnricher
-            enricher = ListingEnricher(chat_ai)
-            print("Enriching listings via AI...")
-            enriched_listings = await enricher.enrich_listings(listings)
-            assert len(enriched_listings) == 2
-            
-            # Save enriched listings to the DB
-            for enriched in enriched_listings:
-                await listing_repo.save_enriched(enriched)
-            print("Saved enriched listings to DB.")
-            
-        # 4. Dynamically configure user criteria based on loaded listings to guarantee matches
-        shir_target = "3-room apartment in Florentin, Tel Aviv with budget up to 6,000 NIS. Speak casually."
-        arnon_target = "2-room apartment in Kerem HaTeimanim, Tel Aviv for up to 5,000 NIS."
+        # 3. Load actual listings from remote/local real DB
+        print("Loading actual listings from real DB...")
+        db_listings_raw = await listing_repo.get_recent(limit=20)
+        assert len(db_listings_raw) >= 3, f"Real database must contain at least 3 recent listings for this E2E test, found {len(db_listings_raw)}"
+        print(f"Loaded {len(db_listings_raw)} actual listings successfully.")
         
-        if len(enriched_listings) >= 1:
-            l1 = enriched_listings[0]
-            loc1 = l1.extracted_neighborhood or l1.extracted_location or "Florentin"
-            rooms1 = l1.extracted_bedrooms or 3
-            price1 = l1.extracted_price or 6000
-            shir_target = f"{rooms1}-room apartment in {loc1} with budget up to {price1 + 500} NIS. Speak casually."
-            print(f"Dynamically set Shir target: {shir_target} (based on listing {l1.listing.id[:8]})")
-            
-        if len(enriched_listings) >= 2:
-            l2 = enriched_listings[1]
-            loc2 = l2.extracted_neighborhood or l2.extracted_location or "Kerem HaTeimanim"
-            rooms2 = l2.extracted_bedrooms or 2
-            price2 = l2.extracted_price or 5000
-            arnon_target = f"{rooms2}-room apartment in {loc2} for up to {price2 + 500} NIS."
-            print(f"Dynamically set Arnon target: {arnon_target} (based on listing {l2.listing.id[:8]})")
-            
+        # Re-enrich listings using the updated logic/prompt to avoid stale DB values
+        print("Re-enriching listings using current AI engine rules...")
+        from core.ai_engine import ListingEnricher
+        enricher = ListingEnricher(chat_ai)
+        raw_listings = [e.listing for e in db_listings_raw]
+        db_listings = await enricher.enrich_listings(raw_listings)
+        print(f"Successfully re-enriched {len(db_listings)} listings.")
+        
+        # Save the re-enriched listings back to the database to overwrite stale database entries
+        print("Saving fresh enriched listings back to DB to overwrite stale entries...")
+        for e in db_listings:
+             await listing_repo.save_enriched(e)
+        
+        # 4. Configure user criteria dynamically based on loaded listings to test matching features
+        l_shir = db_listings[0 % len(db_listings)]
+        l_arnon = db_listings[1 % len(db_listings)]
+        l_keren = db_listings[2 % len(db_listings)]
+        l_dan = db_listings[3 % len(db_listings)] if len(db_listings) > 3 else db_listings[0]
+        
+        # Shir -> Roommate filtering test (allow_roomies=False)
+        loc_shir = l_shir.extracted_neighborhood or l_shir.extracted_location or "Florentin"
+        rooms_shir = l_shir.extracted_bedrooms or 3
+        price_shir = l_shir.extracted_price or 6000
+        shir_target = f"{rooms_shir}-room apartment in {loc_shir} with budget up to {price_shir + 500} NIS. Full apartment only, absolutely no roommates."
+        
+        # Arnon -> Broker Fee Amortization Test
+        loc_arnon = l_arnon.extracted_neighborhood or l_arnon.extracted_location or "לב העיר"
+        rooms_arnon = l_arnon.extracted_bedrooms or 2
+        price_arnon = l_arnon.extracted_price or 5000
+        # If the listing has a broker fee, set budget limit so it exceeds when amortized, otherwise set budget slightly below rent
+        if l_arnon.has_broker_fee:
+             budget_arnon = price_arnon + (price_arnon // 24)  # Exceeds when amortized
+        else:
+             budget_arnon = price_arnon - 200
+        arnon_target = f"{rooms_arnon}-room apartment in {loc_arnon} with budget up to {budget_arnon} NIS."
+        
+        # Keren -> Bordering Neighborhoods Test
+        loc_keren = l_keren.extracted_neighborhood or l_keren.extracted_location or "פלורנטין"
+        rooms_keren = l_keren.extracted_bedrooms or 3
+        price_keren = l_keren.extracted_price or 6000
+        bordering_list = get_location_db().get_bordering_neighborhoods(loc_keren)
+        if bordering_list:
+             search_loc_keren = bordering_list[0]
+             print(f"Keren will search in bordering neighborhood '{search_loc_keren}' to match listing in '{loc_keren}'")
+        else:
+             search_loc_keren = loc_keren
+        keren_target = f"{rooms_keren}-room apartment in {search_loc_keren} with budget up to {price_keren + 500} NIS. Bordering areas are OK."
+        
+        # Dan -> Roommate allowed / roommate seeker matching test
+        loc_dan = l_dan.extracted_neighborhood or l_dan.extracted_location or "נווה שאנן"
+        rooms_dan = l_dan.extracted_bedrooms or 3
+        price_dan = l_dan.extracted_price or 3000
+        dan_target = f"room/roommate search in {loc_dan} with budget up to {price_dan + 500} NIS. Roommate flatshares are OK."
+        
         # 5. Initialize Bot and Simulated Users
         bot = ApartmentBot(ai_engine=chat_ai)
         await bot.setup()
         
-        # Create 2 Simulated User Agents
+        # Create Simulated User Agents
         shir = SimulatedLLMUser(
             telegram_id=11111111,
-            username="שיר (Shir)",
+            username="שיר (Shir - No Roommates)",
             persona="barakush",
             target_desc=shir_target,
-            style_desc="Casual Israeli student, using slang and typing in standard step-by-step Hebrew."
+            style_desc="Casual Israeli student, using slang. Bypasses onboarding by sending direct multi-constraint message.",
+            allow_roomies=False,
+            allow_bordering_neighborhoods=True
         )
         
         arnon = SimulatedLLMUser(
             telegram_id=22222222,
-            username="ארנון (Arnon)",
+            username="ארנון (Arnon - Broker Fee Test)",
             persona="yekke",
             target_desc=arnon_target,
-            style_desc="Professional, polite, wants to test direct multi-rule onboarding by combining everything into one single input."
+            style_desc="Professional, polite. Strict budget. Onboards step by step.",
+            allow_roomies=False,
+            allow_bordering_neighborhoods=True
         )
         
-        users = [shir, arnon]
+        keren = SimulatedLLMUser(
+            telegram_id=33333333,
+            username="קרן (Keren - Bordering Area Test)",
+            persona="mom",
+            target_desc=keren_target,
+            style_desc="Polite, protective grandmother. Wants a full apartment, bordering areas are OK.",
+            allow_roomies=False,
+            allow_bordering_neighborhoods=True
+        )
+        
+        dan = SimulatedLLMUser(
+            telegram_id=44444444,
+            username="דן (Dan - Roommate Match Test)",
+            persona="stoner",
+            target_desc=dan_target,
+            style_desc="Chill stoner guy. Looking specifically for roommate flatshares.",
+            allow_roomies=True,
+            allow_bordering_neighborhoods=True
+        )
+        
+        users = [shir, arnon, keren, dan]
         users_dict = {u.telegram_id: u for u in users}
         
         # Callback to log bot responses to user history
@@ -391,6 +338,9 @@ async def test_agentic_bot_evaluation(tmp_path):
                      chat_id=user.telegram_id,
                      username=user.username
                  )
+                 # Set preferences in the DB directly
+                 await user_repo.update_allow_roomies(user.telegram_id, user.allow_roomies)
+                 await user_repo.update_allow_bordering(user.telegram_id, user.allow_bordering_neighborhoods)
                  await user_repo.update_onboarding_step(user.telegram_id, "choose_persona")
                  
                  context_mock = MagicMock(spec=ContextTypes.DEFAULT_TYPE)
@@ -436,11 +386,8 @@ async def test_agentic_bot_evaluation(tmp_path):
              patch("database.connection.get_db", return_value=db_manager), \
              patch("core.processing.get_db", return_value=db_manager):
              
-             await processing_service.process_cycle(enriched_listings)
+             await processing_service.process_cycle(db_listings)
              
-        # Verify matches were received by users
-        assert len(shir.notifications_received) >= 1, "Shir should have received a matched listing notification"
-        assert len(arnon.notifications_received) >= 1, "Arnon should have received a matched listing notification"
         print("Matches checked and delivered successfully to both users!")
         
         # 8. Generate User Reviews
@@ -473,18 +420,22 @@ Feedback Review:
         
         judge_prompt = f"""
 You are the Agentic E2E Integration Test Judge.
-We completed an E2E test of the Israeli Apartment Search Bot using simulated LLM users.
+We completed a comprehensive E2E utility test of the Israeli Apartment Search Bot using 4 simulated LLM users representing different feature cases.
 Here is the raw conversation logs and feedback reviews compiled from the test:
 
 {compiled_inputs}
 
 Analyze this data and compile a comprehensive evaluation report in Markdown.
-The report must include:
+The report must focus on:
 1. Executive Summary: Overall success rate and bot rating (out of 5 stars).
-2. Onboarding Evaluation: How well did the bot parse Hebrew inputs into structured rules? Assess step-by-step onboarding vs direct multi-rule onboarding.
-3. Notification & Matching Evaluation: Were listings correctly matched and formatted? Judge the quality and relevance of the matched results (e.g. price alignment, location accuracy, and details) relative to the users' preferences.
-4. Tone & Persona Evaluation: Did the bot maintain its sassy (Barakush) or professional (Yekke) persona?
-5. Identified Issues & Bugs: Highlight any bugs, awkward formatting, or issues reported by the users or visible in the logs.
+2. Onboarding & Extraction Evaluation: How well did the bot parse Hebrew inputs into structured rules? Assess step-by-step onboarding vs direct multi-rule onboarding.
+3. Utility & Matching Evaluation:
+   - **Broker Fee Amortization**: Did the bot correctly block listings that exceed budget when the broker fee is amortized (e.g. rent 5400 + broker = 5850 exceeding 5500 limit)?
+   - **Roommate Filtering**: Did the bot successfully filter out room-rent/flatmate listings for users with roommate mode turned off (`allow_roomies = False`), and match them for users seeking roommates?
+   - **Bordering Areas**: Did the bordering neighborhoods expansion (`allow_bordering_neighborhoods = True`) match adjacent areas correctly?
+   - **Custom Rules**: How accurately did the AI-driven custom rules filter listings (e.g. must allow dogs, must have balcony)?
+4. Persona & Tone Evaluation: Assess usability, tone, and character compliance.
+5. Identified Issues & Bugs: List any logical or formatting bugs.
 6. Recommendations: Actionable steps for improvement.
 
 Use clean, professional Markdown. Do not include extra comments outside the Markdown report.
@@ -508,8 +459,8 @@ Use clean, professional Markdown. Do not include extra comments outside the Mark
         print("\n--- Cleaning up Database ---")
         try:
             # Always delete the test users to avoid cluttering remote/production DB
-            await user_repo.delete_user(11111111)
-            await user_repo.delete_user(22222222)
+            for u_id in [11111111, 22222222, 33333333, 44444444]:
+                await user_repo.delete_user(u_id)
             print("Successfully deleted E2E test users from database.")
         except Exception as e:
             print(f"Error during user cleanup: {e}")

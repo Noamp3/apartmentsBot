@@ -1107,6 +1107,7 @@ class ListingEnricher:
         עבור כל דירה החזר:
         {{
             "listing_num": מספר הדירה (1, 2, 3...),
+            "is_real_estate": true/false (האם הפוסט מציע נכס נדל"ן להשכרה או חדר בדירת שותפים לטווח בינוני-ארוך. החזר false אם מדובר במכירת רהיטים, הובלות, חיפוש דירה של מישהו אחר, סאבלט קצר של ימים בודדים, פוסט מסחרי/נופש, או ספאם כלשהו שאינו מודעה המציעה דירה או חדר להשכרה),
             "price": מספר או null (שים לב: אל תחלץ מספר טלפון בן 10 ספרות כמחיר!),
             "bedrooms": מספר או null,
             "location": "עיר (ברירת מחדל: תל אביב)",
@@ -1163,6 +1164,11 @@ class ListingEnricher:
                 data = {}
                 log.debug(f"No AI data for listing #{i+1}, using regex fallback")
             
+            # Skip if explicitly classified as not real estate
+            if data.get("is_real_estate") is False:
+                log.info(f"Skipping non-real estate listing #{i+1}: {listing.title or (listing.raw_text[:50] if listing.raw_text else 'N/A')}")
+                continue
+            
             # If listing has no posted_at but AI extracted time, apply it
             if not listing.posted_at and data.get("posted_hours_ago"):
                 hours_ago = data.get("posted_hours_ago")
@@ -1195,11 +1201,14 @@ class ListingEnricher:
             # Same for bedrooms
             final_bedrooms = data.get("bedrooms") or listing.bedrooms or extract_bedrooms(listing.raw_text)
             
-            # Same for roomies
-            final_roomies = data.get("roomies")
-            if final_roomies is None:
-                from utils.hebrew_utils import is_looking_for_roomie
-                final_roomies = is_looking_for_roomie(listing.raw_text or listing.description or listing.title)
+            # Same for roomies: combine AI-extracted roomies with regex lookup
+            ai_roomies = data.get("roomies")
+            from utils.hebrew_utils import is_looking_for_roomie
+            regex_roomies = is_looking_for_roomie(listing.raw_text or listing.description or listing.title)
+            if ai_roomies is None:
+                final_roomies = regex_roomies
+            else:
+                final_roomies = bool(ai_roomies or regex_roomies)
                 
             attrs = data.get("attributes", {})
             if not isinstance(attrs, dict):

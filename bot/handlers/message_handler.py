@@ -958,6 +958,10 @@ class MessageHandler:
                                 )
                                 if matches > 0:
                                     await update.message.reply_text(f"✨ מצאתי {matches} דירות מתאימות מהיממה האחרונה!")
+                                else:
+                                    from core.personas import get_persona
+                                    p = get_persona(user_obj.persona)
+                                    await update.message.reply_text(p.no_matches_found)
                         return
                 except Exception as e:
                     log.error(f"Failed to parse multi-rule onboarding message: {e}")
@@ -1214,3 +1218,7 @@ class MessageHandler:
                     )
                     if matches > 0:
                         await update.message.reply_text(f"✨ מצאתי {matches} דירות מתאימות מהיממה האחרונה!")
+                    else:
+                        from core.personas import get_persona
+                        p = get_persona(user_obj.persona)
+                        await update.message.reply_text(p.no_matches_found)

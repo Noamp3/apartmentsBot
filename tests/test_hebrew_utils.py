@@ -80,9 +80,21 @@ class TestBrokerFee:
     
     def test_direct_from_owner(self):
         assert is_direct_from_owner("ללא תיווך, ישירות מהבעלים")
+        assert is_direct_from_owner("דירה מהממת לא מתיווך")
+        assert is_direct_from_owner("ללא מתווכים בבקשה")
+        assert is_direct_from_owner("פרסום פרטי ללא מתווך")
+        assert is_direct_from_owner("בלי מתווכים")
+        assert is_direct_from_owner("ללא עמלת תיווך")
+        assert is_direct_from_owner("בלי דמי תיווך")
+        assert is_direct_from_owner("ללא מתווכת")
+        assert is_direct_from_owner("ללא מתווכות")
+        assert not has_broker_fee("דירה ללא עמלת תיווך")
+        assert not has_broker_fee("דירה ללא תיווך")
+        assert not has_broker_fee("דירה בלי מתווכים")
     
     def test_not_direct(self):
         assert not is_direct_from_owner("דירה להשכרה")
+        assert not is_direct_from_owner("דירה מתיווך")
 
 
 class TestRoomiesExtraction:

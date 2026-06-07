@@ -247,9 +247,20 @@ class IsraeliLocationDatabase:
         
         # Case 5: Target is within listing area (reverse containment)
         if target_neighborhood and listing_city and not listing_neighborhood and not listing_neighborhood_specified:
-            target_n = self.neighborhood_lookup.get(target_neighborhood.lower())
-            if target_n and target_n.city == listing_city:
-                return True, "contains", f"הדירה ב{listing_city} (שכונה לא צוינה)"
+            # Check if listing_location has specific details/streets other than the city name itself.
+            # If it contains specific details, it is not a generic city listing and should not trigger containment.
+            city_aliases = [listing_city.lower()] + [a.lower() for a in self.city_aliases.get(listing_city, [])]
+            
+            import re
+            raw_clean = re.sub(r'[\(\)\-\,\s]', ' ', listing_location.lower()).strip()
+            for alias in city_aliases:
+                raw_clean = raw_clean.replace(alias.lower(), ' ')
+            raw_clean = ' '.join(raw_clean.split())
+            
+            if not raw_clean:
+                target_n = self.neighborhood_lookup.get(target_neighborhood.lower())
+                if target_n and target_n.city == listing_city:
+                    return True, "contains", f"הדירה ב{listing_city} (שכונה לא צוינה)"
         
         return False, "none", "מיקום לא תואם"
     
