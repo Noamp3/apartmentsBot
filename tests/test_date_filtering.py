@@ -10,8 +10,29 @@ from models.search_rule import SearchRule, RuleType
 
 class TestDateFiltering(unittest.TestCase):
     def setUp(self):
+        # Create a mock datetime class that returns a fixed "now" to avoid time-of-day flakiness
+        self.fixed_now = datetime(2026, 6, 8, 12, 0, 0)
+        self.MockDatetime = type(
+            'MockDatetime', 
+            (datetime,), 
+            {'now': classmethod(lambda cls, tz=None: datetime(2026, 6, 8, 12, 0, 0))}
+        )
+        
+        # Apply the patch to yad2_scraper, core.matcher, and the test file
+        self.patchers = [
+            patch('scrapers.yad2_scraper.datetime', self.MockDatetime),
+            patch('core.matcher.datetime', self.MockDatetime),
+            patch('tests.test_date_filtering.datetime', self.MockDatetime)
+        ]
+        for p in self.patchers:
+            p.start()
+            
         self.yad2_scraper = Yad2Scraper(city_id="test")
         self.matcher = ZeroAIUserMatcher()
+
+    def tearDown(self):
+        for p in self.patchers:
+            p.stop()
 
     def test_yad2_filtering_recent_listing(self):
         """Test that a recent listing (2 hours old) is accepted."""

@@ -138,7 +138,6 @@ class ZeroAIUserMatcher:
         log.debug(f"Evaluating listing {enriched.listing.id} against {len(rules)} rules")
         
         # Safety check: Matcher should not process old listings (older than 1 day)
-        # Safety check: Matcher should not process old listings (older than 1 day)
         if enriched.listing.posted_at:
              age = datetime.now() - enriched.listing.posted_at
              if age.days >= 1:
@@ -152,7 +151,8 @@ class ZeroAIUserMatcher:
         # Phase 1: Check hard rules (price, bedrooms)
         passes_hard, hard_failures = self.pre_filter.passes_hard_rules(enriched, rules)
         rejection_reasons.extend(hard_failures)
-        
+        #todo if rejected we should skip the rest of the rules evaluatio
+
         # Phase 2: Check soft rules (area, custom)
         area_rules = [r for r in rules if r.is_active and r.rule_type in (RuleType.AREA, RuleType.BORDER_AREA)]
         other_rules = [r for r in rules if r.is_active and r.rule_type not in (RuleType.AREA, RuleType.BORDER_AREA)]
@@ -177,6 +177,7 @@ class ZeroAIUserMatcher:
                         break
                     else:
                         area_failures.append("אזור גיאוגרפי מוגדר")
+                        #todo we should keep where the listing actualy is in db in scrapping phase instead of doing it here per user per listing, it's costly and we need it for rejection reason in case of border area failure
             
             if not area_passes:
                 # Build detailed description of where the listing actually is
@@ -292,7 +293,7 @@ class ZeroAIUserMatcher:
         """Check custom rule against pre-computed attributes.
         
         Uses attribute matching where possible, otherwise assumes match
-        (benefit of the doubt to avoid false negatives).
+        (benefit of the doubt to avoid false negatives). todo this assumption should be cancled, if dosent say parking elevator animals etc, there isnt...
         """
         rule_text = rule.value.lower()
         attrs = enriched.attributes or {}

@@ -1,6 +1,15 @@
 # tests/conftest.py
 """Pytest fixtures for apartment bot tests."""
 
+# Patch platform._wmi_query to avoid hangs on Windows environments with broken WMI
+import sys
+if sys.platform == "win32":
+    try:
+        import platform
+        platform._wmi_query = lambda *args, **kwargs: (_ for _ in ()).throw(OSError("WMI disabled"))
+    except Exception:
+        pass
+
 import pytest
 import pytest_asyncio
 import asyncio
