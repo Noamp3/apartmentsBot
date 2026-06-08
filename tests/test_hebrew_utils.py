@@ -8,7 +8,9 @@ from utils.hebrew_utils import (
     extract_floor,
     has_broker_fee,
     is_direct_from_owner,
-    is_looking_for_roomie
+    is_looking_for_roomie,
+    parse_relative_date,
+    extract_yad2_posted_date
 )
 
 
@@ -130,3 +132,42 @@ class TestRoomiesExtraction:
         assert not is_looking_for_roomie("דירה להשכרה, 3 חדרים")
         assert not is_looking_for_roomie("")
         assert not is_looking_for_roomie(None)
+
+
+class TestDateParsing:
+    """Test parsing relative dates and Yad2 image URLs."""
+    
+    def test_parse_relative_date_hours(self):
+        from datetime import datetime, timedelta
+        now = datetime(2026, 6, 8, 12, 0, 0)
+        assert parse_relative_date("3 שעות", now) == now - timedelta(hours=3)
+        assert parse_relative_date("שעה", now) == now - timedelta(hours=1)
+        assert parse_relative_date("2h", now) == now - timedelta(hours=2)
+        
+    def test_parse_relative_date_minutes(self):
+        from datetime import datetime, timedelta
+        now = datetime(2026, 6, 8, 12, 0, 0)
+        assert parse_relative_date("5 דקות", now) == now - timedelta(minutes=5)
+        assert parse_relative_date("10m", now) == now - timedelta(minutes=10)
+        
+    def test_parse_relative_date_days(self):
+        from datetime import datetime, timedelta
+        now = datetime(2026, 6, 8, 12, 0, 0)
+        assert parse_relative_date("2 ימים", now) == now - timedelta(days=2)
+        assert parse_relative_date("יום", now) == now - timedelta(days=1)
+        assert parse_relative_date("3d", now) == now - timedelta(days=3)
+        
+    def test_parse_relative_date_named(self):
+        from datetime import datetime, timedelta
+        now = datetime(2026, 6, 8, 12, 0, 0)
+        assert parse_relative_date("אתמול", now) == now - timedelta(days=1)
+        assert parse_relative_date("עכשיו", now) == now
+        assert parse_relative_date("just now", now) == now
+        
+    def test_extract_yad2_posted_date(self):
+        from datetime import datetime
+        images = [
+            "https://img.yad2.co.il/Pic/202606/07/some_image.jpg",
+            "https://img.yad2.co.il/Pic/202606/08/some_image.jpg"
+        ]
+        assert extract_yad2_posted_date(images) == datetime(2026, 6, 8)

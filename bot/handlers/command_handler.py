@@ -7,7 +7,6 @@ from telegram.ext import ContextTypes
 from database import get_db
 from database.repositories import UserRepository, RuleRepository, RejectionRepository, ListingRepository
 from bot.formatters.listing_formatter import ListingFormatter
-from core.matcher import ZeroAIUserMatcher
 from utils.logger import Loggers
 from utils.text_utils import escape_markdown
 from bot.handlers.decorators import ensure_user_exists

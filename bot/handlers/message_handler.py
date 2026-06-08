@@ -3,7 +3,6 @@
 
 from telegram import Update
 from telegram.ext import ContextTypes
-from telegram.error import BadRequest
 
 from database import get_db
 from database.repositories import UserRepository, RuleRepository, ListingRepository

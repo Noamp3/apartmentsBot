@@ -21,7 +21,6 @@ from database.repositories import UserRepository, RuleRepository
 from utils.logger import Loggers
 from utils.text_utils import escape_markdown
 from bot.handlers.decorators import ensure_user_exists, admin_required
-from bot.handlers.bot_utils import safe_reply_text
 from bot.handlers.command_handler import get_main_menu_keyboard
 
 log = Loggers.bot()

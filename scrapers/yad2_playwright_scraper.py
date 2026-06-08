@@ -18,6 +18,7 @@ from scrapers.base_scraper import BaseScraper
 from scrapers.anti_detection import AntiDetectionModule
 from models.listing import Listing
 from utils.logger import Loggers
+from utils.hebrew_utils import extract_yad2_posted_date
 
 log = Loggers.scraper()
 
@@ -512,17 +513,7 @@ class Yad2PlaywrightScraper(BaseScraper):
             raw_text = "\n".join(raw_parts)
             
             # Extract date from image URLs
-            posted_at = None
-            for img_url in images:
-                match = re.search(r"Pic/(\d{4})(\d{2})/(\d{2})", img_url)
-                if match:
-                    try:
-                        year, month, day = map(int, match.groups())
-                        img_date = datetime(year, month, day)
-                        if not posted_at or img_date > posted_at:
-                            posted_at = img_date
-                    except ValueError:
-                        continue
+            posted_at = extract_yad2_posted_date(images)
             
             # Filter out old listings (older than 1 day)
             if posted_at:

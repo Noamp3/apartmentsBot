@@ -17,7 +17,7 @@ from scrapers.anti_detection import AntiDetectionModule
 from scrapers.self_healing import SelfHealingManager
 from models.listing import Listing
 from utils.logger import Loggers
-from utils.hebrew_utils import extract_price, extract_bedrooms, extract_contact_info
+from utils.hebrew_utils import extract_price, extract_bedrooms, extract_contact_info, parse_relative_date
 from utils.israeli_locations import get_location_db
 import random
 
@@ -1205,49 +1205,7 @@ class FacebookScraper(BaseScraper):
             if not timestamp_text:
                 return None
             
-            timestamp_text = timestamp_text.lower().strip()
-            
-            # Check for text-based "hour ago" or "day ago" without digits
-            if 'שעה' in timestamp_text and 'שעות' not in timestamp_text and not re.search(r'\d', timestamp_text):
-                return now - timedelta(hours=1)
-            if 'יום' in timestamp_text and 'ימים' not in timestamp_text and not re.search(r'\d', timestamp_text):
-                return now - timedelta(days=1)
-                
-            # Parse relative times
-            # Hours ago
-            hours_match = re.search(r'(\d+)\s*(?:h|שעות|שעה)', timestamp_text)
-            if hours_match:
-                hours = int(hours_match.group(1))
-                return now - timedelta(hours=hours)
-            
-            # Minutes ago
-            mins_match = re.search(r'(\d+)\s*(?:m|דקות|דקה)', timestamp_text)
-            if mins_match:
-                mins = int(mins_match.group(1))
-                return now - timedelta(minutes=mins)
-            
-            # Days ago
-            days_match = re.search(r'(\d+)\s*(?:d|ימים|יום)', timestamp_text)
-            if days_match:
-                days = int(days_match.group(1))
-                return now - timedelta(days=days)
-            
-            # Yesterday
-            if 'yesterday' in timestamp_text or 'אתמול' in timestamp_text:
-                return now - timedelta(days=1)
-            
-            # Just now
-            if 'just now' in timestamp_text or 'עכשיו' in timestamp_text or 'now' in timestamp_text:
-                return now
-            
-            # Weeks ago
-            weeks_match = re.search(r'(\d+)\s*(?:w|שבועות|שבוע)', timestamp_text)
-            if weeks_match:
-                weeks = int(weeks_match.group(1))
-                return now - timedelta(weeks=weeks)
-            
-            # If nothing matched, return None
-            return None
+            return parse_relative_date(timestamp_text, now)
             
         except Exception as e:
             log.debug(f"Error extracting post date: {e}")
@@ -1546,38 +1504,7 @@ class FacebookScraper(BaseScraper):
 
     def _extract_date_from_text(self, text: str) -> Optional[datetime]:
         """Extract date from text when element-based extraction fails."""
-        import re
-        from datetime import timedelta
-        
-        now = datetime.now()
-        text = text.lower()
-        
-        try:
-            # Days ago
-            days_match = re.search(r'(\d+)\s*(?:d|ימים|יום)', text)
-            if days_match:
-                days = int(days_match.group(1))
-                return now - timedelta(days=days)
-            
-            # Hours ago  
-            hours_match = re.search(r'(\d+)\s*(?:h|שעות|שעה)', text)
-            if hours_match:
-                hours = int(hours_match.group(1))
-                return now - timedelta(hours=hours)
-
-            # Minutes ago
-            mins_match = re.search(r'(\d+)\s*(?:m|דקות|דקה)', text)
-            if mins_match:
-                mins = int(mins_match.group(1))
-                return now - timedelta(minutes=mins)
-                
-            # Yesterday
-            if 'yesterday' in text or 'אתמול' in text:
-                return now - timedelta(days=1)
-                
-            return None
-        except:
-            return None
+        return parse_relative_date(text)
 
     def _generate_id_from_raw(self, raw_data: dict) -> str:
         """Generate a unique ID for a listing based on raw data."""

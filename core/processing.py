@@ -18,6 +18,7 @@ from core.matcher import ZeroAIUserMatcher
 from models.listing import EnrichedListing
 from models.user import User
 from bot.telegram_bot import ApartmentBot
+from bot.notifications import NotificationDispatcher, TelegramNotificationProvider
 from utils.logger import Loggers
 
 log = Loggers.processor()
@@ -30,6 +31,8 @@ class ProcessingService:
         self.bot = bot
         self.ai_engine = ai_engine
         self.matcher = ZeroAIUserMatcher()
+        self.dispatcher = NotificationDispatcher()
+        self.dispatcher.register_provider(TelegramNotificationProvider(bot))
     
     async def process_cycle(self, listings: List[EnrichedListing]):
         """Run matching for new listings against all users."""
@@ -180,8 +183,8 @@ class ProcessingService:
         return notifications_sent
 
     async def _notify_match(self, chat_id: int, enriched: EnrichedListing, sass_intro: str = ""):
-        """Send the actual telegram message."""
-        await self.bot.send_listing_notification(
+        """Send match notifications across registered providers."""
+        await self.dispatcher.dispatch(
             chat_id=chat_id,
             enriched=enriched,
             sass_intro=sass_intro

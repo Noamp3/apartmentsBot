@@ -2,7 +2,8 @@
 """Hebrew text processing utilities."""
 
 import re
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List
+from datetime import datetime, timedelta
 
 
 # Hebrew number words
@@ -366,4 +367,78 @@ def is_looking_for_roomie(text: str) -> bool:
         return True
         
     return False
+
+
+def parse_relative_date(text: str, now: Optional[datetime] = None) -> Optional[datetime]:
+    """Parse relative Hebrew or English timestamp strings (e.g. '3 hours ago', 'אתמול', '2d') into a datetime.
+    
+    Handles:
+    - hours ('שעה', 'שעות', 'h')
+    - minutes ('דקה', 'דקות', 'm')
+    - days ('יום', 'ימים', 'd')
+    - weeks ('שבוע', 'שבועות', 'w')
+    - yesterday ('אתמול', 'yesterday')
+    - now ('עכשיו', 'now', 'just now')
+    """
+    if not text:
+        return None
+        
+    if now is None:
+        now = datetime.now()
+        
+    text = text.lower().strip()
+    
+    # 1. Singular text indicators (e.g. 'שעה' without digits)
+    if 'שעה' in text and 'שעות' not in text and not re.search(r'\d', text):
+        return now - timedelta(hours=1)
+    if 'יום' in text and 'ימים' not in text and not re.search(r'\d', text):
+        return now - timedelta(days=1)
+        
+    # 2. Match patterns with digits
+    # Hours ago
+    hours_match = re.search(r'(\d+)\s*(?:h|שעות|שעה)', text)
+    if hours_match:
+        return now - timedelta(hours=int(hours_match.group(1)))
+        
+    # Minutes ago
+    mins_match = re.search(r'(\d+)\s*(?:m|דקות|דקה)', text)
+    if mins_match:
+        return now - timedelta(minutes=int(mins_match.group(1)))
+        
+    # Days ago
+    days_match = re.search(r'(\d+)\s*(?:d|ימים|יום)', text)
+    if days_match:
+        return now - timedelta(days=int(days_match.group(1)))
+        
+    # Weeks ago
+    weeks_match = re.search(r'(\d+)\s*(?:w|שבועות|שבוע)', text)
+    if weeks_match:
+        return now - timedelta(weeks=int(weeks_match.group(1)))
+        
+    # 3. Named relative indicators
+    if 'yesterday' in text or 'אתמול' in text:
+        return now - timedelta(days=1)
+        
+    if 'just now' in text or 'עכשיו' in text or 'now' in text:
+        return now
+        
+    return None
+
+
+def extract_yad2_posted_date(images: List[str]) -> Optional[datetime]:
+    """Extract post date from Yad2 image URLs containing dates like Pic/YYYYMM/DD."""
+    if not images:
+        return None
+    posted_at = None
+    for img_url in images:
+        match = re.search(r"Pic/(\d{4})(\d{2})/(\d{2})", img_url)
+        if match:
+            try:
+                year, month, day = map(int, match.groups())
+                img_date = datetime(year, month, day)
+                if not posted_at or img_date > posted_at:
+                    posted_at = img_date
+            except ValueError:
+                continue
+    return posted_at
 
