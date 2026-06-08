@@ -4,6 +4,8 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 import html
+import os
+from pathlib import Path
 
 from database import get_db
 from database.repositories import RuleRepository, UserRepository

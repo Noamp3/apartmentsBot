@@ -80,11 +80,16 @@ class ProcessingService:
         notifications_sent = 0
         sass_for_first = ""
         
+        evaluated_count = 0
+        match_count = 0
+        rejection_count = 0
+        
         # Generate sass only if we have matches coming
         # We don't know yet if we have matches, so we might generate in vain or generate late.
         # Strategy: Generate on first match found.
         
         for enriched in candidates:
+            evaluated_count += 1
             try:
                 # Roomies filter check
                 allow_roomies = getattr(user, 'allow_roomies', True)
@@ -111,6 +116,7 @@ class ProcessingService:
                         listing_location=actual_loc,
                         match_method="roomies_filter"
                     )
+                    rejection_count += 1
                     continue
                     
                 allow_bordering = getattr(user, 'allow_bordering_neighborhoods', True)
@@ -137,6 +143,7 @@ class ProcessingService:
                     
                     # Mark sent
                     await notification_repo.mark_sent(user.telegram_id, enriched.listing.id)
+                    match_count += 1
                     notifications_sent += 1
                     
                 else:
@@ -166,6 +173,7 @@ class ProcessingService:
                         listing_location=actual_loc,
                         match_method="attribute"
                     )
+                    rejection_count += 1
                     
             except Exception as e:
                 error_msg = str(e)
@@ -174,11 +182,17 @@ class ProcessingService:
                     await user_repo.delete_user(user.telegram_id)
                     break # Stop processing for this user
                 log.error(f"Error processing listing logic {enriched.listing.id}: {e}")
+                from utils.telemetry import telemetry
+                telemetry.track_error("processor", type(e).__name__)
+                rejection_count += 1
                 continue
         
         # Mark first notification status for new users
         if notifications_sent > 0 and user.is_new_user:
             await user_repo.mark_first_notification(user.telegram_id)
+            
+        from utils.telemetry import telemetry
+        telemetry.track_matches(evaluated_count, match_count, rejection_count)
             
         return notifications_sent
 

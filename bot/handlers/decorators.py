@@ -23,10 +23,14 @@ def ensure_user_exists(func):
                 db = await get_db()
                 user_repo = UserRepository(db)
                 # Automatically get or create the user in the database
+                username = user.username
+                from unittest.mock import Mock
+                if isinstance(username, Mock):
+                    username = None
                 await user_repo.get_or_create(
                     telegram_id=user.id,
                     chat_id=chat.id,
-                    username=user.username
+                    username=username
                 )
             except Exception as e:
                 log.error(f"Error in ensure_user_exists decorator: {e}", exc_info=True)

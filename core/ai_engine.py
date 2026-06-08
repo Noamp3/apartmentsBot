@@ -173,6 +173,35 @@ class BaseAIEngine(ABC):
         self._cache_lock = asyncio.Lock() # Protect against concurrent generation
         self._locks: Dict[str, asyncio.Lock] = {}
         
+        # Dynamically wrap generate_content to track telemetry
+        original_generate = self.generate_content
+        
+        async def wrapped_generate(*args, **kwargs):
+            import time
+            from utils.telemetry import telemetry
+            start_time = time.perf_counter()
+            failed = False
+            try:
+                return await original_generate(*args, **kwargs)
+            except Exception as e:
+                failed = True
+                raise e
+            finally:
+                duration = time.perf_counter() - start_time
+                quota_remaining = None
+                try:
+                    if self.rate_limiter and hasattr(self.rate_limiter, "get_remaining_quota"):
+                        quota = self.rate_limiter.get_remaining_quota()
+                        if isinstance(quota, dict):
+                            quota_remaining = quota.get("daily_remaining")
+                            if not isinstance(quota_remaining, (int, float)):
+                                quota_remaining = None
+                except Exception:
+                    pass
+                telemetry.track_ai_call(duration, quota_remaining=quota_remaining, failed=failed)
+                
+        self.generate_content = wrapped_generate
+        
     def _get_lock(self, persona: str, cache_type: str) -> asyncio.Lock:
         """Get or create a lock for a specific persona and cache type."""
         key = f"{persona}:{cache_type}"

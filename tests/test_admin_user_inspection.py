@@ -12,9 +12,12 @@ from models.listing import Listing, EnrichedListing
 from datetime import datetime
 
 @pytest.mark.asyncio
-async def test_admin_user_inspection():
-    db = await get_db()
-    await db.initialize()
+async def test_admin_user_inspection(db, monkeypatch):
+    # Patch get_db to return the in-memory test db
+    async def mock_get_db():
+        return db
+    monkeypatch.setattr("bot.handlers.callback_handler.get_db", mock_get_db)
+    monkeypatch.setattr("database.get_db", mock_get_db)
     
     user_repo = UserRepository(db)
     rule_repo = RuleRepository(db)

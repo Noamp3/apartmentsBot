@@ -287,6 +287,8 @@ class SeenListingsRepository:
             listing: The listing to save fingerprint for
             enriched: Optional enriched data (for extracted fields)
         """
+        # Ensure parent seen_listing exists before inserting fingerprint
+        await self.mark_seen(listing)
         author = self._normalize_author(listing.author)
         phone = self._normalize_phone(listing.phone)
         price = enriched.extracted_price if enriched else listing.price

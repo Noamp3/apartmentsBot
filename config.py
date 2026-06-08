@@ -5,6 +5,19 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import List, Optional, Literal
 from functools import lru_cache
 from enum import Enum
+import os
+
+
+def _get_env_file() -> str:
+    """Get the appropriate .env file based on APP_ENV."""
+    app_env = os.getenv("APP_ENV", "").lower()
+    if app_env == "test":
+        return ".env.test"
+    elif app_env == "production":
+        return ".env.production"
+    elif app_env == "local":
+        return ".env.local"
+    return ".env"
 
 
 class AIProvider(str, Enum):
@@ -256,7 +269,7 @@ class Settings(BaseSettings):
     AI_CALLS_PER_CYCLE_BUDGET: int = 7
     
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=_get_env_file(),
         env_file_encoding="utf-8",
         extra="ignore",
     )

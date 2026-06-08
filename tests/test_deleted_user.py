@@ -13,10 +13,12 @@ from bot.telegram_bot import ApartmentBot
 from database import get_db
 
 @pytest.mark.asyncio
-async def test_handle_deleted_user():
-    # Setup DB
-    db = await get_db()
-    await db.initialize()
+async def test_handle_deleted_user(db, monkeypatch):
+    # Patch get_db to return the in-memory test db
+    async def mock_get_db():
+        return db
+    monkeypatch.setattr("core.processing.get_db", mock_get_db)
+    monkeypatch.setattr("database.get_db", mock_get_db)
     
     user_repo = UserRepository(db)
     rule_repo = RuleRepository(db)

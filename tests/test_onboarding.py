@@ -11,9 +11,9 @@ from bot.handlers.message_handler import MessageHandler
 from models.search_rule import RuleType
 
 @pytest.mark.asyncio
-async def test_complete_onboarding_flow():
-    db = await get_db()
-    await db.initialize()
+async def test_complete_onboarding_flow(db, monkeypatch):
+    import database.connection
+    monkeypatch.setattr(database.connection, "_db_manager", db)
     
     user_repo = UserRepository(db)
     rule_repo = RuleRepository(db)
@@ -158,9 +158,9 @@ async def test_complete_onboarding_flow():
 
 
 @pytest.mark.asyncio
-async def test_onboarding_budget_range_and_min():
-    db = await get_db()
-    await db.initialize()
+async def test_onboarding_budget_range_and_min(db, monkeypatch):
+    import database.connection
+    monkeypatch.setattr(database.connection, "_db_manager", db)
     user_repo = UserRepository(db)
     
     test_user_id = 987654321
@@ -210,9 +210,9 @@ async def test_onboarding_budget_range_and_min():
 
 
 @pytest.mark.asyncio
-async def test_multi_rule_onboarding_direct_completion():
-    db = await get_db()
-    await db.initialize()
+async def test_multi_rule_onboarding_direct_completion(db, monkeypatch):
+    import database.connection
+    monkeypatch.setattr(database.connection, "_db_manager", db)
     user_repo = UserRepository(db)
     rule_repo = RuleRepository(db)
     
@@ -266,9 +266,9 @@ async def test_multi_rule_onboarding_direct_completion():
 
 
 @pytest.mark.asyncio
-async def test_single_rule_bypasses_ai():
-    db = await get_db()
-    await db.initialize()
+async def test_single_rule_bypasses_ai(db, monkeypatch):
+    import database.connection
+    monkeypatch.setattr(database.connection, "_db_manager", db)
     user_repo = UserRepository(db)
     
     test_user_id = 987654321

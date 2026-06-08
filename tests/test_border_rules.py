@@ -175,9 +175,14 @@ def test_border_lookup():
 
 
 @pytest.mark.asyncio
-async def test_conversational_rule_modification():
+async def test_conversational_rule_modification(db, monkeypatch):
     """Test that users can reply to modify the pending rules by adding/removing neighborhoods."""
     print("\n=== Testing Conversational Rule Modification ===\n")
+    
+    async def mock_get_db():
+        return db
+    monkeypatch.setattr("database.get_db", mock_get_db)
+    monkeypatch.setattr("bot.handlers.message_handler.get_db", mock_get_db)
     
     # 1. Setup a pending rules state in a mock context
     from models.search_rule import SearchRule, RuleType
@@ -210,7 +215,6 @@ async def test_conversational_rule_modification():
     from database import get_db
     from database.repositories import UserRepository
     from models.user import User
-    db = await get_db()
     user_repo = UserRepository(db)
     await user_repo.create(User(telegram_id=123, chat_id=123, username="testuser", onboarding_step=None))
     
@@ -310,16 +314,19 @@ async def test_area_rule_modification_and_cleaning():
 
 
 @pytest.mark.asyncio
-async def test_active_rules_conversational_modification():
+async def test_active_rules_conversational_modification(db, monkeypatch):
     """Test that active rules in DB can be conversationally modified directly."""
     print("\n=== Testing Active Rules Conversational Modification ===\n")
+    
+    async def mock_get_db():
+        return db
+    monkeypatch.setattr("database.get_db", mock_get_db)
+    monkeypatch.setattr("bot.handlers.message_handler.get_db", mock_get_db)
     
     from database import get_db
     from database.repositories import UserRepository, RuleRepository
     from models.user import User
     from models.search_rule import SearchRule, RuleType
-    
-    db = await get_db()
     user_repo = UserRepository(db)
     rule_repo = RuleRepository(db)
     

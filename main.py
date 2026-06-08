@@ -250,27 +250,56 @@ class ApartmentBotApplication:
         # Phase 1: Scrape all sources
         all_listings = []
         
+        import time
+        from utils.telemetry import telemetry
+        
+        # Facebook scrape
+        start_fb = time.perf_counter()
+        fb_listings = []
+        fb_failed = False
         try:
             fb_listings = await self.facebook_scraper.scrape()
             all_listings.extend(fb_listings)
             log.info(f"Facebook: {len(fb_listings)} listings")
         except Exception as e:
+            fb_failed = True
             log.error(f"Facebook scrape failed: {e}")
-        
+            telemetry.track_error("facebook_scraper", type(e).__name__)
+        finally:
+            duration_fb = time.perf_counter() - start_fb
+            
+        # Yad2 scrape
+        start_yad2 = time.perf_counter()
+        yad2_listings = []
+        yad2_failed = False
         try:
             yad2_listings = await self.yad2_scraper.scrape()
             all_listings.extend(yad2_listings)
             log.info(f"Yad2: {len(yad2_listings)} listings")
         except Exception as e:
+            yad2_failed = True
             log.error(f"Yad2 scrape failed: {e}")
-        
+            telemetry.track_error("yad2_scraper", type(e).__name__)
+        finally:
+            duration_yad2 = time.perf_counter() - start_yad2
+            
         if not all_listings:
+            # Record telemetry for scrapers even if 0 results
+            telemetry.track_scrape("facebook", duration_fb, len(fb_listings), 0, failed=fb_failed)
+            telemetry.track_scrape("yad2", duration_yad2, len(yad2_listings), 0, failed=yad2_failed)
             log.info("No listings found, ending cycle")
             return
         
         # Filter out already-seen listings
         new_listings = await seen_repo.filter_new(all_listings)
         duplicate_count = len(all_listings) - len(new_listings)
+        
+        # Track scrape details with actual new counts
+        fb_new_count = sum(1 for l in new_listings if l.source == "facebook")
+        yad2_new_count = sum(1 for l in new_listings if l.source == "yad2")
+        
+        telemetry.track_scrape("facebook", duration_fb, len(fb_listings), fb_new_count, failed=fb_failed)
+        telemetry.track_scrape("yad2", duration_yad2, len(yad2_listings), yad2_new_count, failed=yad2_failed)
         
         if duplicate_count > 0:
             log.info(f"Processing listings: {len(new_listings)} new, {duplicate_count} skipped (already seen)")

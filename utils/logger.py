@@ -5,7 +5,7 @@ import logging
 import json
 import sys
 from logging.handlers import RotatingFileHandler
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -15,7 +15,7 @@ class JSONFormatter(logging.Formatter):
     
     def format(self, record: logging.LogRecord) -> str:
         log_data = {
-            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "timestamp": datetime.now(timezone.utc).replace(tzinfo=None).isoformat() + "Z",
             "level": record.levelname,
             "logger": record.name,
             "message": record.getMessage(),
@@ -126,6 +126,12 @@ class LoggerFactory:
         # Root logger config
         root_level = logging.DEBUG if debug else logging.INFO
         logging.root.setLevel(root_level)
+        
+        # Silence verbose third-party loggers (like httpx/httpcore used by telegram) to avoid flooding with 200 OK logs
+        logging.getLogger("httpx").setLevel(logging.WARNING)
+        logging.getLogger("httpcore").setLevel(logging.WARNING)
+        logging.getLogger("telegram").setLevel(logging.WARNING)
+        logging.getLogger("urllib3").setLevel(logging.WARNING)
         
         # Console handler (human readable)
         console = logging.StreamHandler(sys.stdout)

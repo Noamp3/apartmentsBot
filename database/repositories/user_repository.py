@@ -15,11 +15,21 @@ class UserRepository:
         self.db = db
     
     async def create(self, user: User) -> User:
-        """Create a new user record."""
+        """Create or update a user record without triggering cascade deletions."""
         await self.db.execute(
             """
-            INSERT OR REPLACE INTO users (telegram_id, chat_id, username, created_at, is_active, first_notified_at, persona, is_admin, onboarding_step, allow_bordering_neighborhoods, allow_roomies)
+            INSERT INTO users (telegram_id, chat_id, username, created_at, is_active, first_notified_at, persona, is_admin, onboarding_step, allow_bordering_neighborhoods, allow_roomies)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(telegram_id) DO UPDATE SET
+                chat_id = excluded.chat_id,
+                username = excluded.username,
+                is_active = excluded.is_active,
+                first_notified_at = excluded.first_notified_at,
+                persona = excluded.persona,
+                is_admin = excluded.is_admin,
+                onboarding_step = excluded.onboarding_step,
+                allow_bordering_neighborhoods = excluded.allow_bordering_neighborhoods,
+                allow_roomies = excluded.allow_roomies
             """,
             (user.telegram_id, user.chat_id, user.username, 
              user.created_at.isoformat(), user.is_active,
@@ -181,11 +191,5 @@ class UserRepository:
         )
     
     async def delete_user(self, telegram_id: int):
-        """Delete user and all associated data."""
-        # Delete related data manually first (since no CASCADE on foreign keys)
-        await self.db.execute("DELETE FROM search_rules WHERE user_id = ?", (telegram_id,))
-        await self.db.execute("DELETE FROM rejection_logs WHERE user_id = ?", (telegram_id,))
-        await self.db.execute("DELETE FROM sent_notifications WHERE user_id = ?", (telegram_id,))
-        
-        # Delete the user
+        """Delete user and all associated data (handled by DB CASCADE)."""
         await self.db.execute("DELETE FROM users WHERE telegram_id = ?", (telegram_id,))

@@ -12,10 +12,9 @@ from bot.telegram_bot import ApartmentBot
 from database import get_db
 
 @pytest.mark.asyncio
-async def test_roomies_filtering():
-    # Setup DB
-    db = await get_db()
-    await db.initialize()
+async def test_roomies_filtering(db, monkeypatch):
+    import database.connection
+    monkeypatch.setattr(database.connection, "_db_manager", db)
     
     user_repo = UserRepository(db)
     rule_repo = RuleRepository(db)

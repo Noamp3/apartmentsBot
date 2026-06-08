@@ -166,12 +166,12 @@ async def test_admin_dashboard_html():
         {"count": 300}  # rejections_count
     ])
     
-    with patch('bot.handlers.command_handler.get_db', return_value=mock_db), \
-         patch('pathlib.Path.exists', return_value=True), \
-         patch('pathlib.Path.stat') as mock_stat:
-        
-        # Mock database file size: 1.5MB
-        mock_stat.return_value.st_size = 1.5 * 1024 * 1024
+    mock_path = MagicMock()
+    mock_path.exists.return_value = True
+    mock_path.stat.return_value.st_size = 1.5 * 1024 * 1024
+    
+    with patch('bot.handlers.admin_command_handler.get_db', return_value=mock_db), \
+         patch('bot.handlers.admin_command_handler.Path', return_value=mock_path):
         
         dashboard_msg, reply_markup = await handler.get_admin_dashboard_data()
         
@@ -213,9 +213,10 @@ async def test_admin_callbacks_html():
     mock_admin_command_handler = AdminCommandHandler()
     mock_context.bot_data = {"admin_command_handler": mock_admin_command_handler}
     
-    with patch('bot.handlers.callback_handler.get_db', return_value=mock_db), \
-         patch('bot.handlers.command_handler.get_db', return_value=mock_db), \
-         patch('bot.handlers.admin_command_handler.get_db', return_value=mock_db):
+    mock_get_db = AsyncMock(return_value=mock_db)
+    with patch('bot.handlers.callback_handler.get_db', mock_get_db), \
+         patch('bot.handlers.command_handler.get_db', mock_get_db), \
+         patch('bot.handlers.admin_command_handler.get_db', mock_get_db):
         
         # 1. Test _show_admin_users
         mock_db.fetch_all.return_value = [
@@ -224,8 +225,11 @@ async def test_admin_callbacks_html():
         ]
         sent_messages.clear()
         # Mock RuleRepository
-        with patch('database.repositories.RuleRepository.get_user_rules', return_value=[]):
+        import sys
+        print("DEBUG: about to call _show_admin_users", flush=True, file=sys.stderr)
+        with patch('database.repositories.RuleRepository.get_user_rules', new=AsyncMock(return_value=[])):
             await cb._show_admin_users(mock_query, mock_context)
+        print("DEBUG: _show_admin_users done", flush=True, file=sys.stderr)
         assert len(sent_messages) == 1
         assert sent_messages[0][1] == "HTML"
         validate_html(sent_messages[0][0])
@@ -243,35 +247,45 @@ async def test_admin_callbacks_html():
             }
         ]
         sent_messages.clear()
+        print("DEBUG: about to call _show_admin_recent_listings", flush=True, file=sys.stderr)
         await cb._show_admin_recent_listings(mock_query, mock_context)
+        print("DEBUG: _show_admin_recent_listings done", flush=True, file=sys.stderr)
         assert len(sent_messages) == 1
         assert sent_messages[0][1] == "HTML"
         validate_html(sent_messages[0][0])
         
         # 3. Test _show_admin_fb_menu
         sent_messages.clear()
-        with patch('os.path.exists', return_value=True), \
-             patch('os.path.getmtime', return_value=1717282800), \
-             patch('os.path.getsize', return_value=2048):
+        print("DEBUG: about to call _show_admin_fb_menu", flush=True, file=sys.stderr)
+        with patch('bot.handlers.callback_handler.os.path.exists', return_value=True), \
+             patch('bot.handlers.callback_handler.os.path.getmtime', return_value=1717282800), \
+             patch('bot.handlers.callback_handler.os.path.getsize', return_value=2048):
             await cb._show_admin_fb_menu(mock_query, mock_context)
+        print("DEBUG: _show_admin_fb_menu done", flush=True, file=sys.stderr)
         assert len(sent_messages) == 1
         assert sent_messages[0][1] == "HTML"
         validate_html(sent_messages[0][0])
         
         # 4. Test _show_admin_clear_menu
         sent_messages.clear()
+        print("DEBUG: about to call _show_admin_clear_menu", flush=True, file=sys.stderr)
         await cb._show_admin_clear_menu(mock_query, mock_context)
+        print("DEBUG: _show_admin_clear_menu done", flush=True, file=sys.stderr)
         assert len(sent_messages) == 1
         assert sent_messages[0][1] == "HTML"
         validate_html(sent_messages[0][0])
         
         # 5. Test _show_admin_server_stats
         sent_messages.clear()
+        mock_path = MagicMock()
+        mock_path.exists.return_value = True
+        mock_path.stat.return_value.st_size = 2 * 1024 * 1024
+        
+        print("DEBUG: about to call _show_admin_server_stats", flush=True, file=sys.stderr)
         with patch('shutil.disk_usage', return_value=(100*1024**3, 40*1024**3, 60*1024**3)), \
-             patch('pathlib.Path.exists', return_value=True), \
-             patch('pathlib.Path.stat') as mock_stat:
-            mock_stat.return_value.st_size = 2 * 1024 * 1024
+             patch('bot.handlers.callback_handler.Path', return_value=mock_path):
             await cb._show_admin_server_stats(mock_query, mock_context)
+        print("DEBUG: _show_admin_server_stats done", flush=True, file=sys.stderr)
         assert len(sent_messages) == 1
         assert sent_messages[0][1] == "HTML"
         validate_html(sent_messages[0][0])
@@ -283,7 +297,9 @@ async def test_admin_callbacks_html():
         mock_ai.current_model = "gemini-2.5-flash"
         mock_context.bot_data["ai_engine"] = mock_ai
         
+        print("DEBUG: about to call _show_admin_gemini_test", flush=True, file=sys.stderr)
         await cb._show_admin_gemini_test(mock_query, mock_context)
+        print("DEBUG: _show_admin_gemini_test done", flush=True, file=sys.stderr)
         assert len(sent_messages) == 1
         assert sent_messages[0][1] == "HTML"
         validate_html(sent_messages[0][0])
@@ -292,7 +308,9 @@ async def test_admin_callbacks_html():
         
         # 7. Test _prompt_admin_broadcast
         sent_messages.clear()
+        print("DEBUG: about to call _prompt_admin_broadcast", flush=True, file=sys.stderr)
         await cb._prompt_admin_broadcast(mock_query, mock_context)
+        print("DEBUG: _prompt_admin_broadcast done", flush=True, file=sys.stderr)
         assert len(sent_messages) == 1
         assert sent_messages[0][1] == "HTML"
         validate_html(sent_messages[0][0])

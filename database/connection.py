@@ -1,6 +1,7 @@
 # database/connection.py
 """Database connection and schema management."""
 
+import asyncio
 import aiosqlite
 from pathlib import Path
 from typing import Optional
@@ -34,7 +35,7 @@ CREATE TABLE IF NOT EXISTS search_rules (
     original_text TEXT,
     is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(telegram_id)
+    FOREIGN KEY (user_id) REFERENCES users(telegram_id) ON DELETE CASCADE
 );
 
 -- Seen listings (for deduplication)
@@ -81,7 +82,7 @@ CREATE TABLE IF NOT EXISTS rejection_logs (
     reasons TEXT NOT NULL,       -- JSON array
     match_method TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(telegram_id)
+    FOREIGN KEY (user_id) REFERENCES users(telegram_id) ON DELETE CASCADE
 );
 
 -- AI Cache for persisting generated content
@@ -99,7 +100,7 @@ CREATE TABLE IF NOT EXISTS sent_notifications (
     listing_id TEXT NOT NULL,
     sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (user_id, listing_id),
-    FOREIGN KEY (user_id) REFERENCES users(telegram_id)
+    FOREIGN KEY (user_id) REFERENCES users(telegram_id) ON DELETE CASCADE
 );
 
 -- Listing fingerprints (for cross-source duplicate detection)
@@ -113,7 +114,7 @@ CREATE TABLE IF NOT EXISTS listing_fingerprints (
     neighborhood TEXT,
     source TEXT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (listing_id) REFERENCES seen_listings(listing_id)
+    FOREIGN KEY (listing_id) REFERENCES seen_listings(listing_id) ON DELETE CASCADE
 );
 
 -- Indexes for performance
@@ -137,6 +138,7 @@ class DatabaseManager:
         self.db_url = db_url or settings.DATABASE_URL
         self._db_path = self._parse_db_path()
         self._connection: Optional[aiosqlite.Connection] = None
+        self._lock = asyncio.Lock()
     
     def _parse_db_path(self) -> str:
         """Parse SQLite path from connection URL."""
@@ -154,6 +156,7 @@ class DatabaseManager:
             await self._connection.execute("PRAGMA journal_mode=WAL")
             await self._connection.execute("PRAGMA synchronous=NORMAL")
             await self._connection.execute("PRAGMA busy_timeout=10000")
+            await self._connection.execute("PRAGMA foreign_keys=ON")
         except aiosqlite.OperationalError as e:
             # If the database is locked (e.g. another process is running under rollback mode),
             # log a warning and continue using the existing journal mode.
@@ -232,31 +235,37 @@ class DatabaseManager:
     
     async def execute(self, query: str, params: tuple = ()):
         """Execute a query and return lastrowid."""
-        cursor = await self.connection.execute(query, params)
-        await self.connection.commit()
-        return cursor.lastrowid
+        async with self._lock:
+            cursor = await self.connection.execute(query, params)
+            await self.connection.commit()
+            return cursor.lastrowid
     
     async def fetch_one(self, query: str, params: tuple = ()):
         """Fetch a single row."""
-        cursor = await self.connection.execute(query, params)
-        return await cursor.fetchone()
+        async with self._lock:
+            cursor = await self.connection.execute(query, params)
+            return await cursor.fetchone()
     
     async def fetch_all(self, query: str, params: tuple = ()):
         """Fetch all rows."""
-        cursor = await self.connection.execute(query, params)
-        return await cursor.fetchall()
+        async with self._lock:
+            cursor = await self.connection.execute(query, params)
+            return await cursor.fetchall()
 
 
-# Global database manager instance
+# Global database manager instance and lock
 _db_manager: Optional[DatabaseManager] = None
+_db_lock = asyncio.Lock()
 
 
 async def get_db() -> DatabaseManager:
     """Get the global database manager, initializing if needed."""
     global _db_manager
     if _db_manager is None:
-        _db_manager = DatabaseManager()
-        await _db_manager.initialize()
+        async with _db_lock:
+            if _db_manager is None:
+                _db_manager = DatabaseManager()
+                await _db_manager.initialize()
     return _db_manager
 
 

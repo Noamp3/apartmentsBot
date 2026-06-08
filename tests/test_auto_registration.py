@@ -8,9 +8,9 @@ from database.repositories import UserRepository
 from bot.handlers.command_handler import CommandHandler
 
 @pytest.mark.asyncio
-async def test_auto_registration_command():
-    db = await get_db()
-    await db.initialize()
+async def test_auto_registration_command(db, monkeypatch):
+    import database.connection
+    monkeypatch.setattr(database.connection, "_db_manager", db)
     
     user_repo = UserRepository(db)
     

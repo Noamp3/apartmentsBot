@@ -69,14 +69,20 @@ class ScrapingScheduler:
         log.info("Starting scraping cycle")
         start_time = datetime.now()
         
+        failed = False
         try:
             await self.process_callback()
-            
-            duration = (datetime.now() - start_time).total_seconds()
-            log.info("Scraping cycle complete", duration_seconds=round(duration, 1))
-            
         except Exception as e:
+            failed = True
             log.exception("Scraping cycle failed", error=str(e))
+            from utils.telemetry import telemetry
+            telemetry.track_error("scheduler", type(e).__name__)
+        finally:
+            duration = (datetime.now() - start_time).total_seconds()
+            from utils.telemetry import telemetry
+            telemetry.track_cycle(duration, failed=failed)
+            if not failed:
+                log.info("Scraping cycle complete", duration_seconds=round(duration, 1))
     
     def get_next_run_time(self) -> Optional[datetime]:
         """Get the next scheduled run time."""
