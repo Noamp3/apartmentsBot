@@ -126,6 +126,8 @@ def test_rejections_markdown_v2_escaping():
     # Test rejection summary log formatting
     summary_msg = ListingFormatter.format_rejections_summary([rejection, rejection])
     validate_markdown_v2(summary_msg)
+    assert "⏱️" in summary_msg
+    assert "היום" in summary_msg
 
 
 def test_rules_list_markdown_v2_escaping():
@@ -186,6 +188,7 @@ async def test_admin_callbacks_html():
     
     # Create mock query with awaitable methods
     mock_query = MagicMock()
+    mock_query.callback_query = mock_query
     mock_query.edit_message_reply_markup = AsyncMock()
     mock_query.answer = AsyncMock()
     mock_query.message = MagicMock()

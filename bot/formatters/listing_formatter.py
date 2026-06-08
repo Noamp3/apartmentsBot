@@ -180,7 +180,27 @@ class ListingFormatter:
             reason = rej.reasons[0] if rej.reasons else "לא צוין"
             reason = ListingFormatter._escape_markdown(reason)
             
-            lines.append(f"{i}\\. {price}₪ \\| {loc}")
+            # Format timestamp nicely to show when the listing was scraped/rejected
+            time_str = ""
+            if rej.timestamp:
+                try:
+                    from datetime import datetime, timedelta
+                    now = datetime.now()
+                    rej_date = rej.timestamp.date()
+                    now_date = now.date()
+                    
+                    if rej_date == now_date:
+                        time_str = f"היום ב-{rej.timestamp.strftime('%H:%M')}"
+                    elif rej_date == (now_date - timedelta(days=1)):
+                        time_str = f"אתמול ב-{rej.timestamp.strftime('%H:%M')}"
+                    else:
+                        time_str = rej.timestamp.strftime("%d/%m ב-%H:%M")
+                except Exception:
+                    time_str = str(rej.timestamp)
+            time_str = ListingFormatter._escape_markdown(time_str)
+            
+            time_part = f" \\| ⏱️ {time_str}" if time_str else ""
+            lines.append(f"{i}\\. {price}₪ \\| {loc}{time_part}")
             lines.append(f"   ↳ {reason}")
             lines.append("")
         
