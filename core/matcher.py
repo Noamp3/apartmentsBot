@@ -21,6 +21,13 @@ def _parse_int_rule_value(value: str) -> int:
         raise
 
 
+class RejectionReasons(list):
+    """Subclass of list to hold failed rules info while maintaining backward compatibility."""
+    def __init__(self, reasons, failed_rules=None):
+        super().__init__(reasons)
+        self.failed_rules = failed_rules or []
+
+
 class RulePreFilter:
     """Filter listings using deterministic rules BEFORE calling AI."""
     
@@ -34,7 +41,8 @@ class RulePreFilter:
         Uses effective_monthly_price which includes amortized broker fee.
         Returns (passes, list_of_failed_rules)
         """
-        failed_rules = []
+        reasons = []
+        failed_rules_names = []
         
         for rule in rules:
             if not rule.is_active:
@@ -46,15 +54,17 @@ class RulePreFilter:
                 
                 # STRICT VALIDATION: If price is missing, we can't ensure it's below max -> FAIL
                 if effective_price is None:
-                     failed_rules.append(f"חסר מחיר בדירה (לא ניתן לוודא מקסימום {_parse_int_rule_value(rule.value):,}₪)")
+                     reasons.append(f"חסר מחיר בדירה (לא ניתן לוודא מקסימום {_parse_int_rule_value(rule.value):,}₪)")
+                     failed_rules_names.append(f"מחיר מקסימלי: {rule.value}")
                 elif effective_price > _parse_int_rule_value(rule.value):
+                    failed_rules_names.append(f"מחיר מקסימלי: {rule.value}")
                     if enriched.has_broker_fee:
-                        failed_rules.append(
+                        reasons.append(
                             f"מחיר אפקטיבי {effective_price:,}₪ > מקסימום {_parse_int_rule_value(rule.value):,}₪ "
                             f"(שכ\"ד {enriched.extracted_price:,}₪ + תיווך מפורס)"
                         )
                     else:
-                        failed_rules.append(
+                        reasons.append(
                             f"מחיר {effective_price:,}₪ > מקסימום {_parse_int_rule_value(rule.value):,}₪"
                         )
             
@@ -64,24 +74,28 @@ class RulePreFilter:
                 
                 # STRICT VALIDATION: If price is missing, we can't ensure it's above min -> FAIL
                 if price is None:
-                    failed_rules.append(f"חסר מחיר בדירה (לא ניתן לוודא מינימום {_parse_int_rule_value(rule.value):,}₪)")
+                    reasons.append(f"חסר מחיר בדירה (לא ניתן לוודא מינימום {_parse_int_rule_value(rule.value):,}₪)")
+                    failed_rules_names.append(f"מחיר מינימלי: {rule.value}")
                 elif price < _parse_int_rule_value(rule.value):
-                    failed_rules.append(f"מחיר {price:,}₪ < מינימום {_parse_int_rule_value(rule.value):,}₪")
+                    reasons.append(f"מחיר {price:,}₪ < מינימום {_parse_int_rule_value(rule.value):,}₪")
+                    failed_rules_names.append(f"מחיר מינימלי: {rule.value}")
             
             elif rule.rule_type == RuleType.BEDROOMS_MIN:
                 bedrooms = enriched.extracted_bedrooms
-                if bedrooms and bedrooms < _parse_int_rule_value(rule.value):
-                    failed_rules.append(f"חדרים {bedrooms} < מינימום {_parse_int_rule_value(rule.value)}")
+                if bedrooms is not None and bedrooms < _parse_int_rule_value(rule.value):
+                    reasons.append(f"חדרים {bedrooms} < מינימום {_parse_int_rule_value(rule.value)}")
+                    failed_rules_names.append(f"מינימום חדרים: {rule.value}")
             
             elif rule.rule_type == RuleType.BEDROOMS_MAX:
                 bedrooms = enriched.extracted_bedrooms
-                if bedrooms and bedrooms > _parse_int_rule_value(rule.value):
-                    failed_rules.append(f"חדרים {bedrooms} > מקסימום {_parse_int_rule_value(rule.value)}")
+                if bedrooms is not None and bedrooms > _parse_int_rule_value(rule.value):
+                    reasons.append(f"חדרים {bedrooms} > מקסימום {_parse_int_rule_value(rule.value)}")
+                    failed_rules_names.append(f"מקסימום חדרים: {rule.value}")
         
-        if failed_rules:
-            log.debug(f"Hard rules failed for {enriched.listing.title[:30]}...: {failed_rules}")
+        if reasons:
+            log.debug(f"Hard rules failed for {enriched.listing.title[:30]}...: {reasons}")
         
-        return len(failed_rules) == 0, failed_rules
+        return len(reasons) == 0, RejectionReasons(reasons, failed_rules_names)
 
 
 class ZeroAIUserMatcher:
@@ -126,15 +140,14 @@ class ZeroAIUserMatcher:
         self, 
         enriched: EnrichedListing, 
         rules: List[SearchRule],
-        allow_bordering: bool = True
+        allow_bordering: bool = True,
+        allow_roomies: bool = True
     ) -> Tuple[bool, List[str]]:
         """Evaluate a single enriched listing against user rules.
         
         Uses ONLY pre-computed data - no AI calls.
         Returns: (is_match, rejection_reasons)
         """
-        rejection_reasons = []
-        
         log.debug(f"Evaluating listing {enriched.listing.id} against {len(rules)} rules")
         
         # Safety check: Matcher should not process old listings (older than 1 day)
@@ -142,20 +155,27 @@ class ZeroAIUserMatcher:
              age = datetime.now() - enriched.listing.posted_at
              if age.days >= 1:
                   log.warning(f"Rejection safety: Old listing {enriched.listing.id} (age: {age.days} days)")
-                  return False, [f"דירה ישנה מדי (פורסמה לפני {age.days} ימים)"]
+                  return False, RejectionReasons([f"דירה ישנה מדי (פורסמה לפני {age.days} ימים)"], ["דירה ישנה"])
         else:
              # If date is unknown, give benefit of the doubt and continue evaluation
              # Facebook date extraction often fails, and rejecting these loses too many valid listings
              log.debug(f"Unknown date for listing {enriched.listing.id} - accepting (benefit of doubt)")
         
+        # Roomies check
+        if not allow_roomies and enriched.roomies:
+            return False, RejectionReasons(["דירת שותפים (קבלה מנוטרלת בהגדרות שלך)"], ["הגדרת שותפים"])
+        
         # Phase 1: Check hard rules (price, bedrooms)
         passes_hard, hard_failures = self.pre_filter.passes_hard_rules(enriched, rules)
-        rejection_reasons.extend(hard_failures)
-        #todo if rejected we should skip the rest of the rules evaluatio
-
+        if not passes_hard:
+            return False, hard_failures
+ 
         # Phase 2: Check soft rules (area, custom)
         area_rules = [r for r in rules if r.is_active and r.rule_type in (RuleType.AREA, RuleType.BORDER_AREA)]
         other_rules = [r for r in rules if r.is_active and r.rule_type not in (RuleType.AREA, RuleType.BORDER_AREA)]
+        
+        rejection_reasons = []
+        failed_rule_names = []
         
         # Check area rules as an OR group (at least one must match if area rules exist)
         if area_rules:
@@ -196,6 +216,7 @@ class ZeroAIUserMatcher:
                 rejection_reasons.append(
                     f"מיקום {actual_loc} לא תואם אף אחד מהאזורים המבוקשים: {', '.join(area_failures)}"
                 )
+                failed_rule_names.append(f"אזור מגורים: {', '.join(area_failures)}")
         
         # Check other soft rules (AND logic)
         for rule in other_rules:
@@ -203,8 +224,9 @@ class ZeroAIUserMatcher:
                 custom_match = self._check_custom_rule(enriched, rule)
                 if not custom_match[0]:
                     rejection_reasons.append(custom_match[1])
+                    failed_rule_names.append(f"דרישה מותאמת אישית: {rule.value}")
         
-        return len(rejection_reasons) == 0, rejection_reasons
+        return len(rejection_reasons) == 0, RejectionReasons(rejection_reasons, failed_rule_names)
     
     def _check_area_match(
         self, 
@@ -293,7 +315,7 @@ class ZeroAIUserMatcher:
         """Check custom rule against pre-computed attributes.
         
         Uses attribute matching where possible, otherwise assumes match
-        (benefit of the doubt to avoid false negatives). todo this assumption should be cancled, if dosent say parking elevator animals etc, there isnt...
+        (benefit of the doubt for unknown rules to avoid false negatives).
         """
         rule_text = rule.value.lower()
         attrs = enriched.attributes or {}
@@ -302,16 +324,15 @@ class ZeroAIUserMatcher:
         for keyword, attr_name in self.keyword_to_attr.items():
             if keyword in rule_text:
                 attr_value = attrs.get(attr_name)
-                
                 is_negation = any(neg in rule_text for neg in ["לא", "ללא", "בלי"])
                 
-                if attr_value is not None:
-                    if is_negation and attr_value is True:
+                if is_negation:
+                    if attr_value is True:
                         return False, f"הדירה כוללת {keyword}"
-                    elif not is_negation and attr_value is False:
+                else:
+                    if attr_value is not True:
                         return False, f"הדירה לא כוללת {keyword}"
                 
-                # Known requirement, give benefit of doubt if uncertain
                 return True, ""
         
         # Unknown rule - give benefit of doubt

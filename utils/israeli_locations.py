@@ -7,9 +7,10 @@ import re
 import os
 import json
 import asyncio
-import logging
 
-log = logging.getLogger("apartments_bot")
+from utils.logger import Loggers
+
+log = Loggers.db()
 
 
 @dataclass
@@ -53,9 +54,13 @@ class IsraeliLocationDatabase:
         self.schema_path = schema_path
         self.custom_schema_path = os.path.join(os.path.dirname(schema_path), "locations_custom.json")
         self._lock = asyncio.Lock()
+        self._normalize_cache = {}
+        self._match_cache = {}
         self._load_database()
         
     def _load_database(self):
+        self._normalize_cache = {}
+        self._match_cache = {}
         with open(self.schema_path, "r", encoding="utf-8") as f:
             data = json.load(f)
             
@@ -166,8 +171,13 @@ class IsraeliLocationDatabase:
         
         Returns: {"city": str, "neighborhood": str, "normalized": str}
         """
+        if not raw_location:
+            return {"city": None, "neighborhood": None, "normalized": ""}
+            
         location = raw_location.strip().lower()
-        
+        if hasattr(self, "_normalize_cache") and location in self._normalize_cache:
+            return self._normalize_cache[location]
+            
         # Try to find neighborhood
         neighborhood = None
         for name in self.neighborhood_lookup:
@@ -186,11 +196,14 @@ class IsraeliLocationDatabase:
         if neighborhood and not city:
             city = neighborhood.city
         
-        return {
+        res = {
             "city": city,
             "neighborhood": neighborhood.name if neighborhood else None,
             "normalized": f"{neighborhood.name if neighborhood else ''}, {city if city else raw_location}".strip(", ")
         }
+        if hasattr(self, "_normalize_cache"):
+            self._normalize_cache[location] = res
+        return res
     
     def is_location_match(
         self, 
@@ -204,6 +217,15 @@ class IsraeliLocationDatabase:
         Returns: (is_match, match_type, explanation)
         match_type: "exact" | "contains" | "bordering" | "area_group" | "none"
         """
+        cache_key = (
+            listing_location.strip().lower() if listing_location else "", 
+            target_location.strip().lower() if target_location else "", 
+            allow_bordering, 
+            listing_neighborhood_specified
+        )
+        if hasattr(self, "_match_cache") and cache_key in self._match_cache:
+            return self._match_cache[cache_key]
+            
         listing_norm = self.normalize_location(listing_location)
         target_norm = self.normalize_location(target_location)
         
@@ -215,12 +237,18 @@ class IsraeliLocationDatabase:
         # Case 1: Exact neighborhood match
         if target_neighborhood and listing_neighborhood:
             if target_neighborhood == listing_neighborhood:
-                return True, "exact", f"התאמה מדויקת: {target_neighborhood}"
+                res = (True, "exact", f"התאמה מדויקת: {target_neighborhood}")
+                if hasattr(self, "_match_cache"):
+                    self._match_cache[cache_key] = res
+                return res
         
         # Case 2: Target is a city, listing is in that city
         if target_city and not target_neighborhood:
             if listing_city == target_city:
-                return True, "contains", f"הדירה ב{listing_city}"
+                res = (True, "contains", f"הדירה ב{listing_city}")
+                if hasattr(self, "_match_cache"):
+                    self._match_cache[cache_key] = res
+                return res
         
         # Case 3: Bordering neighborhoods (symmetric check)
         if allow_bordering and target_neighborhood and listing_neighborhood:
@@ -234,16 +262,25 @@ class IsraeliLocationDatabase:
                 is_bordering = True
                 
             if is_bordering:
-                return True, "bordering", f"{listing_neighborhood} גובל ב{target_neighborhood}"
+                res = (True, "bordering", f"{listing_neighborhood} גובל ב{target_neighborhood}")
+                if hasattr(self, "_match_cache"):
+                    self._match_cache[cache_key] = res
+                return res
         
         # Case 4: Area group match (e.g., "גוש דן", "המרכז")
         target_lower = target_location.lower()
         for group_name, cities in self.area_groups.items():
             if group_name in target_lower:
                 if listing_city and listing_city in cities:
-                    return True, "area_group", f"{listing_city} באזור {group_name}"
+                    res = (True, "area_group", f"{listing_city} באזור {group_name}")
+                    if hasattr(self, "_match_cache"):
+                        self._match_cache[cache_key] = res
+                    return res
                 if listing_neighborhood and listing_neighborhood in cities:
-                    return True, "area_group", f"{listing_neighborhood} באזור {group_name}"
+                    res = (True, "area_group", f"{listing_neighborhood} באזור {group_name}")
+                    if hasattr(self, "_match_cache"):
+                        self._match_cache[cache_key] = res
+                    return res
         
         # Case 5: Target is within listing area (reverse containment)
         if target_neighborhood and listing_city and not listing_neighborhood and not listing_neighborhood_specified:
@@ -260,9 +297,15 @@ class IsraeliLocationDatabase:
             if not raw_clean:
                 target_n = self.neighborhood_lookup.get(target_neighborhood.lower())
                 if target_n and target_n.city == listing_city:
-                    return True, "contains", f"הדירה ב{listing_city} (שכונה לא צוינה)"
+                    res = (True, "contains", f"הדירה ב{listing_city} (שכונה לא צוינה)")
+                    if hasattr(self, "_match_cache"):
+                        self._match_cache[cache_key] = res
+                    return res
         
-        return False, "none", "מיקום לא תואם"
+        res = (False, "none", "מיקום לא תואם")
+        if hasattr(self, "_match_cache"):
+            self._match_cache[cache_key] = res
+        return res
     
     def get_bordering_neighborhoods(self, neighborhood: str) -> List[str]:
         """Get list of neighborhoods that border the given one."""
@@ -317,8 +360,7 @@ class IsraeliLocationDatabase:
             border = self._find_border(border_name)
             if not border:
                 # If a border is not found, fail strictly by returning [] rather than ignoring it
-                import logging
-                logging.getLogger("apartments_bot").warning(
+                log.warning(
                     f"Border '{border_name}' in constraint '{constraint_type}' was not found. "
                     "Aborting geo border matching to prevent overly broad results."
                 )

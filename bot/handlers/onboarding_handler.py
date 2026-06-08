@@ -1,7 +1,6 @@
 # bot/handlers/onboarding_handler.py
 """Onboarding wizard logic for new users."""
 
-import logging
 import re
 from datetime import datetime, timedelta
 from typing import Optional, List

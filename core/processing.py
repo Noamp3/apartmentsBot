@@ -2,7 +2,7 @@
 """Service for matching listings to users and sending notifications."""
 
 import asyncio
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Set
 
 from config import settings
 from database import get_db
@@ -17,9 +17,11 @@ from core.ai_engine import GeminiAIEngine
 from core.matcher import ZeroAIUserMatcher
 from models.listing import EnrichedListing
 from models.user import User
+from models.search_rule import SearchRule
 from bot.telegram_bot import ApartmentBot
 from bot.notifications import NotificationDispatcher, TelegramNotificationProvider
 from utils.logger import Loggers
+from utils.telemetry import telemetry
 
 log = Loggers.processor()
 
@@ -36,21 +38,61 @@ class ProcessingService:
     
     async def process_cycle(self, listings: List[EnrichedListing]):
         """Run matching for new listings against all users."""
+        if not listings:
+            return
+            
         db = await get_db()
         user_repo = UserRepository(db)
+        rule_repo = RuleRepository(db)
         
         users = await user_repo.get_all_active()
         log.info(f"Matching {len(listings)} listings against {len(users)} users")
         
+        if not users:
+            return
+            
+        # Bulk fetch active rules for all active users
+        rules_rows = await db.fetch_all("SELECT * FROM search_rules WHERE is_active = TRUE ORDER BY created_at")
+        rules_by_user = {}
+        for row in rules_rows:
+            rule = rule_repo._row_to_rule(row)
+            rules_by_user.setdefault(rule.user_id, []).append(rule)
+            
+        # Bulk fetch sent notifications only for the listings in this cycle
+        listing_ids = [l.listing.id for l in listings]
+        sent_pairs = {}  # user_id -> Set[listing_id]
+        
+        if listing_ids:
+            placeholders = ",".join("?" for _ in listing_ids)
+            rows = await db.fetch_all(
+                f"SELECT user_id, listing_id FROM sent_notifications WHERE listing_id IN ({placeholders})",
+                tuple(listing_ids)
+            )
+            for row in rows:
+                u_id = row["user_id"]
+                l_id = row["listing_id"]
+                sent_pairs.setdefault(u_id, set()).add(l_id)
+                
+        # Match each user
         for user in users:
-            await self.match_user_to_listings(user, listings)
+            user_rules = rules_by_user.get(user.telegram_id, [])
+            user_sent_ids = sent_pairs.get(user.telegram_id, set())
+            
+            await self.match_user_to_listings(
+                user, 
+                listings, 
+                prefetched_rules=user_rules, 
+                prefetched_sent_ids=user_sent_ids
+            )
 
     async def match_user_to_listings(
         self, 
         user: User, 
         listings: List[EnrichedListing], 
         is_manual_trigger: bool = False,
-        include_sent: bool = False
+        include_sent: bool = False,
+        prefetched_rules: Optional[List[SearchRule]] = None,
+        prefetched_sent_ids: Optional[Set[str]] = None
     ) -> int:
         """Match specific user against listings and notify.
         
@@ -64,15 +106,18 @@ class ProcessingService:
         user_repo = UserRepository(db)
         
         # Get user rules
-        rules = await rule_repo.get_user_rules(user.telegram_id)
+        rules = prefetched_rules if prefetched_rules is not None else await rule_repo.get_user_rules(user.telegram_id)
         if not rules:
             return 0
             
         # Filter listings user has already received (unless filtering disabled)
         candidates = listings
         if not include_sent:
-            sent_ids = await notification_repo.get_user_sent_ids(user.telegram_id)
-            candidates = [l for l in listings if l.listing.id not in sent_ids]
+            if prefetched_sent_ids is not None:
+                candidates = [l for l in listings if l.listing.id not in prefetched_sent_ids]
+            else:
+                sent_ids = await notification_repo.get_user_sent_ids(user.telegram_id)
+                candidates = [l for l in listings if l.listing.id not in sent_ids]
         
         if not candidates:
             return 0
@@ -84,50 +129,24 @@ class ProcessingService:
         match_count = 0
         rejection_count = 0
         
-        # Generate sass only if we have matches coming
-        # We don't know yet if we have matches, so we might generate in vain or generate late.
-        # Strategy: Generate on first match found.
+        rejections_to_log = []
         
         for enriched in candidates:
             evaluated_count += 1
             try:
-                # Roomies filter check
                 allow_roomies = getattr(user, 'allow_roomies', True)
-                if not allow_roomies and enriched.roomies:
-                    actual_parts = []
-                    if enriched.extracted_neighborhood:
-                        actual_parts.append(enriched.extracted_neighborhood)
-                    if enriched.extracted_street:
-                        actual_parts.append(enriched.extracted_street)
-                    
-                    city_or_loc = enriched.extracted_location or enriched.listing.location
-                    if city_or_loc and city_or_loc not in actual_parts:
-                        actual_parts.append(city_or_loc)
-                    
-                    actual_loc = ", ".join(actual_parts) if actual_parts else (enriched.extracted_location or enriched.listing.location or "לא ידוע")
-                    
-                    await rejection_repo.log_rejection(
-                        listing_id=enriched.listing.id,
-                        user_id=user.telegram_id,
-                        failed_rules=["הגדרת שותפים"],
-                        reasons=["דירת שותפים (קבלה מנוטרלת בהגדרות שלך)"],
-                        listing_url=enriched.listing.url,
-                        listing_price=enriched.extracted_price,
-                        listing_location=actual_loc,
-                        match_method="roomies_filter"
-                    )
-                    rejection_count += 1
-                    continue
-                    
                 allow_bordering = getattr(user, 'allow_bordering_neighborhoods', True)
-                is_match, reasons = self.matcher.evaluate_listing(enriched, rules, allow_bordering=allow_bordering)
+                
+                is_match, reasons = self.matcher.evaluate_listing(
+                    enriched, 
+                    rules, 
+                    allow_bordering=allow_bordering,
+                    allow_roomies=allow_roomies
+                )
                 
                 if is_match:
                     # Get sass intro for the first notification only
                     if notifications_sent == 0 and self.ai_engine and not is_manual_trigger:
-                        # Only auto-sass on scheduled runs or distinct triggers, 
-                        # maybe skip on manual rules update to avoid spam?
-                        # Actually keeping it adds personality.
                         try:
                             persona_name = user.persona if hasattr(user, 'persona') else 'barakush'
                             sass_for_first = await self.ai_engine.get_random_sass(persona=persona_name)
@@ -147,9 +166,6 @@ class ProcessingService:
                     notifications_sent += 1
                     
                 else:
-                    # Log rejection (only if not a replay)
-                    # We might not want to log rejections for manual re-runs to avoid clutter?
-                    # But it helps debugging. Let's keep it.
                     # Build detailed description of where the listing actually is
                     actual_parts = []
                     if enriched.extracted_neighborhood:
@@ -162,17 +178,22 @@ class ProcessingService:
                         actual_parts.append(city_or_loc)
                     
                     actual_loc = ", ".join(actual_parts) if actual_parts else (enriched.extracted_location or enriched.listing.location or "לא ידוע")
-
-                    await rejection_repo.log_rejection(
-                        listing_id=enriched.listing.id,
-                        user_id=user.telegram_id,
-                        failed_rules=[r.value for r in rules if not is_match],
-                        reasons=reasons,
-                        listing_url=enriched.listing.url,
-                        listing_price=enriched.extracted_price,
-                        listing_location=actual_loc,
-                        match_method="attribute"
-                    )
+ 
+                    # Determine match method
+                    match_method = "attribute"
+                    if not allow_roomies and enriched.roomies:
+                        match_method = "roomies_filter"
+                    
+                    rejections_to_log.append({
+                        "listing_id": enriched.listing.id,
+                        "user_id": user.telegram_id,
+                        "failed_rules": reasons.failed_rules if hasattr(reasons, "failed_rules") else [r.value for r in rules],
+                        "reasons": reasons,
+                        "listing_url": enriched.listing.url,
+                        "listing_price": enriched.extracted_price,
+                        "listing_location": actual_loc,
+                        "match_method": match_method
+                    })
                     rejection_count += 1
                     
             except Exception as e:
@@ -182,16 +203,18 @@ class ProcessingService:
                     await user_repo.delete_user(user.telegram_id)
                     break # Stop processing for this user
                 log.error(f"Error processing listing logic {enriched.listing.id}: {e}")
-                from utils.telemetry import telemetry
                 telemetry.track_error("processor", type(e).__name__)
                 rejection_count += 1
                 continue
+        
+        # Batch log rejections
+        if rejections_to_log:
+            await rejection_repo.log_many_rejections(rejections_to_log)
         
         # Mark first notification status for new users
         if notifications_sent > 0 and user.is_new_user:
             await user_repo.mark_first_notification(user.telegram_id)
             
-        from utils.telemetry import telemetry
         telemetry.track_matches(evaluated_count, match_count, rejection_count)
             
         return notifications_sent

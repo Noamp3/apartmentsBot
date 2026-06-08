@@ -47,6 +47,38 @@ class RejectionRepository:
             )
         )
     
+    async def log_many_rejections(self, rejections: List[dict]):
+        """Log multiple rejections in a single transaction."""
+        if not rejections:
+            return
+        
+        async with self.db._lock:
+            now_str = datetime.now().isoformat()
+            data = [
+                (
+                    r["listing_id"],
+                    r["user_id"],
+                    r.get("listing_url"),
+                    r.get("listing_price"),
+                    r.get("listing_location"),
+                    json.dumps(r["failed_rules"], ensure_ascii=False),
+                    json.dumps(r["reasons"], ensure_ascii=False),
+                    r.get("match_method", "rule"),
+                    r.get("created_at", now_str),
+                )
+                for r in rejections
+            ]
+            await self.db.connection.executemany(
+                """
+                INSERT INTO rejection_logs 
+                (listing_id, user_id, listing_url, listing_price, listing_location,
+                 failed_rules, reasons, match_method, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                data
+            )
+            await self.db.connection.commit()
+    
     async def get_user_rejections(
         self,
         user_id: int,
