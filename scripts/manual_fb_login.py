@@ -1,7 +1,16 @@
 import asyncio
 import os
 import json
+import subprocess
+import shutil
 from playwright.async_api import async_playwright
+
+# Remote OCI instance SSH configurations
+REMOTE_SSH_KEY = "C:/Users/noamp/.ssh/oci_llm_a1_fixed"
+REMOTE_USER = "ubuntu"
+REMOTE_HOST = "129.159.139.195"
+REMOTE_PATH = "/home/ubuntu/apartmentsBot/data/"
+
 
 async def main():
     print("====================================================")
@@ -64,9 +73,53 @@ async def main():
         print("\nSuccess! Closing the browser.")
         await browser.close()
         
+        # SCP Automatic Transfer
+        scp_cmd = [
+            "scp",
+            "-i", REMOTE_SSH_KEY,
+            "-o", "StrictHostKeyChecking=no",
+            storage_state_path,
+            cookies_path,
+            f"{REMOTE_USER}@{REMOTE_HOST}:{REMOTE_PATH}"
+        ]
+        scp_cmd_str = f"scp -i {REMOTE_SSH_KEY} -o StrictHostKeyChecking=no {storage_state_path} {cookies_path} {REMOTE_USER}@{REMOTE_HOST}:{REMOTE_PATH}"
+        
         print("\n====================================================")
-        print("Next step: Copy these files to your remote server using this command:")
-        print("scp -i C:/Users/noamp/.ssh/oci_llm_a1_fixed data/fb_storage_state.json data/fb_cookies.json ubuntu@129.159.139.195:/home/ubuntu/apartmentsBot/data/")
+        # Prompt user to copy files to remote
+        loop = asyncio.get_event_loop()
+        choice = await loop.run_in_executor(
+            None, 
+            lambda: input("Do you want to automatically copy the saved session state and cookies to the remote server? (Y/n): ").strip().lower()
+        )
+        
+        if choice in ("", "y", "yes"):
+            if not shutil.which("scp"):
+                print("\nError: 'scp' command line utility not found in PATH.")
+                print("Please copy the files manually using the command below:")
+                print(scp_cmd_str)
+            else:
+                print(f"\nExecuting: {scp_cmd_str}")
+                try:
+                    # Run SCP synchronously using run_in_executor to avoid blocking the event loop
+                    result = await loop.run_in_executor(
+                        None,
+                        lambda: subprocess.run(scp_cmd, shell=True if os.name == 'nt' else False, capture_output=True, text=True)
+                    )
+                    if result.returncode == 0:
+                        print("Successfully copied session state and cookies to the remote server!")
+                    else:
+                        print(f"SCP transfer failed with exit code {result.returncode}.")
+                        print(f"Error output:\n{result.stderr}")
+                        print("\nPlease copy the files manually using the command below:")
+                        print(scp_cmd_str)
+                except Exception as e:
+                    print(f"Failed to execute SCP: {e}")
+                    print("\nPlease copy the files manually using the command below:")
+                    print(scp_cmd_str)
+        else:
+            print("\nSkipping automatic copy.")
+            print("To copy manually, run:")
+            print(scp_cmd_str)
         print("====================================================")
 
 if __name__ == "__main__":

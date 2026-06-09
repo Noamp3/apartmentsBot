@@ -60,6 +60,19 @@ class TestBedroomsExtraction:
     def test_dirat_format(self):
         assert extract_bedrooms("דירת 4") == 4
 
+    def test_abbreviation_rooms(self):
+        assert extract_bedrooms("1.5 חד") == 1
+        assert extract_bedrooms("להשכרה1.5 חד") == 1
+        
+    def test_salon_and_bedroom(self):
+        assert extract_bedrooms("סלון וחדר שינה") == 2
+        assert extract_bedrooms("סלון ו-2 חדרי שינה") == 3
+        
+    def test_bedrooms_format(self):
+        assert extract_bedrooms("2 חדרי שינה") == 3
+        assert extract_bedrooms("‏2‏ חדרי שינה") == 3  # with RTL marks
+
+
 
 class TestFloorExtraction:
     """Test floor extraction from Hebrew text."""
@@ -97,6 +110,12 @@ class TestBrokerFee:
     def test_not_direct(self):
         assert not is_direct_from_owner("דירה להשכרה")
         assert not is_direct_from_owner("דירה מתיווך")
+        
+    def test_details_not_private_listing(self):
+        assert not is_direct_from_owner("לתאום שלחו וואצאפ עם פרטים : 054-9402299")
+        assert not is_direct_from_owner("לפרטים נוספים דברו איתי בפרטי")
+        assert has_broker_fee("רישיון 30929457, תיווך LiKe TEL AVIV, פרטים בוואצאפ")
+
 
 
 class TestRoomiesExtraction:

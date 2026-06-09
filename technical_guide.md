@@ -6,40 +6,49 @@
 graph TB
     subgraph "Telegram Interface"
         TG[Telegram Bot API]
-        UH[User Handler]
+        UH[User Handlers: Command / Message / Callback]
+        AH[Admin Handlers: AdminCommandHandler]
+        ND[Notification Dispatcher]
     end
     
     subgraph "Core Server"
-        BM[Bot Manager]
-        UM[User Manager]
-        RM[Rules Manager]
-        AI[Gemini AI Engine]
+        PS[Processing Service]
+        M[Zero-AI User Matcher]
+        RP[Rule Pre-Filter]
+        AI[Multi-Provider AI Engine]
+        LE[Listing Enricher]
     end
     
     subgraph "Scraping Layer"
-        SC[Scheduler]
-        FB[Facebook Scraper]
-        YD[Yad2 Scraper]
+        SCH[Scheduler / Quota-Aware Scheduler]
+        FS[Facebook Scraper]
+        YS[Yad2 Playwright Scraper]
+        SH[Self-Healing Manager]
         AD[Anti-Detection Module]
     end
     
     subgraph "Data Layer"
         DB[(Database)]
-        LOG[Rejection Logger]
-        CACHE[Listings Cache]
+        REPS[Repositories: User, Rule, Listing, Rejection, Notification, Cache]
+        LOG[Structured Rejection Logger]
     end
     
-    TG --> UH --> BM
-    BM --> UM
-    BM --> RM
-    BM --> AI
-    SC --> FB & YD
-    FB & YD --> AD
-    AD --> CACHE
-    CACHE --> BM
-    RM --> DB
-    UM --> DB
-    BM --> LOG
+    TG --> UH & AH
+    UH --> PS
+    AH --> PS
+    SCH --> YS & FS
+    YS & FS --> AD
+    YS --> SH
+    YS & FS -->|Raw Listings| PS
+    PS -->|Enrichment| LE
+    LE --> AI
+    AI -->|Structured Extracted Data| DB
+    PS -->|Local Evaluation| M
+    M --> RP
+    M --> DB
+    M -->|Filtered Listings| LOG
+    M -->|Matched Listings| ND
+    ND --> TG
 ```
 
 ---
@@ -49,107 +58,101 @@ graph TB
 | Component | Technology | Purpose |
 |-----------|------------|---------|
 | **Language** | Python 3.11+ | Core development |
-| **Bot Framework** | python-telegram-bot | Telegram integration |
-| **AI Engine** | Google Gemini 3 Flash | NLP & rule matching |
-| **Database** | SQLite / PostgreSQL | User & rule storage |
-| **Scraping** | Playwright / Selenium | Browser automation |
-| **Scheduling** | APScheduler | Periodic scraping |
-| **Anti-Detection** | undetected-chromedriver | Bot evasion |
+| **Bot Framework** | python-telegram-bot (>=21.0) | Telegram integration |
+| **AI Engines** | Google Gemini 3.1 Flash / Groq / OpenAI / Anthropic | Listing enrichment, welcome/sass parsing, self-healing selector fixes |
+| **Database** | SQLite (via aiosqlite / sqlalchemy) | User configuration, search rules, enriched listings, seen history, and rejection logs |
+| **Scraping** | Playwright (>=1.40.0) | Headed/headless browser automation bypassing bot protection |
+| **Scheduling** | APScheduler (>=3.10.0) | Periodic scraping cycles staggering Facebook and Yad2 |
+| **Anti-Detection** | Custom anti-detection scripts & undetected-chromedriver | Bypassing scraping protection layers |
 
 ---
 
 ## Project Structure
 
-```
-apartment_bot/
-├── main.py                     # Entry point
-├── config.py                   # Configuration management
-├── requirements.txt
-│
-├── bot/
-│   ├── __init__.py
-│   ├── telegram_bot.py         # Telegram bot handler
-│   ├── handlers/
-│   │   ├── __init__.py
-│   │   ├── command_handler.py  # /start, /help, /rules
-│   │   ├── message_handler.py  # Natural language processing
-│   │   └── callback_handler.py # Inline button callbacks
-│   └── formatters/
-│       ├── __init__.py
-│       └── listing_formatter.py # Format listings for Telegram
-│
-├── core/
-│   ├── __init__.py
-│   ├── user_manager.py         # User profile management
-│   ├── rules_manager.py        # Search rules CRUD
-│   ├── matcher.py              # Match listings to rules
-│   └── ai_engine.py            # Gemini integration
-│
-├── scrapers/
-│   ├── __init__.py
-│   ├── base_scraper.py         # Abstract base class
-│   ├── facebook_scraper.py     # Facebook groups scraper
-│   ├── yad2_scraper.py         # Yad2 scraper
-│   ├── anti_detection.py       # Bot evasion utilities
-│   └── scheduler.py            # Scraping scheduler
-│
-├── models/
-│   ├── __init__.py
-│   ├── user.py                 # User model
-│   ├── search_rule.py          # Rule model
-│   ├── listing.py              # Apartment listing model
-│   └── rejection_log.py        # Rejection tracking
-│
-├── database/
-│   ├── __init__.py
-│   ├── connection.py           # DB connection manager
-│   └── repositories/
-│       ├── __init__.py
-│       ├── user_repository.py
-│       ├── rule_repository.py
-│       └── listing_repository.py
-│
-├── utils/
-│   ├── __init__.py
-│   ├── logger.py               # Logging configuration
-│   ├── hebrew_utils.py         # Hebrew text processing
-│   └── validators.py           # Input validation
-│
-└── tests/
-    ├── __init__.py
-    ├── test_scrapers/
-    ├── test_matcher/
-    └── test_bot/
-```
+* [main.py](file:///c:/Users/noamp/Downloads/apartmentsBot/main.py) - Wires database, AI engines, scrapers, and bot together, initializes tasks and handles shutdown.
+* [config.py](file:///c:/Users/noamp/Downloads/apartmentsBot/config.py) - Manages application settings loaded from environment variables using `pydantic-settings`.
+* [requirements.txt](file:///c:/Users/noamp/Downloads/apartmentsBot/requirements.txt) - List of exact application dependencies.
+* **`bot/`**
+  - [telegram_bot.py](file:///c:/Users/noamp/Downloads/apartmentsBot/bot/telegram_bot.py) - Main bot entry point that builds the Application, registers handlers, and updates Telegram menu commands.
+  - **`handlers/`**
+    - [command_handler.py](file:///c:/Users/noamp/Downloads/apartmentsBot/bot/handlers/command_handler.py) - User command handlers (`/start`, `/help`, `/rules`, `/toggle_bordering`, `/toggle_roomies`, `/rejections`, `/clear`, `/status`, `/matches`, `/sass`, `/persona`).
+    - [admin_command_handler.py](file:///c:/Users/noamp/Downloads/apartmentsBot/bot/handlers/admin_command_handler.py) - Administrator-specific controls (dashboard statistics, logs, triggers, broadcasts, interactive browser login screenshots).
+    - [message_handler.py](file:///c:/Users/noamp/Downloads/apartmentsBot/bot/handlers/message_handler.py) - Natural language parser that formats user requests into search rules.
+    - [callback_handler.py](file:///c:/Users/noamp/Downloads/apartmentsBot/bot/handlers/callback_handler.py) - Handles button callbacks (e.g., persona selection buttons, onboarding).
+    - [onboarding_handler.py](file:///c:/Users/noamp/Downloads/apartmentsBot/bot/handlers/onboarding_handler.py) - Logic for step-by-step onboarding flow for new users.
+    - [decorators.py](file:///c:/Users/noamp/Downloads/apartmentsBot/bot/handlers/decorators.py) - Access control decorators (e.g., admin authentication check).
+    - [bot_utils.py](file:///c:/Users/noamp/Downloads/apartmentsBot/bot/handlers/bot_utils.py) - Escape logic and safe replies handling markdown V2 format issues.
+  - **`formatters/`**
+    - [listing_formatter.py](file:///c:/Users/noamp/Downloads/apartmentsBot/bot/formatters/listing_formatter.py) - Formats apartment listings and coordinates for Telegram posts in Hebrew.
+  - **`notifications/`**
+    - [dispatcher.py](file:///c:/Users/noamp/Downloads/apartmentsBot/bot/notifications/dispatcher.py) - Delivery manager dispatcher for sending matched alerts.
+* **`core/`**
+  - [processing.py](file:///c:/Users/noamp/Downloads/apartmentsBot/core/processing.py) - Orchestrates matching, first-time notification check, blocking check, and notification execution.
+  - [matcher.py](file:///c:/Users/noamp/Downloads/apartmentsBot/core/matcher.py) - Local Python rules checking and pre-filtering (Zero-AI User Matcher).
+  - [ai_engine.py](file:///c:/Users/noamp/Downloads/apartmentsBot/core/ai_engine.py) - AI Engine wrapper interfaces with backoff retries, multi-model rotation, prompt batching, and cache warming.
+  - [personas.py](file:///c:/Users/noamp/Downloads/apartmentsBot/core/personas.py) - Defines AI bot personalities ("barakush", "yekke", "mom", "stoner") and their prompt guidelines.
+* **`scrapers/`**
+  - [base_scraper.py](file:///c:/Users/noamp/Downloads/apartmentsBot/scrapers/base_scraper.py) - Abstract scraper wrapper base.
+  - [facebook_scraper.py](file:///c:/Users/noamp/Downloads/apartmentsBot/scrapers/facebook_scraper.py) - Session-aware scraper for Facebook groups.
+  - [yad2_playwright_scraper.py](file:///c:/Users/noamp/Downloads/apartmentsBot/scrapers/yad2_playwright_scraper.py) - Playwright client to query Yad2 feeds.
+  - [anti_detection.py](file:///c:/Users/noamp/Downloads/apartmentsBot/scrapers/anti_detection.py) - Stealth configurations (browser profile, platform, connection spoofing).
+  - [self_healing.py](file:///c:/Users/noamp/Downloads/apartmentsBot/scrapers/self_healing.py) - Captures HTML structure anomalies, resolves broken CSS/XPath selectors via LLM, and persists them.
+  - [scheduler.py](file:///c:/Users/noamp/Downloads/apartmentsBot/scrapers/scheduler.py) - Periodic APScheduler driver with blackout hours validation and adaptive cycle intervals.
+* **`models/`**
+  - [user.py](file:///c:/Users/noamp/Downloads/apartmentsBot/models/user.py) - Telegram user state model.
+  - [search_rule.py](file:///c:/Users/noamp/Downloads/apartmentsBot/models/search_rule.py) - Search rules state model.
+  - [listing.py](file:///c:/Users/noamp/Downloads/apartmentsBot/models/listing.py) - Listing and Enriched Listing state models.
+  - [rejection_log.py](file:///c:/Users/noamp/Downloads/apartmentsBot/models/rejection_log.py) - Model representing logs of skipped matching candidate listings.
+  - [user_settings.py](file:///c:/Users/noamp/Downloads/apartmentsBot/models/user_settings.py) - User custom preferences.
+* **`database/`**
+  - [connection.py](file:///c:/Users/noamp/Downloads/apartmentsBot/database/connection.py) - SQLite connection manager setting WAL journal and schema migration checks.
+  - **`repositories/`**
+    - [user_repository.py](file:///c:/Users/noamp/Downloads/apartmentsBot/database/repositories/user_repository.py) - User database operations.
+    - [rule_repository.py](file:///c:/Users/noamp/Downloads/apartmentsBot/database/repositories/rule_repository.py) - Rule configurations storage.
+    - [listing_repository.py](file:///c:/Users/noamp/Downloads/apartmentsBot/database/repositories/listing_repository.py) - Enriched listing cache and seen history.
+    - [rejection_repository.py](file:///c:/Users/noamp/Downloads/apartmentsBot/database/repositories/rejection_repository.py) - Rejections logs table driver.
+    - [notification_repository.py](file:///c:/Users/noamp/Downloads/apartmentsBot/database/repositories/notification_repository.py) - Sent notifications tracking.
+    - [cache_repository.py](file:///c:/Users/noamp/Downloads/apartmentsBot/database/repositories/cache_repository.py) - Persisted welcome/sass line generator cache.
+* **`utils/`**
+  - [logger.py](file:///c:/Users/noamp/Downloads/apartmentsBot/utils/logger.py) - Rotating file JSON logging with Hebrew console formatting.
+  - [telemetry.py](file:///c:/Users/noamp/Downloads/apartmentsBot/utils/telemetry.py) - Live metrics counters tracking scraping duration, AI limits, and errors.
+  - [hebrew_utils.py](file:///c:/Users/noamp/Downloads/apartmentsBot/utils/hebrew_utils.py) - Price, room count, relative date, and broker fee extraction.
+  - [israeli_locations.py](file:///c:/Users/noamp/Downloads/apartmentsBot/utils/israeli_locations.py) - In-memory database mapping neighborhoods and cities.
+  - [text_utils.py](file:///c:/Users/noamp/Downloads/apartmentsBot/utils/text_utils.py) - Markdown V2 escaping helper.
+  - [validators.py](file:///c:/Users/noamp/Downloads/apartmentsBot/utils/validators.py) - General validation checks.
 
 ---
 
-## Core Classes
+## Core Data Models
 
 ### 1. User Model
+*Defined in [models/user.py](file:///c:/Users/noamp/Downloads/apartmentsBot/models/user.py)*
 
 ```python
-from dataclasses import dataclass
-from typing import List, Optional
-from datetime import datetime
-
 @dataclass
 class User:
     telegram_id: int
     chat_id: int
-    username: Optional[str]
-    created_at: datetime
+    username: Optional[str] = None
+    created_at: datetime = field(default_factory=datetime.now)
     is_active: bool = True
-    search_rules: List['SearchRule'] = None
+    first_notified_at: Optional[datetime] = None  # When user first received a listing
+    persona: str = "barakush"
+    is_admin: bool = False
+    onboarding_step: Optional[str] = None
+    allow_bordering_neighborhoods: bool = True
+    allow_roomies: bool = True
+
+    @property
+    def is_new_user(self) -> bool:
+        """Check if user has never received notifications yet."""
+        return self.first_notified_at is None
 ```
 
 ### 2. Search Rule Model
+*Defined in [models/search_rule.py](file:///c:/Users/noamp/Downloads/apartmentsBot/models/search_rule.py)*
 
 ```python
-from dataclasses import dataclass
-from typing import Optional, List
-from enum import Enum
-
 class RuleType(Enum):
     # Hard rules (can be evaluated without AI)
     PRICE_MAX = "price_max"
@@ -157,156 +160,39 @@ class RuleType(Enum):
     BEDROOMS_MIN = "bedrooms_min"
     BEDROOMS_MAX = "bedrooms_max"
     
-    # Soft rules (require AI judgment)
+    # Soft rules (require location database or keywords check)
     AREA = "area"
+    BORDER_AREA = "border_area"  # Geographic border-based area (e.g. "west of Ayalon, north of Jaffa")
     CUSTOM = "custom"  # Catch-all for ANY user requirement
 
 @dataclass
 class SearchRule:
-    id: int
-    user_id: int
-    rule_type: RuleType
-    value: str  # For CUSTOM: stores the original Hebrew text as-is
-    original_text: str  # User's exact words for context
+    id: Optional[int] = None
+    user_id: int = 0
+    rule_type: RuleType = RuleType.CUSTOM
+    value: str = ""  # For CUSTOM: stores target keyword or original Hebrew text as-is
+    original_text: str = ""  # User's exact words for context
     is_active: bool = True
-    created_at: datetime = None
+    created_at: datetime = field(default_factory=datetime.now)
     
-    # For custom rules, the AI interprets 'value' dynamically
-    # No need to predefine categories - AI handles anything
-```
-
-### Custom Rules - Dynamic AI Interpretation
-
-> [!WARNING]
-> **Semantic Real-Time Rule Evaluation Canceled**: To prevent API quota exhaustion (HTTP 429), minimize latency, and eliminate quadratic $O(U \cdot L)$ scaling, real-time AI rule matching has been completely canceled. 
-> Instead, all AI-based metadata extraction is shifted upstream to the ingestion layer (Enrich-Once), and matches are resolved locally using a high-performance keyword-to-attribute heuristic engine (`ZeroAIUserMatcher`).
-
-> [!IMPORTANT]
-> Custom rules are **not hardcoded**. Users can state ANY requirement in natural Hebrew, and the AI extracts these attributes during the ingestion phase, matching them dynamically via local heuristics.
-
-```python
-class CustomRuleEvaluator:
-    """
-    Evaluates any free-form custom rule using AI.
-    No predefined categories - handles any requirement dynamically.
-    """
-    
-    def __init__(self, ai_engine: 'GeminiAIEngine'):
-        self.ai_engine = ai_engine
-    
-    def evaluate_custom_rules(
-        self, 
-        listing: 'Listing', 
-        custom_rules: List['SearchRule']
-    ) -> Tuple[bool, List[str]]:
-        """
-        Evaluate listing against user's custom requirements.
-        
-        The AI receives the user's original Hebrew text and decides
-        if the listing satisfies the requirement.
-        """
-        if not custom_rules:
-            return True, []
-        
-        # Build evaluation prompt with ALL custom rules
-        rules_text = "\n".join([
-            f"- {rule.original_text}" 
-            for rule in custom_rules
-        ])
-        
-        prompt = f"""
-        בדוק אם הדירה עומדת בכל הדרישות המותאמות אישית.
-        
-        פרטי הדירה:
-        כותרת: {listing.title}
-        תיאור: {listing.description}
-        מיקום: {listing.location}
-        מחיר: {listing.price}
-        חדרים: {listing.bedrooms}
-        
-        דרישות המשתמש:
-        {rules_text}
-        
-        הנחיות:
-        1. אם הדירה לא מזכירה משהו, הנח שזה לא קיים (אלא אם סביר להניח אחרת)
-        2. השתמש בשיקול דעת - "קרוב לים" יכול להיות עד 10 דקות הליכה
-        3. אם לא ברור, נטה לכלול את הדירה (עדיף false positive מ-false negative)
-        
-        החזר JSON:
-        {{
-            "passes_all": true/false,
-            "evaluation": [
-                {{
-                    "rule": "הטקסט המקורי של הכלל",
-                    "passes": true/false,
-                    "reason": "הסבר קצר בעברית"
-                }}
-            ]
-        }}
-        """
-        
-        response = self.ai_engine.model.generate_content(prompt)
-        result = self._parse_evaluation(response.text)
-        
-        failed = [
-            f"{e['rule']}: {e['reason']}" 
-            for e in result.get('evaluation', []) 
-            if not e.get('passes', True)
-        ]
-        
-        return result.get('passes_all', False), failed
-    
-    def suggest_rule_type(self, user_text: str) -> Tuple[RuleType, str]:
-        """
-        Attempt to classify user input, but default to CUSTOM if uncertain.
-        This is for optimization only - unknown rules always work via CUSTOM.
-        """
-        prompt = f"""
-        נתח את הכלל הבא ובדוק אם זה אחד מהסוגים המוכרים:
-        - price_max / price_min (מחיר)
-        - bedrooms_min / bedrooms_max (חדרים)
-        - area (מיקום/שכונה)
-        - custom (כל דבר אחר)
-        
-        טקסט: "{user_text}"
-        
-        החזר JSON:
-        {{"type": "...", "extracted_value": "..."}}
-        
-        אם לא בטוח - החזר "custom" עם הטקסט המקורי.
-        """
-        
-        response = self.ai_engine.model.generate_content(prompt)
-        result = self._parse_json_response(response.text)
-        
-        type_map = {
-            "price_max": RuleType.PRICE_MAX,
-            "price_min": RuleType.PRICE_MIN,
-            "bedrooms_min": RuleType.BEDROOMS_MIN,
-            "bedrooms_max": RuleType.BEDROOMS_MAX,
-            "area": RuleType.AREA,
-            "custom": RuleType.CUSTOM
+    @property
+    def is_hard_rule(self) -> bool:
+        """Check if this rule can be evaluated without AI."""
+        return self.rule_type in {
+            RuleType.PRICE_MAX,
+            RuleType.PRICE_MIN,
+            RuleType.BEDROOMS_MIN,
+            RuleType.BEDROOMS_MAX,
         }
-        
-        # Default to CUSTOM for anything unknown
-        rule_type = type_map.get(result.get("type", "custom"), RuleType.CUSTOM)
-        value = result.get("extracted_value", user_text)
-        
-        return rule_type, value
+    
+    @property
+    def is_soft_rule(self) -> bool:
+        """Check if this rule requires location database/keywords check."""
+        return self.rule_type in {RuleType.AREA, RuleType.BORDER_AREA, RuleType.CUSTOM}
 ```
-
-**Examples of dynamic rule handling:**
-
-| User Says | AI Interpretation |
-|-----------|------------------|
-| "יש מקום לכלב גדול" | Checks if pets allowed, or yard/space mentioned |
-| "לא רחוק מהעבודה בהרצליה" | Evaluates commute distance to Herzliya |
-| "בניין עם שומר" | Looks for mentions of security/doorman |
-| "מתאים לזוג צעיר" | Checks for quiet, size, amenities suitable for couple |
-| "ללא שותפים קיימים" | Ensures listing is for empty apartment |
-
 
 ### 3. Listing Model
+*Defined in [models/listing.py](file:///c:/Users/noamp/Downloads/apartmentsBot/models/listing.py)*
 
 ```python
 @dataclass
@@ -315,1291 +201,206 @@ class Listing:
     source: str  # "facebook" or "yad2"
     url: str
     title: str
-    price: Optional[int]
-    bedrooms: Optional[int]
-    location: str
     description: str
+    location: str
     raw_text: str  # Original Hebrew text
-    images: List[str]
-    posted_at: datetime
-    scraped_at: datetime
+    
+    price: Optional[int] = None
+    bedrooms: Optional[int] = None
+    phone: Optional[str] = None  # Contact phone number
+    author: Optional[str] = None  # Name of person posting
+    images: List[str] = field(default_factory=list)
+    posted_at: Optional[datetime] = None
+    scraped_at: datetime = field(default_factory=datetime.now)
 ```
 
-### 4. Rejection Log Model
+### 4. Enriched Listing Model
+*Defined in [models/listing.py](file:///c:/Users/noamp/Downloads/apartmentsBot/models/listing.py)*
+
+```python
+@dataclass
+class EnrichedListing:
+    listing: Listing
+    
+    # AI-extracted structured data (computed ONCE, utilized for ALL users)
+    extracted_price: Optional[int] = None
+    extracted_bedrooms: Optional[int] = None
+    extracted_location: str = ""
+    extracted_neighborhood: str = ""
+    extracted_street: str = ""
+    has_broker_fee: bool = False  # True if listing mentions תיווך
+    roomies: bool = False         # True if listing represents roommates listing
+    attributes: Dict[str, Any] = field(default_factory=dict)  # {"has_parking": True, ...}
+    area_matches: Dict[str, bool] = field(default_factory=dict)  # {"תל אביב": True}
+    bordering_areas: Dict[str, str] = field(default_factory=dict)  # {"נווה צדק": "גובל בפלורנטין"}
+    
+    @property
+    def effective_monthly_price(self) -> Optional[int]:
+        """Calculate effective monthly price including amortized broker fee.
+        If listing has תיווך (broker fee), adds 1/12 of monthly rent to the price.
+        """
+        if self.extracted_price is None:
+            return None
+        if self.has_broker_fee:
+            broker_fee_monthly = self.extracted_price // 12
+            return self.extracted_price + broker_fee_monthly
+        return self.extracted_price
+    
+    @property
+    def broker_fee_note(self) -> str:
+        """Generate Hebrew explanation of the effective price."""
+        if not self.has_broker_fee or self.extracted_price is None:
+            return ""
+        broker_monthly = self.extracted_price // 12
+        effective = self.effective_monthly_price
+        return f"💰 מחיר כולל תיווך מפורס: {effective:,}₪ (שכירות {self.extracted_price:,}₪ + {broker_monthly:,}₪/חודש דמי תיווך)"
+
+    @property
+    def display_price(self) -> str:
+        """Format price for display, including broker note if applicable."""
+        if self.extracted_price is None:
+            return "לא צוין מחיר"
+        if self.has_broker_fee:
+            return f"{self.extracted_price:,}₪ (+ תיווך)"
+        return f"{self.extracted_price:,}₪"
+```
+
+### 5. Rejection Log Model
+*Defined in [models/rejection_log.py](file:///c:/Users/noamp/Downloads/apartmentsBot/models/rejection_log.py)*
 
 ```python
 @dataclass
 class RejectionLog:
     listing_id: str
     user_id: int
-    rejected_rules: List[str]  # Which rules failed
-    reasons: List[str]  # Human-readable explanations
-    timestamp: datetime
+    rejected_rules: List[str]  # Which rules failed (e.g. "מחיר מקסימלי: 5000")
+    reasons: List[str]         # Human-readable explanations in Hebrew
+    listing_url: Optional[str] = None
+    listing_price: Optional[int] = None
+    listing_location: Optional[str] = None
+    match_method: str = "rule"  # "rule", "roomies_filter", "benefit_of_doubt", etc.
+    timestamp: datetime = field(default_factory=datetime.now)
 ```
 
 ---
 
-## Key Implementation Details
+## AI Engine & Multi-Provider Rotation
 
-### AI Engine (Gemini Integration)
+To ensure high availability and prevent rate-limiting halts under the Gemini Free Tier (which enforces a strict **10 requests per minute** and **500 requests per day** per model), the bot uses a multi-provider structure supporting model rotation, prompt batching, caching, and retries.
 
-```python
-import google.generativeai as genai
-from typing import Dict, List, Tuple
+### Engine Interfaces
+All model classes derive from `BaseAIEngine` defined in [core/ai_engine.py](file:///c:/Users/noamp/Downloads/apartmentsBot/core/ai_engine.py):
+1. **`GeminiAIEngine`**: Core engine supporting **automatic model rotation** across a list of configured models (e.g., `gemini-3.1-flash-lite`, `gemini-3-flash-preview`, `gemini-2.0-flash-exp`, `gemini-1.5-flash`, etc.).
+2. **`OpenAIEngine`**: Integration for OpenAI models (`gpt-4o-mini`, etc.).
+3. **`AnthropicEngine`**: Integration for Anthropic models (`claude-3-haiku-20240307`, etc.).
+4. **`GroqEngine`**: High-speed, rate-limit-conscious provider using open models (`llama-3.3-70b-versatile`, etc.).
+5. **`OllamaEngine`**: Integration for self-hosted local models (`llama3.2`, etc.).
 
-class GeminiAIEngine:
-    """Handles all AI-powered operations using Gemini 2.5 Flash."""
-    
-    def __init__(self, api_key: str):
-        genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel('gemini-2.5-flash')
-    
-    def parse_user_rules(self, hebrew_text: str) -> List[Dict]:
-        """
-        Parse natural Hebrew text into structured rules.
-        
-        Example:
-        Input: "אני מחפש דירה בתל אביב עד 5000 ש"ח, 3 חדרים"
-        Output: [
-            {"type": "area", "value": "תל אביב"},
-            {"type": "price_max", "value": 5000},
-            {"type": "bedrooms_min", "value": 3}
-        ]
-        """
-        prompt = f"""
-        נתח את הטקסט הבא וחלץ כללי חיפוש לדירה.
-        החזר JSON עם מערך של כללים.
-        
-        טקסט: {hebrew_text}
-        
-        פורמט:
-        [
-            {{"type": "price_max|price_min|bedrooms_min|bedrooms_max|area|custom", "value": ...}}
-        ]
-        """
-        response = self.model.generate_content(prompt)
-        return self._parse_json_response(response.text)
-    
-    def evaluate_listing_match(
-        self, 
-        listing: 'Listing', 
-        rules: List['SearchRule']
-    ) -> Tuple[bool, List[str]]:
-        """
-        Evaluate if a listing matches user rules using AI judgment.
-        Returns (is_match, list_of_failed_rules_with_reasons)
-        """
-        prompt = f"""
-        בדוק אם הדירה הבאה תואמת לכללי החיפוש.
-        
-        דירה:
-        מיקום: {listing.location}
-        מחיר: {listing.price}
-        חדרים: {listing.bedrooms}
-        תיאור: {listing.description}
-        
-        כללים:
-        {self._format_rules(rules)}
-        
-        החזר JSON:
-        {{
-            "is_match": true/false,
-            "failed_rules": [
-                {{"rule": "...", "reason": "..."}}
-            ]
-        }}
-        """
-        response = self.model.generate_content(prompt)
-        return self._parse_match_response(response.text)
-    
-    def determine_area_match(
-        self, 
-        listing_location: str, 
-        target_area: str,
-        allow_bordering: bool = True
-    ) -> Tuple[bool, bool, str]:
-        """
-        Use AI to determine if location matches area requirement.
-        Supports neighborhood-level matching with optional bordering flexibility.
-        
-        Returns:
-            Tuple of (is_match, is_bordering, explanation)
-            - is_match: True if exact match or accepted bordering area
-            - is_bordering: True if listing is in a bordering neighborhood
-            - explanation: Hebrew explanation of the match decision
-        """
-        prompt = f"""
-        בדוק אם המיקום "{listing_location}" מתאים לחיפוש באזור/שכונה "{target_area}".
-        
-        1. האם זה התאמה מדויקת לאזור/שכונה המבוקשת?
-        2. אם לא, האם זו שכונה גובלת/סמוכה שעשויה לעניין?
-        
-        החזר JSON:
-        {{
-            "exact_match": true/false,
-            "is_bordering": true/false,
-            "bordering_explanation": "הסבר קצר אם שכונה גובלת",
-            "recommendation": "כלול" או "דלג"
-        }}
-        """
-        response = self.model.generate_content(prompt)
-        result = self._parse_json_response(response.text)
-        
-        is_exact = result.get("exact_match", False)
-        is_bordering = result.get("is_bordering", False)
-        explanation = result.get("bordering_explanation", "")
-        
-        # Include if exact match, or if bordering and allowed
-        is_match = is_exact or (allow_bordering and is_bordering)
-        
-        return is_match, is_bordering, explanation
-```
-
-## AI Call Optimization - Gemini Free Tier
-
-> [!CAUTION]
-> **Gemini Free Tier Limits (as of Dec 2024):**
-> - **Gemini 2.5 Flash**: 10 requests per minute (RPM), ~1,500 requests per day
-> - Rate limits are per PROJECT, not per API key
-> - Exceeding limits returns 429 errors and may cause temporary blocks
-
-### Rate Limit Strategy
-
-```mermaid
-graph TB
-    subgraph "Rate Limiter"
-        RL[RateLimiter<br/>10 RPM max]
-        Q[Request Queue]
-    end
-    
-    subgraph "Processing"
-        ENR[Listing Enrichment]
-        PARSE[User Rule Parsing]
-    end
-    
-    ENR --> Q
-    PARSE --> Q
-    Q --> RL
-    RL -->|"Wait if needed"| API[Gemini API]
-```
-
-### Core Rate Limiter
+### Automatic Model Rotation Strategy
+If an API call fails due to rate-limiting (`429 RESOURCE_EXHAUSTED` or `Quota exceeded`), `GeminiAIEngine` automatically marks the current model index as exhausted, rotates to the next model in the list, and transparently retries the query.
 
 ```python
-import asyncio
-from datetime import datetime, timedelta
-from collections import deque
-from typing import Any, Callable
-import logging
-
-logger = logging.getLogger(__name__)
-
-class GeminiRateLimiter:
-    """
-    Rate limiter for Gemini free tier.
-    Enforces 10 RPM with request queuing.
-    """
-    
-    def __init__(
-        self, 
-        requests_per_minute: int = 10,
-        daily_limit: int = 1500,
-        safety_margin: float = 0.9  # Use only 90% of limit for safety
-    ):
-        self.rpm_limit = int(requests_per_minute * safety_margin)  # 9 RPM effective
-        self.daily_limit = int(daily_limit * safety_margin)  # 1350 effective
+# Simplified snippet of rotation logic in core/ai_engine.py
+class GeminiAIEngine(BaseAIEngine):
+    ...
+    async def generate_content(self, prompt: str, ...) -> str:
+        attempts_across_models = 0
+        max_total_attempts = len(self.models) * 2
         
-        self.request_times: deque = deque(maxlen=self.rpm_limit)
-        self.daily_count = 0
-        self.daily_reset: datetime = self._next_midnight()
-        
-        self._lock = asyncio.Lock()
-    
-    def _next_midnight(self) -> datetime:
-        """Calculate next midnight for daily reset."""
-        now = datetime.now()
-        return (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
-    
-    async def acquire(self) -> bool:
-        """
-        Acquire permission to make an API call.
-        Blocks until rate limit allows, or raises if daily limit exceeded.
-        """
-        async with self._lock:
-            # Check daily limit
-            if datetime.now() >= self.daily_reset:
-                self.daily_count = 0
-                self.daily_reset = self._next_midnight()
-            
-            if self.daily_count >= self.daily_limit:
-                logger.error("Daily API limit reached!")
-                raise RateLimitExceeded("תקרת הבקשות היומית הושגה")
-            
-            # Check RPM limit
-            now = datetime.now()
-            
-            if len(self.request_times) >= self.rpm_limit:
-                oldest = self.request_times[0]
-                wait_seconds = 60 - (now - oldest).total_seconds()
-                
-                if wait_seconds > 0:
-                    logger.info(f"Rate limit: waiting {wait_seconds:.1f}s")
-                    await asyncio.sleep(wait_seconds)
-            
-            # Record this request
-            self.request_times.append(datetime.now())
-            self.daily_count += 1
-            
-            return True
-    
-    def get_remaining_quota(self) -> dict:
-        """Get remaining API quota for monitoring."""
-        return {
-            "rpm_used": len(self.request_times),
-            "rpm_limit": self.rpm_limit,
-            "daily_used": self.daily_count,
-            "daily_limit": self.daily_limit,
-            "daily_remaining": self.daily_limit - self.daily_count
-        }
-
-
-class RateLimitExceeded(Exception):
-    """Raised when API quota is exhausted."""
-    pass
-```
-
-### Rate-Limited AI Engine
-
-```python
-class GeminiAIEngine:
-    """Gemini AI engine with built-in rate limiting."""
-    
-    def __init__(self, api_key: str, rate_limiter: GeminiRateLimiter = None):
-        genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel('gemini-2.5-flash')
-        self.rate_limiter = rate_limiter or GeminiRateLimiter()
-    
-    async def generate_content(self, prompt: str, max_retries: int = 3) -> str:
-        """
-        Generate content with rate limiting and retry logic.
-        """
-        for attempt in range(max_retries):
+        while attempts_across_models < max_total_attempts:
+            model_name = self.current_model
+            limiter = self.limiters[model_name]
             try:
-                # Wait for rate limit
-                await self.rate_limiter.acquire()
-                
-                # Make API call
-                response = await self.model.generate_content_async(prompt)
-                return response.text
-                
+                await limiter.acquire()
+                response = await retry_with_backoff(
+                    self.client.models.generate_content,
+                    model=model_name,
+                    contents=contents,
+                    max_retries=max_retries
+                )
+                return response.text or ""
+            except RateLimitExceeded:
+                self._rotate_model()
+                attempts_across_models += 1
+                continue
             except Exception as e:
                 if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e):
-                    # Rate limited by API - wait and retry
-                    wait_time = 60 * (attempt + 1)  # Exponential backoff
-                    logger.warning(f"API rate limited, waiting {wait_time}s...")
-                    await asyncio.sleep(wait_time)
-                else:
-                    raise
-        
-        raise Exception("Max retries exceeded for Gemini API")
+                    # Mark local limiter as exhausted for the day
+                    limiter.daily_count = limiter.daily_limit
+                    self._rotate_model()
+                    attempts_across_models += 1
+                    await asyncio.sleep(1)
+                    continue
+                raise
 ```
 
-### Quota-Aware Processing Scheduler
+### Prompt Batching (ListingEnricher)
+Listing enrichment uses **prompt batching** (aggregating up to `AI_BATCH_SIZE` (default 30) listings inside a single LLM prompt) to reduce API consumption. It prompts the model to return a JSON array containing structured attributes:
 
-```python
-class QuotaAwareScheduler:
-    """
-    Schedules scraping cycles based on available API quota.
-    Adjusts frequency to stay within free tier limits.
-    """
-    
-    def __init__(
-        self, 
-        rate_limiter: GeminiRateLimiter,
-        processor: 'ListingProcessor',
-        target_cycles_per_day: int = 200  # ~1 cycle per 7 minutes
-    ):
-        self.rate_limiter = rate_limiter
-        self.processor = processor
-        
-        # Calculate calls per cycle budget
-        # 1500 daily / 200 cycles = ~7 calls per cycle
-        self.calls_per_cycle_budget = (
-            rate_limiter.daily_limit // target_cycles_per_day
-        )
-    
-    async def run_adaptive_cycle(self):
-        """
-        Run a processing cycle that adapts to remaining quota.
-        """
-        quota = self.rate_limiter.get_remaining_quota()
-        
-        # If less than 10% daily quota remains, skip non-essential processing
-        if quota["daily_remaining"] < self.rate_limiter.daily_limit * 0.1:
-            logger.warning("Low quota - minimal processing only")
-            await self.processor.run_minimal_cycle()
-            return
-        
-        # Normal processing
-        await self.processor.run_cycle(
-            max_ai_calls=self.calls_per_cycle_budget
-        )
-    
-    def calculate_optimal_interval(self) -> int:
-        """
-        Calculate optimal minutes between cycles based on quota.
-        """
-        quota = self.rate_limiter.get_remaining_quota()
-        hours_remaining = (self.rate_limiter.daily_reset - datetime.now()).seconds / 3600
-        
-        if hours_remaining <= 0:
-            return 5  # New day starting, normal interval
-        
-        # Distribute remaining quota across remaining hours
-        calls_per_hour = quota["daily_remaining"] / hours_remaining
-        cycles_per_hour = calls_per_hour / self.calls_per_cycle_budget
-        
-        minutes_between_cycles = max(5, int(60 / cycles_per_hour))
-        
-        return minutes_between_cycles
+```json
+{
+  "listings": [
+    {
+      "listing_num": 1,
+      "is_real_estate": true,
+      "price": 5500,
+      "bedrooms": 2,
+      "location": "תל אביב",
+      "neighborhood": "פלורנטין",
+      "street": "הרצל",
+      "has_broker": false,
+      "roomies": false,
+      "attributes": {
+        "has_parking": true,
+        "has_balcony": false,
+        "has_elevator": true,
+        "has_ac": true,
+        "floor_number": 3,
+        "is_ground_floor": false,
+        "is_high_floor": false,
+        "is_renovated": true,
+        "allows_pets": true,
+        "suitable_for_roommates": true,
+        "has_storage": false,
+        "has_security": false,
+        "near_public_transport": true,
+        "near_beach": false,
+        "is_furnished": false,
+        "from_owner_direct": true
+      },
+      "all_mentioned_areas": ["תל אביב", "פלורנטין"],
+      "posted_hours_ago": 2
+    }
+  ]
+}
 ```
 
-### Optimization Strategies (Free Tier Focused)
+### Pre-generation Caching
+To minimize live user interaction latency, the AI engine pre-warms a persistent database cache (`ai_cache` table) with randomized welcome sentences and personality-specific sass one-liners during off-peak scraper cycles.
 
-| Strategy | Description | Savings |
-|----------|-------------|---------|
-| **Rule-based Pre-filtering** | Filter obvious mismatches (price, rooms) before AI | 60-80% reduction |
-| **Large Batch Processing** | Combine 10+ listings into single AI calls | 10x fewer calls |
-| **Persistent Caching** | Cache area/attribute judgments to disk | 40-60% reduction |
-| **Skip Duplicate Content** | Hash-based dedup before AI processing | 20-30% reduction |
-
-### 1. Rule-Based Pre-Filtering (No AI Needed)
-
-```python
-class RulePreFilter:
-    """Filter listings using deterministic rules BEFORE calling AI."""
-    
-    @staticmethod
-    def passes_hard_rules(
-        enriched: 'EnrichedListing', 
-        rules: List['SearchRule']
-    ) -> Tuple[bool, List[str]]:
-        """
-        Check rules that don't require AI judgment.
-        Uses effective_monthly_price which includes amortized broker fee.
-        Returns (passes, list_of_failed_rules)
-        """
-        failed_rules = []
-        
-        for rule in rules:
-            if rule.rule_type == RuleType.PRICE_MAX:
-                # Use effective price which includes broker fee if applicable
-                effective_price = enriched.effective_monthly_price
-                if effective_price and effective_price > int(rule.value):
-                    if enriched.has_broker_fee:
-                        failed_rules.append(
-                            f"מחיר אפקטיבי {effective_price:,}₪ > מקסימום {int(rule.value):,}₪ "
-                            f"(שכ\"ד {enriched.extracted_price:,}₪ + תיווך מפורס)"
-                        )
-                    else:
-                        failed_rules.append(
-                            f"מחיר {effective_price:,}₪ > מקסימום {int(rule.value):,}₪"
-                        )
-            
-            elif rule.rule_type == RuleType.PRICE_MIN:
-                # For min price, use base price (no broker fee consideration)
-                price = enriched.extracted_price
-                if price and price < int(rule.value):
-                    failed_rules.append(f"מחיר {price:,}₪ < מינימום {int(rule.value):,}₪")
-            
-            elif rule.rule_type == RuleType.BEDROOMS_MIN:
-                bedrooms = enriched.extracted_bedrooms
-                if bedrooms and bedrooms < int(rule.value):
-                    failed_rules.append(f"חדרים {bedrooms} < מינימום {rule.value}")
-            
-            elif rule.rule_type == RuleType.BEDROOMS_MAX:
-                bedrooms = enriched.extracted_bedrooms
-                if bedrooms and bedrooms > int(rule.value):
-                    failed_rules.append(f"חדרים {listing.bedrooms} > מקסימום {rule.value}")
-        
-        return len(failed_rules) == 0, failed_rules
-```
-
-### 2. Area/Neighborhood Caching
-
-```python
-from functools import lru_cache
-from typing import Dict
-import hashlib
-
-class AreaMatchCache:
-    """Cache AI decisions about area/neighborhood matching."""
-    
-    def __init__(self, ai_engine: 'GeminiAIEngine'):
-        self.ai_engine = ai_engine
-        self._cache: Dict[str, Tuple[bool, bool, str]] = {}
-    
-    def _cache_key(self, location: str, target_area: str) -> str:
-        """Generate consistent cache key for location pair."""
-        normalized = f"{location.strip().lower()}|{target_area.strip().lower()}"
-        return hashlib.md5(normalized.encode()).hexdigest()
-    
-    def get_area_match(
-        self, 
-        listing_location: str, 
-        target_area: str,
-        allow_bordering: bool = True
-    ) -> Tuple[bool, bool, str]:
-        """
-        Get area match with caching.
-        Cache persists for the session - same neighborhood pairs won't be re-evaluated.
-        """
-        cache_key = self._cache_key(listing_location, target_area)
-        
-        if cache_key in self._cache:
-            cached = self._cache[cache_key]
-            # Adjust is_match based on allow_bordering setting
-            is_match = cached[0] if not cached[1] else (cached[0] and allow_bordering)
-            return is_match, cached[1], cached[2]
-        
-        # Call AI only if not cached
-        result = self.ai_engine.determine_area_match(
-            listing_location, target_area, allow_bordering
-        )
-        self._cache[cache_key] = result
-        return result
-    
-    def preload_common_areas(self, user_areas: List[str], known_neighborhoods: List[str]):
-        """Pre-cache common area combinations during off-peak times."""
-        for target in user_areas:
-            for neighborhood in known_neighborhoods:
-                self.get_area_match(neighborhood, target)
-```
-
-### 3. Optimized Processing Pipeline
-
-> [!IMPORTANT]
-> **Key principle**: Call AI **once per listing** during enrichment. User matching uses only the enriched data - **zero AI calls per user**.
-
-```mermaid
-graph LR
-    subgraph "Phase 1: Scraping"
-        S1[Facebook Scraper] --> COLLECT
-        S2[Yad2 Scraper] --> COLLECT
-        COLLECT[Collect All New Listings]
-    end
-    
-    subgraph "Phase 2: AI Enrichment (ONE batch call)"
-        COLLECT --> BATCH[Batch AI Call]
-        BATCH --> ENRICH[Enriched Listings Cache]
-    end
-    
-    subgraph "Phase 3: User Matching (NO AI)"
-        ENRICH --> MATCH[Rule Matcher]
-        MATCH --> U1[User 1]
-        MATCH --> U2[User 2]
-        MATCH --> UN[User N]
-    end
-```
+> [!WARNING]
+> **Semantic User Matching Cancelled**: The bot does **not** call the AI engine during rule evaluation. Dynamically checking rules against raw listings in real-time scales quadratically ($O(U \cdot L)$ calls) and rapidly exhausts API limits. Rule matching is 100% processed by the local Python Rules engine (`ZeroAIUserMatcher`). The method `BaseAIEngine.evaluate_custom_rules` is deprecated and immediately returns `True` as a benefit-of-the-doubt fallback.
 
 ---
 
-## Israeli Location System
+## Zero-AI Matching Engine
 
-> [!IMPORTANT]
-> Location matching requires understanding Israeli geography: city-neighborhood hierarchy, common name variations, and bordering relationships.
+The matching pipeline is managed in [core/processing.py](file:///c:/Users/noamp/Downloads/apartmentsBot/core/processing.py) and executed locally inside [core/matcher.py](file:///c:/Users/noamp/Downloads/apartmentsBot/core/matcher.py).
 
-### Location Database
+### 1. Rule Pre-Filtering (Hard Rules)
+Before matching locations or keywords, listings are filtered using basic numeric checks:
+* **PRICE_MAX / PRICE_MIN**: Evaluated against `effective_monthly_price`. 
+* **STRICT VALIDATION**: If the listing price is missing entirely, the listing **fails** maximum/minimum rule checks to prevent sending overpriced rentals.
+* **BEDROOMS_MIN / BEDROOMS_MAX**: Assessed against the extracted room count.
 
-```python
-# utils/israeli_locations.py
-from dataclasses import dataclass
-from typing import Dict, List, Set, Optional
-import re
-
-@dataclass
-class Neighborhood:
-    name: str
-    city: str
-    aliases: List[str]  # Alternative names/spellings
-    bordering: List[str]  # Adjacent neighborhoods
-    area_type: str  # "central", "north", "south", etc.
-
-class IsraeliLocationDatabase:
-    """
-    Database of Israeli cities and neighborhoods with relationships.
-    Used for smart location matching without AI calls.
-    """
-    
-    def __init__(self):
-        self._build_database()
-    
-    def _build_database(self):
-        # City aliases (common variations)
-        self.city_aliases: Dict[str, List[str]] = {
-            "תל אביב": ["תל-אביב", "ת\"א", "תא", "תל אביב יפו", "תל-אביב-יפו", "tel aviv"],
-            "ירושלים": ["י-ם", "ירושלים עיר", "jerusalem"],
-            "חיפה": ["haifa"],
-            "רמת גן": ["רמת-גן", "ר\"ג", "ramat gan"],
-            "גבעתיים": ["גבעתים", "givatayim"],
-            "הרצליה": ["herzliya"],
-            "רעננה": ["raanana"],
-            "פתח תקווה": ["פ\"ת", "פתח-תקווה", "petah tikva"],
-            "ראשון לציון": ["ראשל\"צ", "ראשון-לציון", "rishon"],
-            "הוד השרון": ["hod hasharon"],
-            "כפר סבא": ["kfar saba"],
-            "נתניה": ["netanya"],
-            "באר שבע": ["ב\"ש", "beer sheva"],
-        }
-        
-        # Tel Aviv neighborhoods - COMPREHENSIVE LIST
-        self.tel_aviv_neighborhoods: Dict[str, Neighborhood] = {
-            # === SOUTH TEL AVIV ===
-            "פלורנטין": Neighborhood(
-                name="פלורנטין", city="תל אביב",
-                aliases=["florentin", "שכונת פלורנטין"],
-                bordering=["נווה צדק", "שפירא", "מונטיפיורי", "לב העיר", "נחלת בנימין"],
-                area_type="south"
-            ),
-            "נווה צדק": Neighborhood(
-                name="נווה צדק", city="תל אביב",
-                aliases=["neve tzedek", "נוה צדק", "neveh tzedek"],
-                bordering=["פלורנטין", "לב העיר", "כרם התימנים", "יפו"],
-                area_type="south"
-            ),
-            "שפירא": Neighborhood(
-                name="שפירא", city="תל אביב",
-                aliases=["shapira", "שכונת שפירא"],
-                bordering=["פלורנטין", "התקווה", "נווה שאנן", "כפר שלם"],
-                area_type="south"
-            ),
-            "התקווה": Neighborhood(
-                name="התקווה", city="תל אביב",
-                aliases=["שכונת התקווה", "hatikva", "hatikvah"],
-                bordering=["שפירא", "יד אליהו", "כפר שלם", "עזרא"],
-                area_type="south"
-            ),
-            "נווה שאנן": Neighborhood(
-                name="נווה שאנן", city="תל אביב",
-                aliases=["neve shaanan", "נוה שאנן", "שאנן נווה",],
-                bordering=["שפירא", "התחנה המרכזית", "פלורנטין"],
-                area_type="south"
-            ),
-            "כפר שלם": Neighborhood(
-                name="כפר שלם", city="תל אביב",
-                aliases=["kfar shalem"],
-                bordering=["התקווה", "שפירא", "יד אליהו"],
-                area_type="south"
-            ),
-            "עזרא": Neighborhood(
-                name="עזרא", city="תל אביב",
-                aliases=["ezra"],
-                bordering=["התקווה", "יד אליהו"],
-                area_type="south"
-            ),
-            
-            # === JAFFA / יפו ===
-            "יפו": Neighborhood(
-                name="יפו", city="תל אביב",
-                aliases=["jaffa", "yafo", "יפו העתיקה"],
-                bordering=["נווה צדק", "עג'מי", "יפו ג'", "יפו ד'"],
-                area_type="jaffa"
-            ),
-            "עג'מי": Neighborhood(
-                name="עג'מי", city="תל אביב",
-                aliases=["ajami", "עגמי"],
-                bordering=["יפו", "יפו ג'", "בת ים"],
-                area_type="jaffa"
-            ),
-            "יפו ג'": Neighborhood(
-                name="יפו ג'", city="תל אביב",
-                aliases=["jaffa c", "יפו ג"],
-                bordering=["יפו", "עג'מי", "יפו ד'"],
-                area_type="jaffa"
-            ),
-            "יפו ד'": Neighborhood(
-                name="יפו ד'", city="תל אביב",
-                aliases=["jaffa d", "יפו ד"],
-                bordering=["יפו", "יפו ג'", "גבעת עלייה"],
-                area_type="jaffa"
-            ),
-            "גבעת עלייה": Neighborhood(
-                name="גבעת עלייה", city="תל אביב",
-                aliases=["givat aliya"],
-                bordering=["יפו ד'", "חולון"],
-                area_type="jaffa"
-            ),
-            
-            # === CENTRAL TEL AVIV ===
-            "לב העיר": Neighborhood(
-                name="לב העיר", city="תל אביב",
-                aliases=["מרכז העיר", "center", "city center", "downtown"],
-                bordering=["פלורנטין", "נווה צדק", "רוטשילד", "הבימה", "כרם התימנים", "מונטיפיורי", "נחלת בנימין"],
-                area_type="central"
-            ),
-            "רוטשילד": Neighborhood(
-                name="רוטשילד", city="תל אביב",
-                aliases=["שדרות רוטשילד", "rothschild", "רוטשילד בולבארד"],
-                bordering=["לב העיר", "נווה צדק", "הבימה", "אחוזת בית"],
-                area_type="central"
-            ),
-            "הבימה": Neighborhood(
-                name="הבימה", city="תל אביב",
-                aliases=["כיכר הבימה", "habima", "ליד הבימה"],
-                bordering=["רוטשילד", "לב העיר", "הצפון הישן", "כרם התימנים"],
-                area_type="central"
-            ),
-            "כרם התימנים": Neighborhood(
-                name="כרם התימנים", city="תל אביב",
-                aliases=["kerem hateimanim", "כרם", "the kerem"],
-                bordering=["נווה צדק", "לב העיר", "הבימה", "שוק הכרמל"],
-                area_type="central"
-            ),
-            "מונטיפיורי": Neighborhood(
-                name="מונטיפיורי", city="תל אביב",
-                aliases=["montefiore", "מונטיפיורה"],
-                bordering=["פלורנטין", "לב העיר", "נחלת בנימין"],
-                area_type="central"
-            ),
-            "נחלת בנימין": Neighborhood(
-                name="נחלת בנימין", city="תל אביב",
-                aliases=["nachalat binyamin", "נחלת בנימן"],
-                bordering=["לב העיר", "פלורנטין", "מונטיפיורי", "שוק הכרמל"],
-                area_type="central"
-            ),
-            "אחוזת בית": Neighborhood(
-                name="אחוזת בית", city="תל אביב",
-                aliases=["ahuzat bait", "אחוזת-בית"],
-                bordering=["רוטשילד", "לב העיר"],
-                area_type="central"
-            ),
-            "שוק הכרמל": Neighborhood(
-                name="שוק הכרמל", city="תל אביב",
-                aliases=["carmel market", "הכרמל", "שוק הכרמל"],
-                bordering=["כרם התימנים", "נחלת בנימין", "לב העיר"],
-                area_type="central"
-            ),
-            "לב תל אביב": Neighborhood(
-                name="לב תל אביב", city="תל אביב",
-                aliases=["heart of tel aviv"],
-                bordering=["לב העיר", "הבימה", "רוטשילד"],
-                area_type="central"
-            ),
-            
-            # === NORTH TEL AVIV ===
-            "הצפון הישן": Neighborhood(
-                name="הצפון הישן", city="תל אביב",
-                aliases=["צפון ישן", "old north", "הצפון הישן תל אביב"],
-                bordering=["הצפון החדש", "לב העיר", "הבימה", "בבלי"],
-                area_type="north"
-            ),
-            "הצפון החדש": Neighborhood(
-                name="הצפון החדש", city="תל אביב",
-                aliases=["צפון חדש", "new north"],
-                bordering=["הצפון הישן", "רמת אביב", "בבלי", "כוכב הצפון"],
-                area_type="north"
-            ),
-            "בבלי": Neighborhood(
-                name="בבלי", city="תל אביב",
-                aliases=["bavli"],
-                bordering=["הצפון הישן", "הצפון החדש", "קרית שאול"],
-                area_type="north"
-            ),
-            "כוכב הצפון": Neighborhood(
-                name="כוכב הצפון", city="תל אביב",
-                aliases=["kochav hatzafon", "star of the north"],
-                bordering=["הצפון החדש", "רמת אביב"],
-                area_type="north"
-            ),
-            "רמת אביב": Neighborhood(
-                name="רמת אביב", city="תל אביב",
-                aliases=["ramat aviv"],
-                bordering=["הצפון החדש", "רמת אביב ג'", "נווה אביבים", "כוכב הצפון"],
-                area_type="north"
-            ),
-            "רמת אביב ג'": Neighborhood(
-                name="רמת אביב ג'", city="תל אביב",
-                aliases=["ramat aviv gimel", "רמת אביב ג"],
-                bordering=["רמת אביב", "נווה אביבים", "אפקה"],
-                area_type="north"
-            ),
-            "נווה אביבים": Neighborhood(
-                name="נווה אביבים", city="תל אביב",
-                aliases=["neve avivim", "נוה אביבים"],
-                bordering=["רמת אביב", "רמת אביב ג'", "אפקה"],
-                area_type="north"
-            ),
-            "אפקה": Neighborhood(
-                name="אפקה", city="תל אביב",
-                aliases=["afeka"],
-                bordering=["רמת אביב ג'", "נווה אביבים", "רמת החייל"],
-                area_type="north"
-            ),
-            "רמת החייל": Neighborhood(
-                name="רמת החייל", city="תל אביב",
-                aliases=["ramat hachayal", "רמת החיל"],
-                bordering=["אפקה", "תל ברוך", "רמת גן"],
-                area_type="north"
-            ),
-            "תל ברוך": Neighborhood(
-                name="תל ברוך", city="תל אביב",
-                aliases=["tel baruch"],
-                bordering=["רמת החייל", "תל ברוך צפון"],
-                area_type="north"
-            ),
-            "תל ברוך צפון": Neighborhood(
-                name="תל ברוך צפון", city="תל אביב",
-                aliases=["tel baruch north"],
-                bordering=["תל ברוך", "הרצליה"],
-                area_type="north"
-            ),
-            
-            # === EAST TEL AVIV ===
-            "יד אליהו": Neighborhood(
-                name="יד אליהו", city="תל אביב",
-                aliases=["yad eliyahu"],
-                bordering=["התקווה", "עזרא", "נווה שרת", "הארגזים"],
-                area_type="east"
-            ),
-            "נווה שרת": Neighborhood(
-                name="נווה שרת", city="תל אביב",
-                aliases=["neve sharet", "נוה שרת"],
-                bordering=["יד אליהו", "קריית שלום", "גבעתיים"],
-                area_type="east"
-            ),
-            "קריית שלום": Neighborhood(
-                name="קריית שלום", city="תל אביב",
-                aliases=["kiryat shalom"],
-                bordering=["נווה שרת", "חולון"],
-                area_type="east"
-            ),
-            "הארגזים": Neighborhood(
-                name="הארגזים", city="תל אביב",
-                aliases=["haargazim"],
-                bordering=["יד אליהו"],
-                area_type="east"
-            ),
-            "קרית שאול": Neighborhood(
-                name="קרית שאול", city="תל אביב",
-                aliases=["kiryat shaul", "קריית שאול"],
-                bordering=["בבלי", "רמת גן"],
-                area_type="east"
-            ),
-            
-            # === BEACH / COAST ===
-            "נמל תל אביב": Neighborhood(
-                name="נמל תל אביב", city="תל אביב",
-                aliases=["tel aviv port", "הנמל", "namal", "port"],
-                bordering=["הצפון החדש", "הירקון"],
-                area_type="coast"
-            ),
-            "הירקון": Neighborhood(
-                name="הירקון", city="תל אביב",
-                aliases=["hayarkon", "רחוב הירקון"],
-                bordering=["נמל תל אביב", "הצפון הישן", "לב העיר"],
-                area_type="coast"
-            ),
-            "גורדון": Neighborhood(
-                name="גורדון", city="תל אביב",
-                aliases=["gordon", "חוף גורדון"],
-                bordering=["הירקון", "הצפון הישן"],
-                area_type="coast"
-            ),
-            "פרישמן": Neighborhood(
-                name="פרישמן", city="תל אביב",
-                aliases=["frishman", "חוף פרישמן"],
-                bordering=["גורדון", "לב העיר"],
-                area_type="coast"
-            ),
-            "בוגרשוב": Neighborhood(
-                name="בוגרשוב", city="תל אביב",
-                aliases=["bogrshov", "בוגרשוב סנטר"],
-                bordering=["פרישמן", "לב העיר"],
-                area_type="coast"
-            ),
-            "בן יהודה": Neighborhood(
-                name="בן יהודה", city="תל אביב",
-                aliases=["ben yehuda", "רחוב בן יהודה"],
-                bordering=["לב העיר", "בוגרשוב", "דיזנגוף"],
-                area_type="central"
-            ),
-            "דיזנגוף": Neighborhood(
-                name="דיזנגוף", city="תל אביב",
-                aliases=["dizengoff", "כיכר דיזנגוף", "דיזינגוף"],
-                bordering=["בן יהודה", "הצפון הישן", "לב העיר"],
-                area_type="central"
-            ),
-            "אלנבי": Neighborhood(
-                name="אלנבי", city="תל אביב",
-                aliases=["allenby", "רחוב אלנבי"],
-                bordering=["לב העיר", "נווה צדק", "כרם התימנים"],
-                area_type="central"
-            ),
-        }
-        
-        # Area groupings (for "אזור" type searches)
-        self.area_groups: Dict[str, List[str]] = {
-            "גוש דן": ["תל אביב", "רמת גן", "גבעתיים", "בני ברק", "חולון", "בת ים", "אור יהודה", "קרית אונו"],
-            "המרכז": ["תל אביב", "רמת גן", "גבעתיים", "הרצליה", "רעננה", "כפר סבא", "הוד השרון", "פתח תקווה", "ראשון לציון", "חולון", "בת ים"],
-            "השרון": ["הרצליה", "רעננה", "כפר סבא", "הוד השרון", "נתניה", "רמת השרון"],
-            
-            # Tel Aviv sub-areas
-            "צפון תל אביב": ["הצפון הישן", "הצפון החדש", "רמת אביב", "רמת אביב ג'", "אפקה", "נווה אביבים", "רמת החייל", "תל ברוך", "כוכב הצפון", "בבלי"],
-            "דרום תל אביב": ["פלורנטין", "שפירא", "התקווה", "נווה שאנן", "כפר שלם", "עזרא"],
-            "מרכז תל אביב": ["לב העיר", "רוטשילד", "הבימה", "כרם התימנים", "נווה צדק", "מונטיפיורי", "נחלת בנימין", "אחוזת בית", "שוק הכרמל", "דיזנגוף", "בן יהודה", "אלנבי"],
-            "יפו": ["יפו", "עג'מי", "יפו ג'", "יפו ד'", "גבעת עלייה"],
-            "קו החוף": ["נמל תל אביב", "הירקון", "גורדון", "פרישמן", "בוגרשוב"],
-            "מזרח תל אביב": ["יד אליהו", "נווה שרת", "קריית שלום", "הארגזים", "קרית שאול"],
-            "מרכז תל אביב": ["לב העיר", "רוטשילד", "הבימה", "כרם התימנים", "נווה צדק"],
-        }
-        
-        # Build reverse lookup maps
-        self._build_lookups()
-    
-    def _build_lookups(self):
-        """Build efficient lookup structures."""
-        # Neighborhood by any name
-        self.neighborhood_lookup: Dict[str, Neighborhood] = {}
-        for n in self.tel_aviv_neighborhoods.values():
-            self.neighborhood_lookup[n.name.lower()] = n
-            for alias in n.aliases:
-                self.neighborhood_lookup[alias.lower()] = n
-        
-        # City by any name
-        self.city_lookup: Dict[str, str] = {}
-        for city, aliases in self.city_aliases.items():
-            self.city_lookup[city.lower()] = city
-            for alias in aliases:
-                self.city_lookup[alias.lower()] = city
-    
-    def normalize_location(self, raw_location: str) -> dict:
-        """
-        Normalize a raw location string to structured data.
-        Returns: {"city": str, "neighborhood": str, "normalized": str}
-        """
-        location = raw_location.strip().lower()
-        
-        # Try to find neighborhood
-        neighborhood = None
-        for name, n in self.neighborhood_lookup.items():
-            if name in location:
-                neighborhood = n
-                break
-        
-        # Try to find city
-        city = None
-        for name, c in self.city_lookup.items():
-            if name in location:
-                city = c
-                break
-        
-        # If neighborhood found but no city, use neighborhood's city
-        if neighborhood and not city:
-            city = neighborhood.city
-        
-        return {
-            "city": city,
-            "neighborhood": neighborhood.name if neighborhood else None,
-            "normalized": f"{neighborhood.name if neighborhood else ''}, {city if city else raw_location}".strip(", ")
-        }
-    
-    def is_location_match(
-        self, 
-        listing_location: str, 
-        target_location: str,
-        allow_bordering: bool = True
-    ) -> Tuple[bool, str, str]:
-        """
-        Check if listing location matches target with smart logic.
-        
-        Returns: (is_match, match_type, explanation)
-        match_type: "exact" | "contains" | "bordering" | "area_group" | "none"
-        """
-        listing_norm = self.normalize_location(listing_location)
-        target_norm = self.normalize_location(target_location)
-        
-        listing_city = listing_norm["city"]
-        listing_neighborhood = listing_norm["neighborhood"]
-        target_city = target_norm["city"]
-        target_neighborhood = target_norm["neighborhood"]
-        
-        # Case 1: Exact neighborhood match
-        if target_neighborhood and listing_neighborhood:
-            if target_neighborhood == listing_neighborhood:
-                return True, "exact", f"התאמה מדויקת: {target_neighborhood}"
-        
-        # Case 2: Target is a city, listing is in that city
-        if target_city and not target_neighborhood:
-            if listing_city == target_city:
-                return True, "contains", f"הדירה ב{listing_city}"
-        
-        # Case 3: Bordering neighborhoods
-        if allow_bordering and target_neighborhood and listing_neighborhood:
-            target_n = self.neighborhood_lookup.get(target_neighborhood.lower())
-            if target_n and listing_neighborhood in target_n.bordering:
-                return True, "bordering", f"{listing_neighborhood} גובל ב{target_neighborhood}"
-        
-        # Case 4: Area group match (e.g., "גוש דן", "המרכז")
-        target_lower = target_location.lower()
-        for group_name, cities in self.area_groups.items():
-            if group_name in target_lower:
-                if listing_city and listing_city in cities:
-                    return True, "area_group", f"{listing_city} באזור {group_name}"
-        
-        # Case 5: Target is within listing area (reverse containment)
-        # e.g., listing says "תל אביב" and target is "פלורנטין"
-        if target_neighborhood and listing_city:
-            target_n = self.neighborhood_lookup.get(target_neighborhood.lower())
-            if target_n and target_n.city == listing_city:
-                # Listing is in the right city but neighborhood not specified
-                return True, "contains", f"הדירה ב{listing_city} (שכונה לא צוינה)"
-        
-        return False, "none", "מיקום לא תואם"
-    
-    def get_bordering_neighborhoods(self, neighborhood: str) -> List[str]:
-        """Get list of neighborhoods that border the given one."""
-        n = self.neighborhood_lookup.get(neighborhood.lower())
-        return n.bordering if n else []
-    
-    def expand_area_search(self, target: str) -> List[str]:
-        """
-        Expand a search target to include all matching areas.
-        Returns list of all acceptable neighborhoods/cities.
-        """
-        results = set()
-        target_lower = target.lower()
-        
-        # Add exact match
-        if target_lower in self.neighborhood_lookup:
-            n = self.neighborhood_lookup[target_lower]
-            results.add(n.name)
-            results.update(n.bordering)
-        
-        if target_lower in self.city_lookup:
-            city = self.city_lookup[target_lower]
-            results.add(city)
-            # Add all neighborhoods in that city
-            for n in self.tel_aviv_neighborhoods.values():
-                if n.city == city:
-                    results.add(n.name)
-        
-        # Check area groups
-        for group_name, cities in self.area_groups.items():
-            if group_name in target_lower:
-                results.update(cities)
-        
-        return list(results)
-```
-
-### Location Matching in Practice
-
-| User Searches For | Listing Location | Match? | Reason |
-|-------------------|-----------------|--------|--------|
-| "פלורנטין" | "פלורנטין, תל אביב" | ✅ Exact | Exact neighborhood match |
-| "פלורנטין" | "נווה צדק" | ✅ Bordering | נווה צדק borders פלורנטין |
-| "תל אביב" | "רמת אביב" | ✅ Contains | רמת אביב is in תל אביב |
-| "גוש דן" | "רמת גן" | ✅ Area Group | רמת גן is in גוש דן |
-| "ת\"א" | "תל אביב יפו" | ✅ Alias | Same city, different spelling |
-| "הרצליה" | "תל אביב" | ❌ None | Different cities |
-
-```python
-@dataclass
-class EnrichedListing:
-    """Listing with AI-extracted metadata. Created ONCE, used for ALL users."""
-    
-    # Original data
-    listing: Listing
-    
-    # AI-extracted structured data (extracted ONCE)
-    extracted_price: Optional[int] = None
-    extracted_bedrooms: Optional[int] = None
-    extracted_location: str = ""
-    extracted_neighborhood: str = ""
-    
-    # Broker fee handling
-    has_broker_fee: bool = False  # True if listing mentions תיווך
-    
-    # AI-computed attributes for custom rule matching
-    attributes: Dict[str, Any] = None  # {"has_parking": True, "floor": 5, ...}
-    
-    # Pre-computed area matches (cached)
-    area_matches: Dict[str, bool] = None  # {"תל אביב": True, "פלורנטין": True}
-    bordering_areas: Dict[str, str] = None  # {"נווה צדק": "גובל בפלורנטין"}
-    
-    @property
-    def effective_monthly_price(self) -> Optional[int]:
-        """
-        Calculate effective monthly price including amortized broker fee.
-        
-        If listing has תיווך (broker fee), adds 1/12 of monthly rent to the price.
-        Standard broker fee in Israel is ~1 month rent, so we distribute it over 12 months.
-        
-        Example: 
-            - Rent: 5000₪/month
-            - With broker: 5000 + (5000/12) = 5000 + 417 = 5417₪/month effective
-        """
-        if self.extracted_price is None:
-            return None
-        
-        if self.has_broker_fee:
-            # Add amortized broker fee (1 month rent / 12 months)
-            broker_fee_monthly = self.extracted_price // 12
-            return self.extracted_price + broker_fee_monthly
-        
-        return self.extracted_price
-    
-    @property
-    def broker_fee_note(self) -> str:
-        """
-        Generate Hebrew explanation of the effective price.
-        Used in notifications to explain the price calculation.
-        """
-        if not self.has_broker_fee or self.extracted_price is None:
-            return ""
-        
-        broker_monthly = self.extracted_price // 12
-        effective = self.effective_monthly_price
-        
-        return f"💰 מחיר כולל תיווך מפורס: {effective:,}₪ (שכירות {self.extracted_price:,}₪ + {broker_monthly:,}₪/חודש דמי תיווך)"
-```
-
-> [!TIP]
-> **Broker Fee Calculation**: When a listing has תיווך, the effective monthly cost is calculated as:
-> `effective_price = rent + (rent / 12)`
-> This helps users compare apples-to-apples when filtering by max price.
-
-
-class ListingEnricher:
-    """
-    Enriches listings with AI-extracted data in a SINGLE batch call.
-    This data is then used for ALL user matching without additional AI calls.
-    """
-    
-    def __init__(self, ai_engine: 'GeminiAIEngine', batch_size: int = 10):
-        self.ai_engine = ai_engine
-        self.batch_size = batch_size
-        self.common_attributes = [
-            "has_parking", "has_balcony", "has_elevator", "has_ac",
-            "floor_number", "is_ground_floor", "is_high_floor",
-            "is_renovated", "is_new_building", "building_year",
-            "allows_pets", "suitable_for_roommates", "has_storage",
-            "has_security", "near_public_transport", "near_beach",
-            "is_furnished", "from_owner_direct"
-        ]
-    
-    async def enrich_listings(self, listings: List[Listing]) -> List[EnrichedListing]:
-        """
-        Enrich all listings in batches. ONE AI call per batch.
-        Returns enriched listings ready for user matching.
-        """
-        all_enriched = []
-        
-        for i in range(0, len(listings), self.batch_size):
-            batch = listings[i:i + self.batch_size]
-            enriched_batch = await self._enrich_batch(batch)
-            all_enriched.extend(enriched_batch)
-        
-        return all_enriched
-    
-    async def _enrich_batch(self, listings: List[Listing]) -> List[EnrichedListing]:
-        """Single AI call to extract all data from a batch of listings."""
-        
-        listings_text = "\n\n---\n\n".join([
-            f"דירה {i+1}:\n"
-            f"כותרת: {l.title}\n"
-            f"תיאור: {l.description}\n"
-            f"מיקום גולמי: {l.location}"
-            for i, l in enumerate(listings)
-        ])
-        
-        prompt = f"""
-        נתח את כל הדירות הבאות וחלץ מידע מובנה.
-        
-        {listings_text}
-        
-        עבור כל דירה החזר:
-        {{
-            "listing_num": 1,
-            "price": מספר או null,
-            "bedrooms": מספר או null,
-            "location": "עיר",
-            "neighborhood": "שכונה ספציפית אם מוזכרת",
-            "attributes": {{
-                "has_parking": true/false/null,
-                "has_balcony": true/false/null,
-                "has_elevator": true/false/null,
-                "has_ac": true/false/null,
-                "floor_number": מספר או null,
-                "is_ground_floor": true/false/null,
-                "is_high_floor": true/false/null,
-                "is_renovated": true/false/null,
-                "building_year": מספר או null,
-                "allows_pets": true/false/null,
-                "suitable_for_roommates": true/false/null,
-                "has_storage": true/false/null,
-                "has_security": true/false/null,
-                "near_public_transport": true/false/null,
-                "near_beach": true/false/null,
-                "is_furnished": true/false/null,
-                "from_owner_direct": true/false/null
-            }},
-            "all_mentioned_areas": ["תל אביב", "פלורנטין", ...],
-            "bordering_neighborhoods": {{"שכונה": "שכונה גובלת"}}
-        }}
-        
-        החזר JSON:
-        {{"listings": [...]}}
-        """
-        
-        response = await self.ai_engine.model.generate_content_async(prompt)
-        parsed = self._parse_batch_enrichment(response.text)
-        
-        enriched = []
-        for listing, data in zip(listings, parsed.get("listings", [])):
-            enriched.append(EnrichedListing(
-                listing=listing,
-                extracted_price=data.get("price"),
-                extracted_bedrooms=data.get("bedrooms"),
-                extracted_location=data.get("location", ""),
-                extracted_neighborhood=data.get("neighborhood", ""),
-                attributes=data.get("attributes", {}),
-                area_matches={area: True for area in data.get("all_mentioned_areas", [])},
-                bordering_areas=data.get("bordering_neighborhoods", {})
-            ))
-        
-        return enriched
-```
-
-### User Matching - Zero AI Calls
+### 2. Zero-AI User Matcher (Soft & Custom Rules)
+`ZeroAIUserMatcher` evaluates candidate listings using cached geolocation data and static attribute indexes:
 
 ```python
 class ZeroAIUserMatcher:
-    """
-    Matches enriched listings to users WITHOUT any AI calls.
-    All matching is done against pre-computed enriched data.
-    """
-    
-    def __init__(self, user_repository: 'UserRepository'):
-        self.user_repository = user_repository
+    def __init__(self):
         self.pre_filter = RulePreFilter()
-    
-    async def match_all_users(
-        self, 
-        enriched_listings: List[EnrichedListing]
-    ) -> Dict[int, List[EnrichedListing]]:
-        """
-        Match all listings to all users. NO AI CALLS.
-        Returns dict of user_id -> matching listings
-        """
-        users = await self.user_repository.get_all_active_users()
-        matches: Dict[int, List[EnrichedListing]] = {}
-        
-        for user in users:
-            user_matches = []
-            rules = await self.user_repository.get_user_rules(user.telegram_id)
-            
-            for enriched in enriched_listings:
-                is_match, rejection_reasons = self._evaluate_listing(enriched, rules)
-                
-                if is_match:
-                    user_matches.append(enriched)
-                else:
-                    await self._log_rejection(
-                        enriched.listing, user.telegram_id, rejection_reasons
-                    )
-            
-            if user_matches:
-                matches[user.telegram_id] = user_matches
-        
-        return matches
-    
-    def _evaluate_listing(
-        self, 
-        enriched: EnrichedListing, 
-        rules: List[SearchRule]
-    ) -> Tuple[bool, List[str]]:
-        """
-        Evaluate a single enriched listing against user rules.
-        Uses ONLY pre-computed data - no AI calls.
-        """
-        rejection_reasons = []
-        
-        for rule in rules:
-            if rule.rule_type == RuleType.PRICE_MAX:
-                if enriched.extracted_price and enriched.extracted_price > int(rule.value):
-                    rejection_reasons.append(
-                        f"מחיר {enriched.extracted_price} > מקסימום {rule.value}"
-                    )
-            
-            elif rule.rule_type == RuleType.PRICE_MIN:
-                if enriched.extracted_price and enriched.extracted_price < int(rule.value):
-                    rejection_reasons.append(
-                        f"מחיר {enriched.extracted_price} < מינימום {rule.value}"
-                    )
-            
-            elif rule.rule_type == RuleType.BEDROOMS_MIN:
-                if enriched.extracted_bedrooms and enriched.extracted_bedrooms < int(rule.value):
-                    rejection_reasons.append(
-                        f"חדרים {enriched.extracted_bedrooms} < מינימום {rule.value}"
-                    )
-            
-            elif rule.rule_type == RuleType.BEDROOMS_MAX:
-                if enriched.extracted_bedrooms and enriched.extracted_bedrooms > int(rule.value):
-                    rejection_reasons.append(
-                        f"חדרים {enriched.extracted_bedrooms} > מקסימום {rule.value}"
-                    )
-            
-            elif rule.rule_type == RuleType.AREA:
-                # Check pre-computed area matches
-                target_area = rule.value.strip().lower()
-                matched = any(
-                    target_area in area.lower() 
-                    for area in enriched.area_matches.keys()
-                )
-                # Also check bordering areas
-                if not matched:
-                    matched = any(
-                        target_area in border.lower()
-                        for border in enriched.bordering_areas.keys()
-                    )
-                if not matched:
-                    rejection_reasons.append(
-                        f"מיקום {enriched.extracted_location} לא תואם {rule.value}"
-                    )
-            
-            elif rule.rule_type == RuleType.CUSTOM:
-                # Match against pre-computed attributes
-                match_result = self._match_custom_rule(enriched, rule)
-                if not match_result[0]:
-                    rejection_reasons.append(match_result[1])
-        
-        return len(rejection_reasons) == 0, rejection_reasons
-
-
-# CANCELLED & PURGED: HybridSmartMatcher has been removed from active production code.
-# The system relies 100% on ZeroAIUserMatcher to completely eliminate runtime API latency and rate limits.
-class HybridSmartMatcher:
-    """
-    Hybrid matcher (CANCELLED - DEPRECATED).
-    
-    Strategy:
-    1. First try to match using pre-computed attributes (fast, no AI)
-    2. For unknown/complex rules, queue for AI evaluation (smart, budget-aware)
-    3. Batch AI calls for efficiency
-    """
-    
-    def __init__(
-        self, 
-        ai_engine: 'GeminiAIEngine',
-        rate_limiter: 'GeminiRateLimiter',
-        ai_calls_per_cycle_budget: int = 5
-    ):
-        self.ai_engine = ai_engine
-        self.rate_limiter = rate_limiter
-        self.ai_budget = ai_calls_per_cycle_budget
-        self.ai_calls_used = 0
-        
-        # Known attribute mappings (fast path)
+        self.location_db = get_location_db()
         self.keyword_to_attr = {
             "חניה": "has_parking",
             "מרפסת": "has_balcony",
@@ -1611,1071 +412,312 @@ class HybridSmartMatcher:
             "חדש": "is_renovated",
             "חיות": "allows_pets",
             "כלב": "allows_pets",
-            "חתול": "allows_pets",
             "שותפים": "suitable_for_roommates",
+            "שותף": "roomies",
             "מחסן": "has_storage",
             "שומר": "has_security",
-            "תחבורה": "near_public_transport",
-            "אוטובוס": "near_public_transport",
-            "רכבת": "near_public_transport",
             "ים": "near_beach",
             "מרוהטת": "is_furnished",
-            "ריהוט": "is_furnished",
             "בעלים": "from_owner_direct",
-            "תיווך": "from_owner_direct",
         }
-    
-    async def match_custom_rule(
-        self, 
-        enriched: EnrichedListing, 
-        rule: SearchRule
-    ) -> Tuple[bool, str, str]:
-        """
-        Smart matching with quality preservation.
-        
-        Returns: (is_match, rejection_reason, match_method)
-        match_method: "attribute" | "ai" | "benefit_of_doubt"
-        """
-        rule_text = rule.value.lower()
-        attrs = enriched.attributes or {}
-        
-        # STEP 1: Try attribute-based matching (known rules)
-        matched_keyword = None
-        for keyword, attr_name in self.keyword_to_attr.items():
-            if keyword in rule_text:
-                matched_keyword = keyword
-                attr_value = attrs.get(attr_name)
-                
-                is_negation = any(neg in rule_text for neg in ["לא", "ללא", "בלי"])
-                
-                # Clear match from attributes
-                if attr_value is not None:
-                    if is_negation and attr_value is True:
-                        return False, f"הדירה כוללת {keyword}", "attribute"
-                    elif not is_negation and attr_value is False:
-                        return False, f"הדירה לא כוללת {keyword}", "attribute"
-                    elif is_negation and attr_value is False:
-                        return True, "", "attribute"
-                    elif not is_negation and attr_value is True:
-                        return True, "", "attribute"
-                # attr_value is None - need AI judgment
-                break
-        
-        # STEP 2: Unknown rule or uncertain attribute - use AI if budget allows
-        if self._can_use_ai():
-            return await self._ai_evaluate_rule(enriched, rule)
-        
-        # STEP 3: No AI budget - apply smart defaults
-        return self._apply_smart_default(enriched, rule, matched_keyword)
-    
-    def _can_use_ai(self) -> bool:
-        """Check if we have AI budget remaining for this cycle."""
-        if self.ai_calls_used >= self.ai_budget:
-            return False
-        
-        # Also check rate limiter
-        quota = self.rate_limiter.get_remaining_quota()
-        return quota["daily_remaining"] > 50  # Keep buffer for essential calls
-    
-    async def _ai_evaluate_rule(
-        self, 
-        enriched: EnrichedListing, 
-        rule: SearchRule
-    ) -> Tuple[bool, str, str]:
-        """
-        Use AI for smart evaluation of complex/unknown rules.
-        This preserves matching QUALITY for rules that can't be handled by attributes.
-        """
-        self.ai_calls_used += 1
-        
-        prompt = f"""
-        בדוק אם הדירה הבאה עומדת בדרישה הספציפית.
-        
-        דרישת המשתמש: "{rule.original_text}"
-        
-        פרטי הדירה:
-        כותרת: {enriched.listing.title}
-        תיאור: {enriched.listing.description}
-        מיקום: {enriched.extracted_location}
-        שכונה: {enriched.extracted_neighborhood}
-        מחיר: {enriched.extracted_price}
-        חדרים: {enriched.extracted_bedrooms}
-        
-        מאפיינים ידועים:
-        {self._format_known_attributes(enriched.attributes)}
-        
-        הנחיות:
-        1. השתמש בשיקול דעת אנושי - מה היית אומר לחבר שמחפש דירה?
-        2. אם המידע לא מספיק, אך הדירה נראית מתאימה - אשר
-        3. רק דחה אם יש אינדיקציה ברורה שהדרישה לא מתקיימת
-        
-        החזר JSON:
-        {{
-            "matches": true/false,
-            "confidence": "high/medium/low",
-            "reason": "הסבר קצר בעברית"
-        }}
-        """
-        
-        try:
-            response = await self.ai_engine.generate_content(prompt)
-            result = self._parse_ai_response(response)
-            
-            if result.get("matches", True):
-                return True, "", "ai"
-            else:
-                return False, result.get("reason", "לא עומד בדרישה"), "ai"
-                
-        except Exception as e:
-            # AI failed - use benefit of doubt
-            logger.warning(f"AI evaluation failed: {e}")
-            return True, "", "benefit_of_doubt"
-    
-    def _apply_smart_default(
-        self, 
-        enriched: EnrichedListing, 
-        rule: SearchRule,
-        matched_keyword: str = None
-    ) -> Tuple[bool, str, str]:
-        """
-        Smart defaults when AI budget is exhausted.
-        Errs on side of inclusion to avoid missing good listings.
-        
-        Logic:
-        - If listing description mentions something related to rule, include
-        - If rule is about amenity not mentioned at all, include (might be there)
-        - Only exclude if there's clear contradiction
-        """
-        rule_text = rule.value.lower()
-        description = enriched.listing.description.lower()
-        
-        # Check for explicit contradiction in description
-        negation_patterns = [
-            ("חניה", ["אין חניה", "ללא חניה", "בלי חניה"]),
-            ("מרפסת", ["אין מרפסת", "ללא מרפסת"]),
-            ("מעלית", ["אין מעלית", "ללא מעלית", "בלי מעלית"]),
-            ("חיות", ["ללא חיות", "לא מותר חיות", "אסור חיות"]),
-        ]
-        
-        is_negation = any(neg in rule_text for neg in ["לא", "ללא", "בלי"])
-        
-        for feature, contradict_phrases in negation_patterns:
-            if feature in rule_text:
-                # User wants this feature
-                if not is_negation:
-                    # Check if listing explicitly says no
-                    if any(phrase in description for phrase in contradict_phrases):
-                        return False, f"הדירה מציינת במפורש ללא {feature}", "smart_default"
-                # User doesn't want this feature
-                else:
-                    # Check if listing explicitly has it
-                    if feature in description and not any(neg in description for neg in ["אין", "ללא", "בלי"]):
-                        return False, f"הדירה כוללת {feature}", "smart_default"
-        
-        # No clear contradiction - include the listing
-        return True, "", "benefit_of_doubt"
-    
-    def _format_known_attributes(self, attrs: dict) -> str:
-        """Format known attributes for AI prompt."""
-        if not attrs:
-            return "לא ידועים"
-        
-        known = []
-        attr_names_hebrew = {
-            "has_parking": "חניה",
-            "has_balcony": "מרפסת",
-            "has_elevator": "מעלית",
-            "has_ac": "מזגן",
-            "is_ground_floor": "קומת קרקע",
-            "is_high_floor": "קומה גבוהה",
-            "is_renovated": "משופץ",
-            "allows_pets": "מותר חיות",
-            "suitable_for_roommates": "מתאים לשותפים",
-            "has_storage": "מחסן",
-            "has_security": "שומר",
-            "near_public_transport": "קרוב לתחבורה",
-            "near_beach": "קרוב לים",
-            "is_furnished": "מרוהט",
-            "from_owner_direct": "ישירות מבעלים",
-        }
-        
-        for attr, value in attrs.items():
-            if value is not None:
-                hebrew = attr_names_hebrew.get(attr, attr)
-                status = "כן" if value else "לא"
-                known.append(f"{hebrew}: {status}")
-        
-        return ", ".join(known) if known else "לא ידועים"
-    
-    def reset_cycle_budget(self):
-        """Reset AI budget for new processing cycle."""
-        self.ai_calls_used = 0
 ```
 
+* **Area Matches**: Checked as an **OR** group. If multiple area rules exist, a listing matching *any* of them passes. It looks up the listing against `location_db` aliases and bordering settings.
+* **Border Area Rules**: Commas-separated list of target neighborhoods (`RuleType.BORDER_AREA`) checked strictly **without** bordering neighborhood extensions. If the neighborhood name is not identified (e.g. only "Tel Aviv" is present), it passes as a benefit of the doubt.
+* **Custom Rules Evaluation**: Maps rule keywords to pre-computed attributes. If the custom rule contains Hebrew negation keywords (like "לא", "ללא", "בלי"), it checks if the attribute is `False`.
+* **Fallback Benefit-of-the-Doubt**: If the custom rule contains an unrecognized keyword, the matcher returns `True` to prevent false negatives.
 
-### Complete Processing Flow
+### 3. Core Processing Pipeline
+Every scraper cycle, `ProcessingService` fetches active users, performs a bulk fetch of all search rules and sent listing IDs, and processes candidates:
 
 ```python
-class ListingProcessor:
-    """
-    Orchestrates the complete flow:
-    1. Collect all new listings
-    2. Enrich with ONE batch AI call
-    3. Match to all users (NO AI)
-    4. Send notifications
-    """
-    
-    def __init__(
-        self,
-        facebook_scraper: 'FacebookScraper',
-        yad2_scraper: 'Yad2Scraper',
-        enricher: 'ListingEnricher',
-        matcher: 'ZeroAIUserMatcher',
-        notifier: 'TelegramNotifier',
-        seen_repository: 'SeenListingsRepository'
-    ):
-        self.scrapers = [facebook_scraper, yad2_scraper]
-        self.enricher = enricher
-        self.matcher = matcher
-        self.notifier = notifier
-        self.seen_repository = seen_repository
-    
-    async def run_cycle(self):
-        """
-        Single processing cycle. Called every X minutes by scheduler.
-        """
-        # PHASE 1: Collect all new listings from all sources
-        all_listings = []
-        for scraper in self.scrapers:
-            try:
-                listings = await scraper.scrape()
-                all_listings.extend(listings)
-            except Exception as e:
-                logger.error(f"Scraper {scraper.__class__.__name__} failed: {e}")
-        
-        # Filter out already-seen listings
-        new_listings = await self._filter_new_listings(all_listings)
-        
-        if not new_listings:
-            logger.info("No new listings found")
-            return
-        
-        logger.info(f"Found {len(new_listings)} new listings")
-        
-        # PHASE 2: Enrich ALL listings with ONE batch AI call
-        # This is the ONLY place AI is called
-        enriched = await self.enricher.enrich_listings(new_listings)
-        
-        # Mark as seen
-        await self.seen_repository.mark_as_seen(new_listings)
-        
-        # PHASE 3: Match to ALL users (NO AI calls here)
-        user_matches = await self.matcher.match_all_users(enriched)
-        
-        # PHASE 4: Send notifications
-        for user_id, matches in user_matches.items():
-            for enriched_listing in matches:
-                await self.notifier.send_listing(user_id, enriched_listing)
-        
-        logger.info(f"Sent {sum(len(m) for m in user_matches.values())} notifications")
-```
-
-### AI Call Summary - Free Tier Budget
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│ GEMINI FREE TIER BUDGET (Gemini 2.5 Flash)                      │
-├─────────────────────────────────────────────────────────────────┤
-│ Rate Limit:     10 requests per minute (RPM)                    │
-│ Daily Limit:    ~1,500 requests per day (with safety margin)    │
-│ Effective:      9 RPM / 1,350 daily (after 10% safety buffer)   │
-└─────────────────────────────────────────────────────────────────┘
-
-Processing Cycle (20 users, 50 new listings):
-
-PHASE 1 - Scraping:        0 AI calls
-PHASE 2 - Enrichment:      5 AI calls (50 listings ÷ 10 batch size)
-PHASE 3 - User Matching:   0 AI calls (uses pre-computed data)
-PHASE 4 - Notifications:   0 AI calls
-
-TOTAL per cycle: 5 AI calls (regardless of user count!)
-
-┌─────────────────────────────────────────────────────────────────┐
-│ DAILY CAPACITY CALCULATION                                      │
-├─────────────────────────────────────────────────────────────────┤
-│ Daily AI budget:           1,350 calls                          │
-│ Calls per cycle:           ~5-7 calls                           │
-│ Max cycles per day:        1,350 ÷ 6 = 225 cycles              │
-│ Cycle interval:            24h ÷ 225 = ~6.4 minutes            │
-│                                                                 │
-│ Recommended interval:      7 minutes between cycles             │
-│ Listings processed/day:    225 × 50 = 11,250 potential listings │
-└─────────────────────────────────────────────────────────────────┘
-
-RPM Constraint (10 requests/minute):
-- With 7-minute cycle interval, only 1 AI call per minute needed
-- Well within 10 RPM limit
-- Can handle burst processing if needed
-
-Compare to naive approach: 50 × 20 × 3 = 3,000 AI calls per cycle
-(Would exhaust daily quota in 30 minutes!)
-```
-
-
----
-
-### Anti-Detection Scraping
-
-```python
-import undetected_chromedriver as uc
-from selenium.webdriver.common.by import By
-import random
-import time
-
-class AntiDetectionModule:
-    """Implements techniques to avoid bot detection."""
-    
-    def __init__(self):
-        self.user_agents = [
-            # List of real browser user agents
-        ]
-    
-    def create_stealth_driver(self) -> uc.Chrome:
-        """Create an undetected Chrome driver."""
-        options = uc.ChromeOptions()
-        options.add_argument('--disable-blink-features=AutomationControlled')
-        options.add_argument(f'user-agent={random.choice(self.user_agents)}')
-        
-        driver = uc.Chrome(options=options)
-        
-        # Remove webdriver property
-        driver.execute_script(
-            "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
-        )
-        
-        return driver
-    
-    def human_like_delay(self, min_sec: float = 1.0, max_sec: float = 3.0):
-        """Random delay to mimic human behavior."""
-        time.sleep(random.uniform(min_sec, max_sec))
-    
-    def random_scroll(self, driver):
-        """Perform random scrolling like a human would."""
-        scroll_amount = random.randint(100, 500)
-        driver.execute_script(f"window.scrollBy(0, {scroll_amount})")
-        self.human_like_delay(0.5, 1.5)
-```
-
-### Facebook Scraper
-
-```python
-from abc import ABC, abstractmethod
-from typing import List
-
-class BaseScraper(ABC):
-    """Abstract base class for all scrapers."""
-    
-    @abstractmethod
-    def scrape(self) -> List['Listing']:
-        pass
-    
-    @abstractmethod
-    def parse_listing(self, raw_data) -> 'Listing':
-        pass
-
-class FacebookScraper(BaseScraper):
-    """Scrapes apartment listings from Facebook groups."""
-    
-    def __init__(self, group_urls: List[str], anti_detection: AntiDetectionModule):
-        self.group_urls = group_urls
-        self.anti_detection = anti_detection
-        self.driver = None
-    
-    def scrape(self) -> List['Listing']:
-        listings = []
-        self.driver = self.anti_detection.create_stealth_driver()
-        
-        try:
-            for group_url in self.group_urls:
-                self._navigate_to_group(group_url)
-                raw_posts = self._extract_posts()
-                
-                for post in raw_posts:
-                    listing = self.parse_listing(post)
-                    if listing:
-                        listings.append(listing)
-                
-                self.anti_detection.human_like_delay(5, 10)  # Between groups
-        finally:
-            self.driver.quit()
-        
-        return listings
-    
-    def _navigate_to_group(self, url: str):
-        self.driver.get(url)
-        self.anti_detection.human_like_delay(2, 4)
-        self.anti_detection.random_scroll(self.driver)
-    
-    def _extract_posts(self) -> List[dict]:
-        """Extract post data from the current page."""
-        # Implementation depends on Facebook's current structure
-        posts = []
-        # ... extraction logic
-        return posts
-    
-    def parse_listing(self, raw_data) -> 'Listing':
-        """Convert raw post data to Listing object."""
-        # Use AI to extract structured data from Hebrew text
-        pass
-```
-
-### Scheduler Configuration
-
-```python
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from apscheduler.triggers.interval import IntervalTrigger
-
-class ScrapingScheduler:
-    """Manages periodic scraping tasks."""
-    
-    def __init__(self, facebook_scraper, yad2_scraper, matcher, interval_minutes: int = 5):
-        self.scheduler = AsyncIOScheduler()
-        self.facebook_scraper = facebook_scraper
-        self.yad2_scraper = yad2_scraper
-        self.matcher = matcher
-        self.interval = interval_minutes
-    
-    def start(self):
-        # Stagger the scrapers to avoid simultaneous load
-        self.scheduler.add_job(
-            self._run_facebook_scrape,
-            IntervalTrigger(minutes=self.interval),
-            id='facebook_scrape'
-        )
-        
-        self.scheduler.add_job(
-            self._run_yad2_scrape,
-            IntervalTrigger(minutes=self.interval),
-            id='yad2_scrape',
-            next_run_time=datetime.now() + timedelta(minutes=2)  # Offset
-        )
-        
-        self.scheduler.start()
-    
-    async def _run_facebook_scrape(self):
-        listings = await self.facebook_scraper.scrape()
-        await self.matcher.process_new_listings(listings)
-    
-    async def _run_yad2_scrape(self):
-        listings = await self.yad2_scraper.scrape()
-        await self.matcher.process_new_listings(listings)
+# Match execution loop
+for enriched in candidates:
+    is_match, reasons = self.matcher.evaluate_listing(
+        enriched, 
+        rules, 
+        allow_bordering=user.allow_bordering_neighborhoods,
+        allow_roomies=user.allow_roomies
+    )
+    if is_match:
+        await self._notify_match(user.chat_id, enriched, ...)
+        await notification_repo.mark_sent(user.telegram_id, enriched.listing.id)
+    else:
+        rejections_to_log.append({
+            "listing_id": enriched.listing.id,
+            "user_id": user.telegram_id,
+            "failed_rules": reasons.failed_rules,
+            "reasons": reasons,
+            "listing_url": enriched.listing.url,
+            "listing_price": enriched.extracted_price,
+            "listing_location": actual_location,
+            "match_method": "attribute"
+        })
+# Save rejections in a single transaction
+await rejection_repo.log_many_rejections(rejections_to_log)
 ```
 
 ---
 
-## Database Schema
+## Geographic Grounding System
 
+Smart geographical containment is handled locally in [utils/israeli_locations.py](file:///c:/Users/noamp/Downloads/apartmentsBot/utils/israeli_locations.py) without LLM overhead.
+
+### Geographic Database
+`IsraeliLocationDatabase` defines:
+1. **City Aliases**: Mappings of common Hebrew spellings and abbreviations (e.g. `"תל אביב"` maps to `["תל-אביב", "ת\"א", "תא", "tel aviv"]`).
+2. **Neighborhood Hierarchies**: Tel Aviv neighborhood mappings containing bordering names, aliases, and zone definitions (e.g., `פלורנטין` borders `["נווה צדק", "שפירא", "מונטיפיורי", "לב העיר", "נחלת בנימין"]`).
+3. **Area Groupings**: General macro-areas (e.g. `"צפון תל אביב"`, `"דרום תל אביב"`, `"גוש דן"`, `"השרון"`).
+
+### Match Resolution Flow (`is_location_match`)
+When evaluating a listing against rules, the matching engine extracts a composite location string (e.g., combining street, neighborhood, and city) and resolves matching through 5 stages:
+
+```
+                  [Location Match Evaluation]
+                              │
+               (Stage 1: Neighborhood Check)
+            Is listing neighborhood equal to target?
+                    ├── Yes ──> [Match: Exact]
+                    └── No
+                              │
+                  (Stage 2: City Check)
+         Is target a city and listing in that city?
+                    ├── Yes ──> [Match: Contains]
+                    └── No
+                              │
+               (Stage 3: Bordering Check)
+        Is allow_bordering True AND do they border?
+                    ├── Yes ──> [Match: Bordering]
+                    └── No
+                              │
+              (Stage 4: Area Group Check)
+       Does listing city match macro area group list?
+                    ├── Yes ──> [Match: Area Group]
+                    └── No
+                              │
+            (Stage 5: Containment Fallback)
+         Does listing city match target city (but
+              neighborhood is not specified)?
+                    ├── Yes ──> [Match: Contains]
+                    └── No ──> [No Match]
+```
+
+---
+
+## Database Schema & Storage Configuration
+
+The bot uses SQLite 3. Since there are concurrent processes (periodic Playwright scrapers writing data, users updating rules via Telegram, and matching routines reading active configs), the database in [database/connection.py](file:///c:/Users/noamp/Downloads/apartmentsBot/database/connection.py) is optimized to use **WAL (Write-Ahead Logging)** mode.
+
+### Database Performance Pragmas
+```sql
+PRAGMA journal_mode=WAL;
+PRAGMA synchronous=NORMAL;
+PRAGMA busy_timeout=10000;
+PRAGMA foreign_keys=ON;
+```
+
+### Table Schema Mappings
 ```sql
 -- Users table
-CREATE TABLE users (
-    telegram_id BIGINT PRIMARY KEY,
-    chat_id BIGINT NOT NULL,
-    username VARCHAR(255),
+CREATE TABLE IF NOT EXISTS users (
+    telegram_id INTEGER PRIMARY KEY,
+    chat_id INTEGER NOT NULL,
+    username TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    is_active BOOLEAN DEFAULT TRUE
+    is_active BOOLEAN DEFAULT TRUE,
+    first_notified_at TIMESTAMP,
+    persona TEXT DEFAULT 'barakush',
+    is_admin BOOLEAN DEFAULT FALSE,
+    onboarding_step TEXT DEFAULT NULL,
+    allow_bordering_neighborhoods BOOLEAN DEFAULT TRUE,
+    allow_roomies BOOLEAN DEFAULT TRUE
 );
 
 -- Search rules table
-CREATE TABLE search_rules (
-    id SERIAL PRIMARY KEY,
-    user_id BIGINT REFERENCES users(telegram_id),
-    rule_type VARCHAR(50) NOT NULL,
+CREATE TABLE IF NOT EXISTS search_rules (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    rule_type TEXT NOT NULL,
     value TEXT NOT NULL,
+    original_text TEXT,
     is_active BOOLEAN DEFAULT TRUE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(telegram_id) ON DELETE CASCADE
 );
 
 -- Seen listings (for deduplication)
-CREATE TABLE seen_listings (
-    listing_id VARCHAR(255) PRIMARY KEY,
-    source VARCHAR(50) NOT NULL,
+CREATE TABLE IF NOT EXISTS seen_listings (
+    listing_id TEXT PRIMARY KEY,
+    source TEXT NOT NULL,
     url TEXT NOT NULL,
     first_seen_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Cached enriched listings
+CREATE TABLE IF NOT EXISTS enriched_listings (
+    listing_id TEXT PRIMARY KEY,
+    source TEXT NOT NULL,
+    url TEXT NOT NULL,
+    title TEXT,
+    description TEXT,
+    location TEXT,
+    raw_text TEXT,
+    images TEXT,  -- JSON array of image URLs
+    extracted_price INTEGER,
+    extracted_bedrooms INTEGER,
+    extracted_location TEXT,
+    extracted_neighborhood TEXT,
+    has_broker_fee BOOLEAN DEFAULT FALSE,
+    roomies BOOLEAN DEFAULT FALSE,
+    attributes TEXT,  -- JSON representation of features
+    area_matches TEXT,  -- JSON array
+    bordering_areas TEXT,  -- JSON array
+    posted_at TIMESTAMP,
+    scraped_at TIMESTAMP,
+    enriched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Rejection logs
-CREATE TABLE rejection_logs (
-    id SERIAL PRIMARY KEY,
-    listing_id VARCHAR(255) NOT NULL,
-    user_id BIGINT REFERENCES users(telegram_id),
-    failed_rules JSONB NOT NULL,  -- Array of failed rule descriptions
-    reasons JSONB NOT NULL,        -- Array of human-readable reasons
+CREATE TABLE IF NOT EXISTS rejection_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    listing_id TEXT NOT NULL,
+    user_id INTEGER NOT NULL,
+    listing_url TEXT,
+    listing_price INTEGER,
+    listing_location TEXT,
+    failed_rules TEXT NOT NULL,  -- JSON array of failed search constraints
+    reasons TEXT NOT NULL,       -- JSON array of Hebrew explanations
+    match_method TEXT,           -- "rule", "roomies_filter", etc.
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(telegram_id) ON DELETE CASCADE
+);
+
+-- AI Cache for pre-generated lines
+CREATE TABLE IF NOT EXISTS ai_cache (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    cache_type TEXT NOT NULL,  -- 'welcome' or 'sass'
+    persona TEXT NOT NULL DEFAULT 'barakush',
+    content TEXT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Indexes
-CREATE INDEX idx_rules_user ON search_rules(user_id);
-CREATE INDEX idx_rejections_user ON rejection_logs(user_id);
-CREATE INDEX idx_rejections_listing ON rejection_logs(listing_id);
+-- Sent notifications tracking
+CREATE TABLE IF NOT EXISTS sent_notifications (
+    user_id INTEGER NOT NULL,
+    listing_id TEXT NOT NULL,
+    sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, listing_id),
+    FOREIGN KEY (user_id) REFERENCES users(telegram_id) ON DELETE CASCADE
+);
+
+-- Listing fingerprints (cross-source duplicate checks)
+CREATE TABLE IF NOT EXISTS listing_fingerprints (
+    listing_id TEXT PRIMARY KEY,
+    author TEXT,
+    phone TEXT,
+    price INTEGER,
+    bedrooms INTEGER,
+    street TEXT,
+    neighborhood TEXT,
+    source TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (listing_id) REFERENCES seen_listings(listing_id) ON DELETE CASCADE
+);
 ```
+
+### Data Access Repositories
+The database operations are encapsulated in individual repository classes initialized with a `DatabaseManager` instance:
+* **`UserRepository`**: Performs CRUD for users, onboarding steps, preference toggles, and block updates.
+* **`RuleRepository`**: Manages search rule entries (creation, update, soft deletes via `is_active = FALSE`).
+* **`ListingRepository`**: Stores enriched data cache and coordinates fingerprint lookups.
+* **`SeenListingsRepository`**: Records unique listing IDs to skip already scraped entries.
+* **`RejectionRepository`**: Logs match failures in batches (`log_many_rejections`) and supports cleaning historical entries.
+* **`NotificationRepository`**: Audits sent alerts to prevent duplicate Telegram notifications.
+* **`CacheRepository`**: Pops and pushes pre-generated welcome sentences and sass one-liners.
 
 ---
 
-## Configuration Management
+## Configuration & Scheduling
 
-```python
-# config.py
-from pydantic_settings import BaseSettings
-from typing import List
+### Environment Settings Mappings
+Settings are read from `.env` using [config.py](file:///c:/Users/noamp/Downloads/apartmentsBot/config.py):
 
-class Settings(BaseSettings):
-    # Telegram
-    TELEGRAM_BOT_TOKEN: str
-    
-    # Gemini AI
-    GEMINI_API_KEY: str
-    
-    # Database
-    DATABASE_URL: str = "sqlite:///apartment_bot.db"
-    
-    # Scraping
-    SCRAPE_INTERVAL_MINUTES: int = 5
-    FACEBOOK_GROUP_URLS: List[str] = []
-    
-    # Anti-detection
-    MIN_DELAY_SECONDS: float = 1.0
-    MAX_DELAY_SECONDS: float = 5.0
-    
-    class Config:
-        env_file = ".env"
+| Variable Name | Type | Default | Purpose |
+|---------------|------|---------|---------|
+| `TELEGRAM_BOT_TOKEN` | `str` | *Required* | Authentication token for the Telegram Bot |
+| `AI_PROVIDER` | `str` | `"gemini"` | Active provider (`gemini`, `openai`, `anthropic`, `ollama`, `groq`) |
+| `GEMINI_API_KEY` | `str` | `""` | Gemini API key |
+| `GEMINI_MODEL` | `str` | `"gemini-3.1-flash-lite..."` | Comma-separated rotation list of Gemini models |
+| `DATABASE_URL` | `str` | `"sqlite:///data/apartments.db"` | SQLite connection URL |
+| `SCRAPE_INTERVAL_MINUTES` | `int` | `60` | Scraping scheduler interval |
+| `BLACKOUT_START_HOUR` | `int` | `23` | Start hour (e.g. 11 PM Israel Time) to pause scraper |
+| `BLACKOUT_END_HOUR` | `int` | `7` | End hour (7 AM Israel Time) to resume scraper |
+| `BLACKOUT_JITTER_MINUTES` | `int` | `30` | Random offset buffer applied to blackout window |
+| `FACEBOOK_GROUP_URLS` | `str` | `""` | Comma-separated list of target Facebook groups |
+| `FACEBOOK_EMAIL` | `str` | `""` | Login email for Facebook authentication |
+| `FACEBOOK_PASSWORD` | `str` | `""` | Login password for Facebook authentication |
+| `FACEBOOK_SELF_HEALING_ENABLED` | `bool` | `True` | Dynamic selector fixes for DOM structure shifts |
+| `HEADLESS_MODE` | `bool` | `False` | Run Playwright in headless mode (defaults to `False` for stealth) |
 
-settings = Settings()
-```
+### Playwright Self-Healing Selectors
+Web layouts (especially Facebook) frequently change class names and DOM paths, breaking scrapers.
+To maintain scraper resilience, the bot uses `SelfHealingManager` defined in [scrapers/self_healing.py](file:///c:/Users/noamp/Downloads/apartmentsBot/scrapers/self_healing.py).
+When a selector fails to find a critical element (like post wrapper or post text), it takes a screenshot, extracts the nearby HTML snippet, and calls the AI model (`SELF_HEALING_MODEL`) to find the updated CSS selector or XPath. This healed selector is automatically cached in `data/healed_selectors.json` for subsequent runs.
 
-## Comprehensive Logging System
+### Blackout and Adaptive Interval Scheduling
+The scheduling system runs inside [scrapers/scheduler.py](file:///c:/Users/noamp/Downloads/apartmentsBot/scrapers/scheduler.py):
+1. **Blackout Window Check**: Before running a scrape cycle, it verifies Israel time boundaries (`BLACKOUT_START_HOUR` to `BLACKOUT_END_HOUR`). To prevent detection, a random jitter offset (`-BLACKOUT_JITTER_MINUTES` to `+BLACKOUT_JITTER_MINUTES`) is calculated daily.
+2. **`QuotaAwareScheduler`**: Dynamically calculates next execution intervals based on remaining daily API limits:
+   - If remaining calls are high, it runs at the default interval (5-15 minutes).
+   - If remaining calls fall below `LOW_QUOTA_THRESHOLD`, it extends the interval to `LOW_QUOTA_INTERVAL` (30 minutes).
+   - If remaining calls fall below `MIN_DAILY_REMAINING_QUOTA` (20), it halts execution until the daily resetting midnight passes.
 
-> [!IMPORTANT]
-> The logging system provides full visibility into scraping, matching, AI usage, and user interactions. All logs support Hebrew and are structured for easy analysis.
+---
 
-### Log Architecture
+## Logging & Telemetry Systems
 
-```mermaid
-graph TB
-    subgraph "Log Sources"
-        SCRAPE[Scraper Logs]
-        AI[AI Engine Logs]
-        MATCH[Matcher Logs]
-        BOT[Bot Interaction Logs]
-        REJECT[Rejection Logs]
-    end
-    
-    subgraph "Log Processing"
-        JSON[JSON Formatter]
-        ROTATE[Log Rotation]
-    end
-    
-    subgraph "Log Destinations"
-        CONSOLE[Console - Human Readable]
-        FILE[File Logs - JSON]
-        REJECT_DB[(Rejection DB)]
-    end
-    
-    SCRAPE & AI & MATCH & BOT --> JSON
-    JSON --> CONSOLE & FILE
-    REJECT --> REJECT_DB
-    FILE --> ROTATE
-```
+### Hebrew JSON Logging Setup
+The logging configurations are defined in [utils/logger.py](file:///c:/Users/noamp/Downloads/apartmentsBot/utils/logger.py).
+* **Console Logger**: Formatted using `HebrewConsoleFormatter` displaying human-readable timestamps, colorized log levels, and raw Hebrew characters.
+* **File Logger**: Formatted using `JSONFormatter` writing logs in structured JSON lines to `logs/app.log` (rotating 10MB, max 10 backups) and `logs/errors.log` (errors only, max 5 backups).
 
-### Log Configuration
-
-```python
-# utils/logger.py
-import logging
-import json
-from logging.handlers import RotatingFileHandler, TimedRotatingFileHandler
-from datetime import datetime
-from pathlib import Path
-from typing import Any, Dict
-import sys
-
-class JSONFormatter(logging.Formatter):
-    """
-    Structured JSON logging for machine parsing.
-    Supports Hebrew text properly.
-    """
-    
-    def format(self, record: logging.LogRecord) -> str:
-        log_data = {
-            "timestamp": datetime.utcnow().isoformat() + "Z",
-            "level": record.levelname,
-            "logger": record.name,
-            "message": record.getMessage(),
-            "module": record.module,
-            "function": record.funcName,
-            "line": record.lineno,
-        }
-        
-        # Add extra fields if present
-        if hasattr(record, "extra_data"):
-            log_data["data"] = record.extra_data
-        
-        # Add exception info if present
-        if record.exc_info:
-            log_data["exception"] = self.formatException(record.exc_info)
-        
-        return json.dumps(log_data, ensure_ascii=False, default=str)
-
-
-class HebrewConsoleFormatter(logging.Formatter):
-    """Human-readable console format with Hebrew support."""
-    
-    COLORS = {
-        "DEBUG": "\033[36m",     # Cyan
-        "INFO": "\033[32m",      # Green
-        "WARNING": "\033[33m",   # Yellow
-        "ERROR": "\033[31m",     # Red
-        "CRITICAL": "\033[35m",  # Magenta
-    }
-    RESET = "\033[0m"
-    
-    def format(self, record: logging.LogRecord) -> str:
-        color = self.COLORS.get(record.levelname, self.RESET)
-        timestamp = datetime.now().strftime("%H:%M:%S")
-        
-        # Short logger name
-        logger_short = record.name.split(".")[-1][:12].ljust(12)
-        
-        message = f"{color}{timestamp} [{record.levelname:>7}] {logger_short} | {record.getMessage()}{self.RESET}"
-        
-        if hasattr(record, "extra_data"):
-            message += f"\n    📋 {record.extra_data}"
-        
-        return message
-
-
-class LoggerFactory:
-    """
-    Factory for creating specialized loggers.
-    Ensures consistent configuration across all components.
-    """
-    
-    _initialized = False
-    _log_dir = Path("logs")
-    
-    @classmethod
-    def initialize(cls, log_dir: str = "logs", debug: bool = False):
-        """Initialize logging system. Call once at startup."""
-        if cls._initialized:
-            return
-        
-        cls._log_dir = Path(log_dir)
-        cls._log_dir.mkdir(exist_ok=True)
-        
-        # Root logger config
-        root_level = logging.DEBUG if debug else logging.INFO
-        logging.root.setLevel(root_level)
-        
-        # Console handler (human readable)
-        console = logging.StreamHandler(sys.stdout)
-        console.setFormatter(HebrewConsoleFormatter())
-        console.setLevel(logging.INFO)
-        logging.root.addHandler(console)
-        
-        # Main log file (JSON, rotating)
-        main_file = RotatingFileHandler(
-            cls._log_dir / "app.log",
-            maxBytes=10_000_000,  # 10MB
-            backupCount=10,
-            encoding="utf-8"
-        )
-        main_file.setFormatter(JSONFormatter())
-        main_file.setLevel(logging.DEBUG)
-        logging.root.addHandler(main_file)
-        
-        # Error log file (errors only)
-        error_file = RotatingFileHandler(
-            cls._log_dir / "errors.log",
-            maxBytes=5_000_000,  # 5MB
-            backupCount=5,
-            encoding="utf-8"
-        )
-        error_file.setFormatter(JSONFormatter())
-        error_file.setLevel(logging.ERROR)
-        logging.root.addHandler(error_file)
-        
-        cls._initialized = True
-    
-    @classmethod
-    def get_logger(cls, name: str) -> logging.Logger:
-        """Get a logger with the given name."""
-        if not cls._initialized:
-            cls.initialize()
-        return logging.getLogger(name)
-    
-    @classmethod
-    def get_specialized_logger(cls, component: str) -> 'StructuredLogger':
-        """Get a specialized logger for a specific component."""
-        return StructuredLogger(cls.get_logger(f"apt_bot.{component}"))
-
-
-class StructuredLogger:
-    """
-    Wrapper for structured logging with context.
-    Makes it easy to log with extra data fields.
-    """
-    
-    def __init__(self, logger: logging.Logger):
-        self._logger = logger
-    
-    def _log(self, level: int, message: str, **extra):
-        record = self._logger.makeRecord(
-            self._logger.name, level, "", 0, message, (), None
-        )
-        if extra:
-            record.extra_data = extra
-        self._logger.handle(record)
-    
-    def debug(self, message: str, **extra):
-        self._log(logging.DEBUG, message, **extra)
-    
-    def info(self, message: str, **extra):
-        self._log(logging.INFO, message, **extra)
-    
-    def warning(self, message: str, **extra):
-        self._log(logging.WARNING, message, **extra)
-    
-    def error(self, message: str, **extra):
-        self._log(logging.ERROR, message, **extra)
-    
-    def critical(self, message: str, **extra):
-        self._log(logging.CRITICAL, message, **extra)
-```
-
-### Specialized Component Loggers
-
-```python
-# Pre-configured loggers for each component
-class Loggers:
-    """Centralized access to all component loggers."""
-    
-    @staticmethod
-    def scraper() -> StructuredLogger:
-        return LoggerFactory.get_specialized_logger("scraper")
-    
-    @staticmethod
-    def ai() -> StructuredLogger:
-        return LoggerFactory.get_specialized_logger("ai")
-    
-    @staticmethod
-    def matcher() -> StructuredLogger:
-        return LoggerFactory.get_specialized_logger("matcher")
-    
-    @staticmethod
-    def bot() -> StructuredLogger:
-        return LoggerFactory.get_specialized_logger("bot")
-    
-    @staticmethod
-    def scheduler() -> StructuredLogger:
-        return LoggerFactory.get_specialized_logger("scheduler")
-    
-    @staticmethod
-    def rate_limiter() -> StructuredLogger:
-        return LoggerFactory.get_specialized_logger("rate_limiter")
-```
-
-### Usage Examples
-
-```python
-# ===== Scraper Logging =====
-log = Loggers.scraper()
-
-log.info("Starting Facebook scrape", groups=3, source="facebook")
-
-log.info("Scraped listings", 
-    source="facebook",
-    group_url="https://facebook.com/groups/...",
-    listings_found=15,
-    duration_seconds=12.5
-)
-
-log.warning("Rate limit detected", 
-    source="facebook",
-    retry_after_seconds=60
-)
-
-log.error("Scraping failed",
-    source="yad2",
-    error_type="ConnectionTimeout",
-    url="https://yad2.co.il/..."
-)
-
-
-# ===== AI Engine Logging =====
-log = Loggers.ai()
-
-log.info("AI enrichment batch", 
-    listings_count=10,
-    batch_number=3,
-    tokens_estimate=2500
-)
-
-log.info("AI response received",
-    duration_ms=1250,
-    prompt_type="enrichment",
-    success=True
-)
-
-log.warning("Rate limit waiting",
-    wait_seconds=45,
-    daily_remaining=150,
-    rpm_remaining=2
-)
-
-
-# ===== Matcher Logging =====
-log = Loggers.matcher()
-
-log.info("Matching cycle complete",
-    total_listings=50,
-    total_users=20,
-    total_matches=35,
-    total_rejections=965,
-    ai_calls_used=3,
-    duration_seconds=2.5
-)
-
-log.debug("Listing matched",
-    listing_id="abc123",
-    user_id=12345678,
-    match_method="attribute",  # or "ai" or "benefit_of_doubt"
-    rules_checked=5
-)
-
-
-# ===== Rejection Logging (with full context) =====
-log = Loggers.matcher()
-
-log.info("Listing rejected",
-    listing_id="xyz789",
-    user_id=12345678,
-    listing_url="https://...",
-    listing_price=6500,
-    listing_location="תל אביב, פלורנטין",
-    failed_rules=["מחיר 6500 > מקסימום 5000"],
-    rule_types=["price_max"]
-)
-
-
-# ===== Bot Interaction Logging =====
-log = Loggers.bot()
-
-log.info("User command",
-    user_id=12345678,
-    username="@example_user",
-    command="/start",
-    chat_type="private"
-)
-
-log.info("Rules updated",
-    user_id=12345678,
-    action="add",
-    rule_type="custom",
-    rule_text="עם מרפסת גדולה"
-)
-
-log.info("Notification sent",
-    user_id=12345678,
-    listing_id="abc123",
-    listing_price=4500,
-    listing_location="רמת גן"
-)
-```
-
-### Rejection Log Repository
-
-```python
-# database/repositories/rejection_repository.py
-from datetime import datetime, timedelta
-from typing import List, Optional
-
-class RejectionLogRepository:
-    """
-    Stores and queries rejection logs for verification.
-    Allows users to see why listings were rejected.
-    """
-    
-    async def log_rejection(
-        self,
-        listing_id: str,
-        user_id: int,
-        listing_data: dict,
-        failed_rules: List[str],
-        reasons: List[str],
-        match_method: str
-    ):
-        """Log a rejection with full context."""
-        await self.db.execute("""
-            INSERT INTO rejection_logs 
-            (listing_id, user_id, listing_data, failed_rules, reasons, match_method, created_at)
-            VALUES ($1, $2, $3, $4, $5, $6, $7)
-        """, listing_id, user_id, 
-             json.dumps(listing_data, ensure_ascii=False),
-             json.dumps(failed_rules, ensure_ascii=False),
-             json.dumps(reasons, ensure_ascii=False),
-             match_method,
-             datetime.utcnow()
-        )
-    
-    async def get_user_rejections(
-        self,
-        user_id: int,
-        limit: int = 20,
-        since: Optional[datetime] = None
-    ) -> List[dict]:
-        """Get recent rejections for a user to review."""
-        since = since or datetime.utcnow() - timedelta(days=7)
-        
-        rows = await self.db.fetch("""
-            SELECT listing_id, listing_data, failed_rules, reasons, 
-                   match_method, created_at
-            FROM rejection_logs
-            WHERE user_id = $1 AND created_at >= $2
-            ORDER BY created_at DESC
-            LIMIT $3
-        """, user_id, since, limit)
-        
-        return [
-            {
-                "listing_id": row["listing_id"],
-                "listing": json.loads(row["listing_data"]),
-                "failed_rules": json.loads(row["failed_rules"]),
-                "reasons": json.loads(row["reasons"]),
-                "match_method": row["match_method"],
-                "rejected_at": row["created_at"]
-            }
-            for row in rows
-        ]
-    
-    async def get_rejection_stats(self, user_id: int) -> dict:
-        """Get rejection statistics for a user."""
-        stats = await self.db.fetchrow("""
-            SELECT 
-                COUNT(*) as total_rejections,
-                COUNT(DISTINCT listing_id) as unique_listings,
-                jsonb_object_agg(
-                    COALESCE(match_method, 'unknown'), 
-                    count
-                ) as by_method
-            FROM (
-                SELECT match_method, COUNT(*) as count
-                FROM rejection_logs
-                WHERE user_id = $1
-                AND created_at >= NOW() - INTERVAL '7 days'
-                GROUP BY match_method
-            ) sub
-        """, user_id)
-        
-        return dict(stats) if stats else {}
-```
-
-### Log File Structure
-
-```
-logs/
-├── app.log              # Main application log (JSON, rotating 10MB × 10)
-├── app.log.1            # Rotated backup
-├── app.log.2
-├── errors.log           # Errors only (JSON, rotating 5MB × 5)
-└── errors.log.1
-```
-
-### Sample Log Output
-
-**Console (human-readable):**
-```
-14:23:45 [   INFO] scraper      | Starting Facebook scrape
-    📋 {'groups': 3, 'source': 'facebook'}
-14:23:58 [   INFO] scraper      | Scraped listings
-    📋 {'source': 'facebook', 'listings_found': 15, 'duration_seconds': 12.5}
-14:24:01 [   INFO] ai           | AI enrichment batch
-    📋 {'listings_count': 10, 'batch_number': 1}
-14:24:03 [WARNING] rate_limiter | Rate limit waiting
-    📋 {'wait_seconds': 45, 'daily_remaining': 150}
-```
-
-**JSON Log File (app.log):**
 ```json
-{"timestamp":"2024-12-28T12:23:45.123Z","level":"INFO","logger":"apt_bot.scraper","message":"Scraped listings","module":"facebook_scraper","function":"scrape","line":45,"data":{"source":"facebook","group_url":"https://...","listings_found":15,"duration_seconds":12.5}}
-{"timestamp":"2024-12-28T12:24:01.456Z","level":"INFO","logger":"apt_bot.ai","message":"AI enrichment batch","module":"listing_enricher","function":"enrich_listings","line":78,"data":{"listings_count":10,"batch_number":1,"tokens_estimate":2500}}
+{"timestamp":"2026-06-09T08:12:04.123Z","level":"INFO","logger":"apt_bot.scraper","message":"Scraped listings","module":"facebook_scraper","function":"scrape","line":65,"data":{"source":"facebook","listings_found":12,"duration_seconds":14.2}}
 ```
 
-### Error Handling Decorator
-
-```python
-from functools import wraps
-
-def handle_errors(logger: StructuredLogger, reraise: bool = False):
-    """
-    Decorator for graceful error handling with logging.
-    """
-    def decorator(func):
-        @wraps(func)
-        async def wrapper(*args, **kwargs):
-            try:
-                return await func(*args, **kwargs)
-            except Exception as e:
-                logger.error(
-                    f"Error in {func.__name__}",
-                    error_type=type(e).__name__,
-                    error_message=str(e),
-                    function=func.__name__
-                )
-                if reraise:
-                    raise
-                return None
-        return wrapper
-    return decorator
-
-# Usage
-@handle_errors(Loggers.scraper())
-async def scrape_facebook():
-    ...
-```
-
+### Telemetry Performance Tracking
+System performance metrics are tracked in [utils/telemetry.py](file:///c:/Users/noamp/Downloads/apartmentsBot/utils/telemetry.py) and stored in `logs/telemetry.json` detailing:
+* **Scrapers**: Success counts and run durations per source.
+* **AI Metrics**: API request counts, accumulated latency, server errors, and remaining quota.
+* **Matching**: Totals of processed, matched, and rejected listings.
+* **Errors Log**: Counter dictionary tracking occurrences per module class name.
 
 ---
 
-## Deployment Checklist
+## Deployment & Verification
 
-- [ ] Set up Python virtual environment
-- [ ] Install Chrome/Chromium for scraping
-- [ ] Configure environment variables (.env file)
-- [ ] Set up database
-- [ ] Register Telegram bot with @BotFather
-- [ ] Obtain Gemini API key
-- [ ] Configure Facebook group URLs to monitor
-- [ ] Test scraping locally before deployment
-- [ ] Set up process manager (systemd/supervisor)
-- [ ] Configure logging and monitoring
-- [ ] Set up backup strategy for database
+### Checklist for Deployment
+1. Set up a Python 3.11 virtual environment.
+2. Install Chromium and dependencies via Playwright:
+   ```bash
+   playwright install chromium
+   playwright install-deps
+   ```
+3. Create a `.env` configuration file using `.env.example` as a template.
+4. Run migration setup script or start the bot to auto-create SQLite schema.
+5. Create a systemd daemon file or use PM2 to manage the `python main.py` runner process.
 
----
-
-## Testing Strategy
-
-| Test Type | Focus Area |
-|-----------|------------|
-| **Unit Tests** | AI parsing, rule matching, model validation |
-| **Integration Tests** | Scraper → Matcher → Notifier flow |
-| **E2E Tests** | Full user interaction via Telegram |
-| **Load Tests** | Multiple concurrent users and scrapers |
-
----
-
-## Security Considerations
-
-1. **API Keys**: Store in environment variables, never in code
-2. **Facebook Sessions**: Use session cookies carefully, implement rotation
-3. **Rate Limiting**: Implement proper delays to avoid IP bans
-4. **User Data**: Minimize stored personal information
-5. **Telegram Webhooks**: Use HTTPS with proper SSL certificates
+### Testing Commands
+* **Run Unit/Integration Tests**:
+  ```bash
+  pytest
+  ```
+* **Verify Specific Scrapers**:
+  ```bash
+  python tests/test_scraper.py
+  python tests/test_yad2_scraper.py
+  ```
+* **Debug User Rejections**:
+  ```bash
+  python scripts/debug_rejections.py --user <telegram_id>
+  ```

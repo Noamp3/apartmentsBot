@@ -83,18 +83,25 @@ def extract_bedrooms(text: str) -> Optional[int]:
     - 3.5 חדרים (returns 3)
     - 3 וחצי חדרים (returns 3)
     - סטודיו (returns 1)
+    - 1.5 חד (returns 1)
+    - סלון וחדר שינה (returns 2)
+    - 2 חדרי שינה (returns 3)
     """
     if not text:
         return None
+    
+    # Remove unicode bi-directional control characters
+    text = re.sub(r'[\u200e\u200f\u202a-\u202e\u2066-\u2069]', '', text)
     
     # Studio = 1 room
     if re.search(r"סטודיו|studio", text, re.IGNORECASE):
         return 1
     
-    # Numeric patterns
+    # 1. Standard room patterns first (direct room counts)
     patterns = [
-        r"(\d+)\s*וחצי\s*חדר",  # 3 וחצי חדרים
-        r"(\d+(?:\.\d)?)\s*חדר",  # 3 חדרים or 3.5 חדרים
+        r"(\d+)\s*וחצי\s*חד(?:ר(?:ים)?)?\b",  # 3 וחצי חד/חדר/חדרים
+        r"(\d+(?:\.\d)?)\s*חד(?:ר(?:ים)?)?\b",  # 3 חד/חדר/חדרים or 3.5 חד/חדר/חדרים
+        r"דירת\s*(\d+)\s*חד(?:ר(?:ים)?)?\b",  # דירת 3 חדרים
         r"דירת\s*(\d+)",  # דירת 3
     ]
     
@@ -104,10 +111,37 @@ def extract_bedrooms(text: str) -> Optional[int]:
             num = float(match.group(1))
             return int(num)  # Round down for .5 rooms
     
-    # Hebrew word numbers
+    # Hebrew word numbers for rooms (e.g. שלושה חדרים, שלושה חד)
     for word, num in HEBREW_NUMBERS.items():
-        if re.search(rf"\b{word}\s*חדר", text):
+        if re.search(rf"\b{word}\s*חד(?:ר(?:ים)?)?\b", text):
             return num
+            
+    # 2. סלון + bedroom patterns
+    # Match סלון ו-X חדרי שינה
+    match = re.search(r"סלון\s*(?:ו|\+)\s*(\d+)\s*חדרי?\s*שינה", text)
+    if match:
+        return int(match.group(1)) + 1
+        
+    # Match סלון ו[מספר בעברית] חדרי שינה
+    hebrew_bedroom_numbers = {
+        "שני": 2, "שניה": 2, "שלושה": 3, "ארבעה": 4, "חמישה": 5,
+        "שנייה": 2, "שלוש": 3, "ארבע": 4, "חמש": 5, "שתי": 2
+    }
+    for word, num in hebrew_bedroom_numbers.items():
+        if re.search(rf"סלון\s*(?:ו|\+)\s*{word}\s*חדרי\s*שינה", text):
+            return num + 1
+            
+    if re.search(r"סלון\s*(?:ו|\+)\s*חדר\s*שינה", text):
+        return 2
+        
+    # 3. X חדרי שינה (X bedrooms) -> X + 1 rooms
+    match = re.search(r"(\d+)\s*חדרי?\s*שינה", text)
+    if match:
+        return int(match.group(1)) + 1
+        
+    for word, num in hebrew_bedroom_numbers.items():
+        if re.search(rf"\b{word}\s*חדרי?\s*שינה", text):
+            return num + 1
     
     return None
 
@@ -176,12 +210,16 @@ def has_broker_fee(text: str) -> bool:
 
 def is_direct_from_owner(text: str) -> bool:
     """Check if listing is directly from owner."""
+    if not text:
+        return False
+    # Remove unicode bi-directional control characters
+    text = re.sub(r'[\u200e\u200f\u202a-\u202e\u2066-\u2069]', '', text)
     patterns = [
         r"(?:ללא|בלי|לא)\s*(?:דמי\s+|עמלת\s+|עמלות\s+|עמלה\s+|של\s+)?מ?תיווך",
         r"(?:ללא|בלי|לא)\s*(?:דמי\s+|עמלת\s+|עמלות\s+|עמלה\s+|של\s+)?מתוו[ךכ](?:ים|ות|ת)?",
         r"ישירות\s*מ?הבעלים",
         r"ישירות\s*מ?בעל\s*הדירה",
-        r"פרטי",
+        r"\bמ?פרטי\b",
         r"0%?\s*מ?תיווך",  # 0% תיווך or 0 מתיווך
         r"מ?תיווך\s*0%?",  # תיווך 0% or מתיווך 0%
         r"ללא\s*עמלה",   # no commission
