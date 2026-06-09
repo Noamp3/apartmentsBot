@@ -37,8 +37,23 @@ class SeenListingsRepository:
     
     async def mark_many_seen(self, listings: List[Listing]):
         """Mark multiple listings as seen."""
-        for listing in listings:
-            await self.mark_seen(listing)
+        if not listings:
+            return
+            
+        async with self.db._lock:
+            now_str = datetime.now().isoformat()
+            data = [
+                (listing.id, listing.source, listing.url, now_str)
+                for listing in listings
+            ]
+            await self.db.connection.executemany(
+                """
+                INSERT OR IGNORE INTO seen_listings (listing_id, source, url, first_seen_at)
+                VALUES (?, ?, ?, ?)
+                """,
+                data
+            )
+            await self.db.connection.commit()
     
     async def get_seen_ids(self, source: Optional[str] = None) -> Set[str]:
         """Get all seen listing IDs, optionally filtered by source."""
@@ -55,7 +70,18 @@ class SeenListingsRepository:
     
     async def filter_new(self, listings: List[Listing]) -> List[Listing]:
         """Filter out already-seen listings, returning only new ones."""
-        seen_ids = await self.get_seen_ids()
+        if not listings:
+            return []
+            
+        listing_ids = [l.id for l in listings]
+        placeholders = ",".join("?" for _ in listing_ids)
+        
+        rows = await self.db.fetch_all(
+            f"SELECT listing_id FROM seen_listings WHERE listing_id IN ({placeholders})",
+            tuple(listing_ids)
+        )
+        seen_ids = {row["listing_id"] for row in rows}
+        
         new_listings = []
         skipped_ids = []
         

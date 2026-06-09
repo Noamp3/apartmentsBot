@@ -10,6 +10,7 @@ from apscheduler.triggers.interval import IntervalTrigger
 
 from config import settings
 from utils.logger import Loggers
+from utils.telemetry import telemetry
 
 log = Loggers.scheduler()
 
@@ -75,11 +76,9 @@ class ScrapingScheduler:
         except Exception as e:
             failed = True
             log.exception("Scraping cycle failed", error=str(e))
-            from utils.telemetry import telemetry
             telemetry.track_error("scheduler", type(e).__name__)
         finally:
             duration = (datetime.now() - start_time).total_seconds()
-            from utils.telemetry import telemetry
             telemetry.track_cycle(duration, failed=failed)
             if not failed:
                 log.info("Scraping cycle complete", duration_seconds=round(duration, 1))

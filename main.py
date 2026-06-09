@@ -16,6 +16,7 @@ from typing import Dict, List
 
 from config import settings
 from utils.logger import LoggerFactory, Loggers
+from utils.telemetry import telemetry
 from database import get_db
 from database.repositories import (
     UserRepository, 
@@ -256,41 +257,45 @@ class ApartmentBotApplication:
         listing_repo = ListingRepository(db)
         rejection_repo = RejectionRepository(db)
         
-        # Phase 1: Scrape all sources
-        all_listings = []
-        
+        # Phase 1: Scrape all sources concurrently
         import time
-        from utils.telemetry import telemetry
         
-        # Facebook scrape
         start_fb = time.perf_counter()
-        fb_listings = []
-        fb_failed = False
-        try:
-            fb_listings = await self.facebook_scraper.scrape()
-            all_listings.extend(fb_listings)
-            log.info(f"Facebook: {len(fb_listings)} listings")
-        except Exception as e:
-            fb_failed = True
-            log.error(f"Facebook scrape failed: {e}")
-            telemetry.track_error("facebook_scraper", type(e).__name__)
-        finally:
-            duration_fb = time.perf_counter() - start_fb
-            
-        # Yad2 scrape
         start_yad2 = time.perf_counter()
+        
+        fb_listings = []
         yad2_listings = []
+        fb_failed = False
         yad2_failed = False
-        try:
-            yad2_listings = await self.yad2_scraper.scrape()
-            all_listings.extend(yad2_listings)
-            log.info(f"Yad2: {len(yad2_listings)} listings")
-        except Exception as e:
+        
+        # Run scrapers concurrently
+        fb_task = asyncio.create_task(self.facebook_scraper.scrape())
+        yad2_task = asyncio.create_task(self.yad2_scraper.scrape())
+        
+        fb_res, yad2_res = await asyncio.gather(fb_task, yad2_task, return_exceptions=True)
+        
+        duration_fb = time.perf_counter() - start_fb
+        duration_yad2 = time.perf_counter() - start_yad2
+        
+        if isinstance(fb_res, Exception):
+            fb_failed = True
+            log.error(f"Facebook scrape failed: {fb_res}")
+            telemetry.track_error("facebook_scraper", type(fb_res).__name__)
+        else:
+            fb_listings = fb_res
+            log.info(f"Facebook: {len(fb_listings)} listings")
+            
+        if isinstance(yad2_res, Exception):
             yad2_failed = True
-            log.error(f"Yad2 scrape failed: {e}")
-            telemetry.track_error("yad2_scraper", type(e).__name__)
-        finally:
-            duration_yad2 = time.perf_counter() - start_yad2
+            log.error(f"Yad2 scrape failed: {yad2_res}")
+            telemetry.track_error("yad2_scraper", type(yad2_res).__name__)
+        else:
+            yad2_listings = yad2_res
+            log.info(f"Yad2: {len(yad2_listings)} listings")
+            
+        all_listings = []
+        all_listings.extend(fb_listings)
+        all_listings.extend(yad2_listings)
             
         if not all_listings:
             # Record telemetry for scrapers even if 0 results
@@ -371,8 +376,7 @@ class ApartmentBotApplication:
         
         # Cache enriched listings and save fingerprints
         saved_enriched_count = 0
-        valid_enriched_listings = []
-        cross_source_duplicates_post = 0
+        valid_price_listings = []
         
         for enriched in enriched_listings:
             # VALIDATION: Drop listings with no price
@@ -386,7 +390,70 @@ class ApartmentBotApplication:
                     raw_text_preview=raw_preview
                 )
                 continue
+            valid_price_listings.append(enriched)
+            
+        # Self-heal locations in parallel if uncertain
+        from utils.israeli_locations import get_location_db
+        loc_db = get_location_db()
+        
+        healing_tasks = []
+        heal_targets = []
+        
+        for enriched in valid_price_listings:
+            location_signals = []
+            if enriched.extracted_neighborhood:
+                location_signals.append(enriched.extracted_neighborhood)
+            if enriched.extracted_street:
+                location_signals.append(enriched.extracted_street)
                 
+            # Include all parsed mentioned areas (excluding generic city names)
+            city_names = {"תל אביב", "תל אביב יפו", "תל אביב-יפו", "tel aviv"}
+            if enriched.area_matches:
+                for area in enriched.area_matches.keys():
+                    if area.strip() and area.strip().lower() not in city_names:
+                        location_signals.append(area.strip())
+                        
+            location_signals.append(enriched.extracted_location or enriched.listing.location)
+            
+            listing_loc = ", ".join(location_signals)
+            
+            norm = loc_db.normalize_location(listing_loc)
+            
+            if norm["neighborhood"]:
+                # Successfully resolved via database schema lookup (including custom schema)
+                enriched.extracted_neighborhood = norm["neighborhood"]
+                if norm["city"]:
+                    enriched.extracted_location = norm["city"]
+            elif self.geo_grounding_ai_engine:
+                log.info(
+                    f"Location uncertainty detected for listing {enriched.listing.id[:8]} ('{listing_loc}'). Preparing parallel AI location self-healing..."
+                )
+                details = f"Title: {enriched.listing.title}\nDescription: {enriched.listing.description}"
+                task = loc_db.async_resolve_unknown_location(
+                    raw_location=listing_loc,
+                    listing_details=details,
+                    ai_engine=self.geo_grounding_ai_engine
+                )
+                healing_tasks.append(task)
+                heal_targets.append((enriched, listing_loc))
+                
+        if healing_tasks:
+            healed_results = await asyncio.gather(*healing_tasks, return_exceptions=True)
+            for (enriched, listing_loc), result in zip(heal_targets, healed_results):
+                if isinstance(result, Exception):
+                    log.error(f"Failed to resolve unknown location via AI self-healing for listing {enriched.listing.id[:8]}: {result}")
+                elif result and result.get("neighborhood"):
+                    log.info(
+                        f"Location self-healed successfully for listing {enriched.listing.id[:8]} -> '{result['neighborhood']}'"
+                    )
+                    enriched.extracted_neighborhood = result["neighborhood"]
+                    if result.get("city"):
+                        enriched.extracted_location = result["city"]
+                        
+        valid_enriched_listings = []
+        cross_source_duplicates_post = 0
+        
+        for enriched in valid_price_listings:
             # Post-Enrichment Fingerprint Deduplication
             duplicate_info = await seen_repo.find_duplicate_by_fingerprint(enriched.listing, enriched)
             if duplicate_info:
@@ -405,54 +472,6 @@ class ApartmentBotApplication:
                 await seen_repo.mark_seen(enriched.listing)
                 continue
                 
-            # Self-heal location if uncertain
-            location_signals = []
-            if enriched.extracted_neighborhood:
-                location_signals.append(enriched.extracted_neighborhood)
-            if enriched.extracted_street:
-                location_signals.append(enriched.extracted_street)
-                
-            # Include all parsed mentioned areas (excluding generic city names)
-            city_names = {"תל אביב", "תל אביב יפו", "תל אביב-יפו", "tel aviv"}
-            if enriched.area_matches:
-                for area in enriched.area_matches.keys():
-                    if area.strip() and area.strip().lower() not in city_names:
-                        location_signals.append(area.strip())
-                        
-            location_signals.append(enriched.extracted_location or enriched.listing.location)
-            
-            listing_loc = ", ".join(location_signals)
-            
-            from utils.israeli_locations import get_location_db
-            loc_db = get_location_db()
-            norm = loc_db.normalize_location(listing_loc)
-            
-            if norm["neighborhood"]:
-                # Successfully resolved via database schema lookup (including custom schema)
-                enriched.extracted_neighborhood = norm["neighborhood"]
-                if norm["city"]:
-                    enriched.extracted_location = norm["city"]
-            elif self.geo_grounding_ai_engine:
-                log.info(
-                    f"Location uncertainty detected for listing {enriched.listing.id[:8]} ('{listing_loc}'). Invoking AI location self-healing..."
-                )
-                try:
-                    details = f"Title: {enriched.listing.title}\nDescription: {enriched.listing.description}"
-                    healed_norm = await loc_db.async_resolve_unknown_location(
-                        raw_location=listing_loc,
-                        listing_details=details,
-                        ai_engine=self.geo_grounding_ai_engine
-                    )
-                    if healed_norm and healed_norm["neighborhood"]:
-                        log.info(
-                            f"Location self-healed successfully for listing {enriched.listing.id[:8]} -> '{healed_norm['neighborhood']}'"
-                        )
-                        enriched.extracted_neighborhood = healed_norm["neighborhood"]
-                        if healed_norm["city"]:
-                            enriched.extracted_location = healed_norm["city"]
-                except Exception as e:
-                    log.error(f"Failed to resolve unknown location via AI self-healing: {e}")
-                        
             valid_enriched_listings.append(enriched)
             await listing_repo.save_enriched(enriched)
             

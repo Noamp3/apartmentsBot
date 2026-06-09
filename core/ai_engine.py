@@ -14,6 +14,7 @@ from config import settings, AIProvider
 from utils.logger import Loggers
 from utils.hebrew_utils import has_broker_fee
 from models.listing import Listing, EnrichedListing
+from utils.telemetry import telemetry
 from core.personas import get_persona, PERSONAS
 
 
@@ -178,7 +179,6 @@ class BaseAIEngine(ABC):
         
         async def wrapped_generate(*args, **kwargs):
             import time
-            from utils.telemetry import telemetry
             start_time = time.perf_counter()
             failed = False
             try:
