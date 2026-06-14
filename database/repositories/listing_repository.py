@@ -363,9 +363,9 @@ class ListingRepository:
             """
             INSERT OR REPLACE INTO enriched_listings 
             (listing_id, source, url, title, description, location, raw_text, images,
-             extracted_price, extracted_bedrooms, extracted_location, extracted_neighborhood,
+             extracted_price, extracted_bedrooms, extracted_location, extracted_neighborhood, extracted_street,
              has_broker_fee, roomies, attributes, area_matches, bordering_areas, posted_at, scraped_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 enriched.listing.id,
@@ -380,6 +380,7 @@ class ListingRepository:
                 enriched.extracted_bedrooms,
                 enriched.extracted_location,
                 enriched.extracted_neighborhood,
+                enriched.extracted_street,
                 enriched.has_broker_fee,
                 enriched.roomies,
                 json.dumps(enriched.attributes, ensure_ascii=False),
@@ -473,6 +474,7 @@ class ListingRepository:
             extracted_bedrooms=row["extracted_bedrooms"],
             extracted_location=row["extracted_location"] or "",
             extracted_neighborhood=row["extracted_neighborhood"] or "",
+            extracted_street=row["extracted_street"] or "" if "extracted_street" in row.keys() else "",
             has_broker_fee=bool(row["has_broker_fee"]),
             roomies=bool(row["roomies"]) if "roomies" in row.keys() else False,
             attributes=json.loads(row["attributes"]) if row["attributes"] else {},

@@ -60,6 +60,7 @@ CREATE TABLE IF NOT EXISTS enriched_listings (
     extracted_bedrooms INTEGER,
     extracted_location TEXT,
     extracted_neighborhood TEXT,
+    extracted_street TEXT,
     has_broker_fee BOOLEAN DEFAULT FALSE,
     roomies BOOLEAN DEFAULT FALSE,
     attributes TEXT,  -- JSON
@@ -204,6 +205,13 @@ class DatabaseManager:
         # Safe migration: Add 'roomies' column to enriched_listings if it doesn't exist
         try:
             await self._connection.execute("ALTER TABLE enriched_listings ADD COLUMN roomies BOOLEAN DEFAULT FALSE")
+            await self._connection.commit()
+        except aiosqlite.OperationalError:
+            pass
+            
+        # Safe migration: Add 'extracted_street' column to enriched_listings if it doesn't exist
+        try:
+            await self._connection.execute("ALTER TABLE enriched_listings ADD COLUMN extracted_street TEXT DEFAULT NULL")
             await self._connection.commit()
         except aiosqlite.OperationalError:
             pass
