@@ -244,6 +244,13 @@ class ApartmentBotApplication:
         await listing_repo.cleanup_old_listings(days_to_keep=7)
         await rejection_repo.delete_old_rejections(older_than_days=7)
         
+        # Clean up old screenshots (using configured age, defaults to 24 hours)
+        try:
+            from utils.screenshot_utils import cleanup_old_screenshots
+            cleanup_old_screenshots()
+        except Exception as e:
+            log.warning(f"Error cleaning up old screenshots: {e}")
+            
         log.info("Cleanup complete")
     
     async def run_processing_cycle(self):

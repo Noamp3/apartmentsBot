@@ -1,0 +1,11 @@
+{
+  "pytest-timer-hook": {
+    "PostInvocation": [
+      {
+        "type": "command",
+        "command": "python .agents/pytest_timer_hook.py",
+        "timeout": 30
+      }
+    ]
+  }
+}

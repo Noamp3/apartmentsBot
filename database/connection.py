@@ -56,6 +56,7 @@ CREATE TABLE IF NOT EXISTS enriched_listings (
     location TEXT,
     raw_text TEXT,
     images TEXT,  -- JSON array of image URLs
+    screenshots TEXT,  -- JSON
     extracted_price INTEGER,
     extracted_bedrooms INTEGER,
     extracted_location TEXT,
@@ -212,6 +213,13 @@ class DatabaseManager:
         # Safe migration: Add 'extracted_street' column to enriched_listings if it doesn't exist
         try:
             await self._connection.execute("ALTER TABLE enriched_listings ADD COLUMN extracted_street TEXT DEFAULT NULL")
+            await self._connection.commit()
+        except aiosqlite.OperationalError:
+            pass
+            
+        # Safe migration: Add 'screenshots' column to enriched_listings if it doesn't exist
+        try:
+            await self._connection.execute("ALTER TABLE enriched_listings ADD COLUMN screenshots TEXT DEFAULT NULL")
             await self._connection.commit()
         except aiosqlite.OperationalError:
             pass

@@ -23,6 +23,7 @@ class Listing:
     phone: Optional[str] = None  # Contact phone number
     author: Optional[str] = None  # Name of person posting
     images: List[str] = field(default_factory=list)
+    screenshots: dict = field(default_factory=dict)  # {"post_screenshot": Optional[str], "gallery_screenshots": List[str]}
     posted_at: Optional[datetime] = None
     scraped_at: datetime = field(default_factory=datetime.now)
     

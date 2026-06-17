@@ -179,7 +179,7 @@ class ApartmentBot:
             log.error("Bot not initialized")
             return
         
-        message = self.formatter.format_listing(enriched, bordering_note, sass_intro)
+        full_message = self.formatter.format_listing(enriched, bordering_note, sass_intro)
         
         # Enhanced logging
         try:
@@ -195,23 +195,109 @@ class ApartmentBot:
                     user=user_info)
                     
             if settings.DEBUG:
-                log.debug(f"FULL MESSAGE to {user_info}:\n{message}")
+                log.debug(f"FULL MESSAGE to {user_info}:\n{full_message}")
                 log.debug(f"USER DETAILS: {user}")
                 
         except Exception as e:
             log.warning(f"Error fetching user details for logging: {e}")
         
-        try:
-            await self.application.bot.send_message(
-                chat_id=chat_id,
-                text=message,
-                parse_mode='MarkdownV2',
-                disable_web_page_preview=False
-            )
-        except Exception as e:
-            log.error("Failed to send notification", 
-                     chat_id=chat_id, error=str(e))
-            raise e
+        # Check if screenshots exist on disk
+        import os
+        screenshots = enriched.listing.screenshots or {}
+        post_path = screenshots.get("post_screenshot")
+        gallery_paths = screenshots.get("gallery_screenshots", [])
+        
+        photo_paths = []
+        if post_path and os.path.exists(post_path):
+            photo_paths.append(post_path)
+            
+        for path in gallery_paths:
+            if path and os.path.exists(path):
+                photo_paths.append(path)
+                
+        if photo_paths:
+            # Determine if we need to send text separately due to Telegram 1024-char caption limit
+            send_separate_text = len(full_message) > 1024
+            
+            caption_text = None
+            if not send_separate_text:
+                caption_text = full_message
+            else:
+                try:
+                    await self.application.bot.send_message(
+                        chat_id=chat_id,
+                        text=full_message,
+                        parse_mode='MarkdownV2',
+                        disable_web_page_preview=True
+                    )
+                except Exception as e:
+                    log.error("Failed to send separate text notification", chat_id=chat_id, error=str(e))
+                    raise e
+                    
+            try:
+                from telegram import InputMediaPhoto
+                
+                if len(photo_paths) == 1:
+                    # Send single photo
+                    with open(photo_paths[0], "rb") as f:
+                        await self.application.bot.send_photo(
+                            chat_id=chat_id,
+                            photo=f,
+                            caption=caption_text,
+                            parse_mode="MarkdownV2"
+                        )
+                else:
+                    # Send media group
+                    media_items = []
+                    files = []
+                    for i, path in enumerate(photo_paths):
+                        f = open(path, "rb")
+                        files.append(f)
+                        media_items.append(
+                            InputMediaPhoto(
+                                f,
+                                caption=caption_text if i == 0 else None,
+                                parse_mode="MarkdownV2"
+                            )
+                        )
+                    
+                    try:
+                        await self.application.bot.send_media_group(
+                            chat_id=chat_id,
+                            media=media_items
+                        )
+                    finally:
+                        for f in files:
+                            try:
+                                f.close()
+                            except Exception:
+                                pass
+            except Exception as e:
+                log.error("Failed to send screenshot(s) notification", chat_id=chat_id, error=str(e))
+                # Fallback: if text was not already sent, send it now
+                if not send_separate_text:
+                    try:
+                        await self.application.bot.send_message(
+                            chat_id=chat_id,
+                            text=full_message,
+                            parse_mode='MarkdownV2',
+                            disable_web_page_preview=False
+                        )
+                    except Exception as fallback_err:
+                        log.error("Failed to send fallback text notification", chat_id=chat_id, error=str(fallback_err))
+                        raise fallback_err
+        else:
+            # Fall back to text-only notification
+            try:
+                await self.application.bot.send_message(
+                    chat_id=chat_id,
+                    text=full_message,
+                    parse_mode='MarkdownV2',
+                    disable_web_page_preview=False
+                )
+            except Exception as e:
+                log.error("Failed to send text-only notification", chat_id=chat_id, error=str(e))
+                raise e
     
     async def send_message(self, chat_id: int, text: str):
         """Send a plain message to a user."""

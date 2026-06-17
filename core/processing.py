@@ -84,6 +84,13 @@ class ProcessingService:
                 prefetched_rules=user_rules, 
                 prefetched_sent_ids=user_sent_ids
             )
+            
+        # Clean up screenshots older than the configured threshold (e.g. 24 hours)
+        try:
+            from utils.screenshot_utils import cleanup_old_screenshots
+            cleanup_old_screenshots()
+        except Exception as cleanup_err:
+            log.warning(f"Error cleaning up old screenshots after cycle: {cleanup_err}")
 
     async def match_user_to_listings(
         self, 

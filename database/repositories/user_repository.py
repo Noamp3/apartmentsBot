@@ -191,5 +191,10 @@ class UserRepository:
         )
     
     async def delete_user(self, telegram_id: int):
-        """Delete user and all associated data (handled by DB CASCADE)."""
+        """Delete user and all associated data."""
+        # Manually delete dependent records first because the production database schema
+        # might have been created without ON DELETE CASCADE.
+        await self.db.execute("DELETE FROM search_rules WHERE user_id = ?", (telegram_id,))
+        await self.db.execute("DELETE FROM rejection_logs WHERE user_id = ?", (telegram_id,))
+        await self.db.execute("DELETE FROM sent_notifications WHERE user_id = ?", (telegram_id,))
         await self.db.execute("DELETE FROM users WHERE telegram_id = ?", (telegram_id,))

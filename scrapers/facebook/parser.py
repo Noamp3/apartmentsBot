@@ -364,10 +364,24 @@ class FacebookPostParser:
             url = await self.extract_post_url_immediate(page, post_element, soup)
             posted_at = await self.extract_post_date(page, post_element, soup)
             
+            # Generate listing_id for screenshot storage, matching the scraper ID logic
+            import hashlib
+            id_seed = url if url and len(url) > 30 else f"facebook_{hashlib.md5(text[:200].encode()).hexdigest()}"
+            listing_id = hashlib.md5(id_seed.encode()).hexdigest()
+            
+            # Capture screenshots using our utility functions
+            from utils.screenshot_utils import save_post_screenshot, save_gallery_screenshots
+            post_screenshot = await save_post_screenshot(post_element, listing_id)
+            gallery_screenshots = await save_gallery_screenshots(post_element, listing_id)
+            
             return {
                 'text': text,
                 'url': url,
                 'images': [],
+                'screenshots': {
+                    'post_screenshot': post_screenshot,
+                    'gallery_screenshots': gallery_screenshots
+                },
                 'price': price,
                 'author': author,
                 'phone': phone,
@@ -396,6 +410,7 @@ class FacebookPostParser:
                 'text': text,
                 'url': url,
                 'images': [],
+                'screenshots': {},
                 'price': price,
                 'author': author,
             }

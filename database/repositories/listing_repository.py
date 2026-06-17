@@ -345,6 +345,19 @@ class SeenListingsRepository:
     async def cleanup_old_entries(self, days_to_keep: int = 7):
         """Remove entries older than specified days."""
         cutoff = datetime.now() - timedelta(days=days_to_keep)
+        
+        # Manually delete dependent fingerprints first because the production database schema
+        # might have been created without ON DELETE CASCADE.
+        await self.db.execute(
+            """
+            DELETE FROM listing_fingerprints 
+            WHERE listing_id IN (
+                SELECT listing_id FROM seen_listings WHERE first_seen_at < ?
+            )
+            """,
+            (cutoff.isoformat(),)
+        )
+        
         await self.db.execute(
             "DELETE FROM seen_listings WHERE first_seen_at < ?",
             (cutoff.isoformat(),)
@@ -362,10 +375,10 @@ class ListingRepository:
         await self.db.execute(
             """
             INSERT OR REPLACE INTO enriched_listings 
-            (listing_id, source, url, title, description, location, raw_text, images,
+            (listing_id, source, url, title, description, location, raw_text, images, screenshots,
              extracted_price, extracted_bedrooms, extracted_location, extracted_neighborhood, extracted_street,
              has_broker_fee, roomies, attributes, area_matches, bordering_areas, posted_at, scraped_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 enriched.listing.id,
@@ -376,6 +389,7 @@ class ListingRepository:
                 enriched.listing.location,
                 enriched.listing.raw_text,
                 json.dumps(enriched.listing.images, ensure_ascii=False),
+                json.dumps(enriched.listing.screenshots, ensure_ascii=False),
                 enriched.extracted_price,
                 enriched.extracted_bedrooms,
                 enriched.extracted_location,
@@ -455,6 +469,9 @@ class ListingRepository:
     
     def _row_to_enriched(self, row) -> EnrichedListing:
         """Convert a database row to EnrichedListing."""
+        screenshots_raw = row["screenshots"] if "screenshots" in row.keys() else None
+        screenshots = json.loads(screenshots_raw) if screenshots_raw else {}
+        
         listing = Listing(
             id=row["listing_id"],
             source=row["source"],
@@ -464,6 +481,7 @@ class ListingRepository:
             location=row["location"] or "",
             raw_text=row["raw_text"] or "",
             images=json.loads(row["images"]) if row["images"] else [],
+            screenshots=screenshots,
             posted_at=row["posted_at"],
             scraped_at=row["scraped_at"],
         )

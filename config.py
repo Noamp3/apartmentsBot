@@ -93,6 +93,7 @@ class Settings(BaseSettings):
     SCRAPE_JITTER_SECONDS: int = 120
     MIN_DELAY_SECONDS: float = 1.0
     MAX_DELAY_SECONDS: float = 5.0
+    SCREENSHOT_CLEANUP_MAX_AGE_HOURS: int = 24
     
     # Yad2 Scraper Settings
     YAD2_USE_PLAYWRIGHT: bool = True  # Use Playwright (recommended) vs HTTP scraper

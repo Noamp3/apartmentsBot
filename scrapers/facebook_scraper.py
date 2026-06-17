@@ -505,6 +505,7 @@ class FacebookScraper(BaseScraper):
             phone=phone,
             author=author,
             images=raw_data.get('images', []),
+            screenshots=raw_data.get('screenshots', {}),
             posted_at=posted_at,
             scraped_at=datetime.now(),
         )
