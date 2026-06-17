@@ -3,7 +3,16 @@
     "PostInvocation": [
       {
         "type": "command",
-        "command": "python .agents/pytest_timer_hook.py",
+        "command": "python C:/Users/noamp/.gemini/config/pytest_timer_hook.py",
+        "timeout": 30
+      }
+    ]
+  },
+  "walkthrough-skill-thinker": {
+    "PostInvocation": [
+      {
+        "type": "command",
+        "command": "python C:/Users/noamp/.gemini/config/walkthrough_skill_thinker.py",
         "timeout": 30
       }
     ]

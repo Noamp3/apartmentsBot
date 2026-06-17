@@ -216,24 +216,18 @@ class ApartmentBot:
                 photo_paths.append(path)
                 
         if photo_paths:
-            # Determine if we need to send text separately due to Telegram 1024-char caption limit
-            send_separate_text = len(full_message) > 1024
-            
-            caption_text = None
-            if not send_separate_text:
-                caption_text = full_message
-            else:
-                try:
-                    await self.application.bot.send_message(
-                        chat_id=chat_id,
-                        text=full_message,
-                        parse_mode='MarkdownV2',
-                        disable_web_page_preview=True
-                    )
-                except Exception as e:
-                    log.error("Failed to send separate text notification", chat_id=chat_id, error=str(e))
-                    raise e
-                    
+            # Always send text details first, so photos appear at the bottom of the details
+            try:
+                await self.application.bot.send_message(
+                    chat_id=chat_id,
+                    text=full_message,
+                    parse_mode='MarkdownV2',
+                    disable_web_page_preview=True
+                )
+            except Exception as e:
+                log.error("Failed to send text notification", chat_id=chat_id, error=str(e))
+                raise e
+                
             try:
                 from telegram import InputMediaPhoto
                 
@@ -243,7 +237,7 @@ class ApartmentBot:
                         await self.application.bot.send_photo(
                             chat_id=chat_id,
                             photo=f,
-                            caption=caption_text,
+                            caption=None,
                             parse_mode="MarkdownV2"
                         )
                 else:
@@ -256,7 +250,7 @@ class ApartmentBot:
                         media_items.append(
                             InputMediaPhoto(
                                 f,
-                                caption=caption_text if i == 0 else None,
+                                caption=None,
                                 parse_mode="MarkdownV2"
                             )
                         )
@@ -274,18 +268,6 @@ class ApartmentBot:
                                 pass
             except Exception as e:
                 log.error("Failed to send screenshot(s) notification", chat_id=chat_id, error=str(e))
-                # Fallback: if text was not already sent, send it now
-                if not send_separate_text:
-                    try:
-                        await self.application.bot.send_message(
-                            chat_id=chat_id,
-                            text=full_message,
-                            parse_mode='MarkdownV2',
-                            disable_web_page_preview=False
-                        )
-                    except Exception as fallback_err:
-                        log.error("Failed to send fallback text notification", chat_id=chat_id, error=str(fallback_err))
-                        raise fallback_err
         else:
             # Fall back to text-only notification
             try:

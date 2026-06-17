@@ -186,16 +186,16 @@ async def test_bot_send_listing_notification_with_screenshots(monkeypatch):
         extracted_location="Tel Aviv"
     )
     
-    # Test 1: Send within 1024 char limit (should use single media group with caption)
+    # Test 1: Send within 1024 char limit (should send text message first, then media group with caption=None)
     await bot_instance.send_listing_notification(chat_id=12345, enriched=enriched)
     
+    assert bot_instance.application.bot.send_message.call_count == 1
     assert bot_instance.application.bot.send_media_group.call_count == 1
     args, kwargs = bot_instance.application.bot.send_media_group.call_args
     assert kwargs["chat_id"] == 12345
     assert len(kwargs["media"]) == 2
-    # First item should have the caption
-    assert kwargs["media"][0].caption is not None
-    assert "💰 *מחיר:* 4,000₪" in kwargs["media"][0].caption
+    # Caption on photo should be None (photos appear at bottom)
+    assert kwargs["media"][0].caption is None
     
     # Clean mock counts
     bot_instance.application.bot.send_media_group.reset_mock()
@@ -214,7 +214,7 @@ async def test_bot_send_listing_notification_with_screenshots(monkeypatch):
     assert bot_instance.application.bot.send_media_group.call_count == 1
     
     group_args, group_kwargs = bot_instance.application.bot.send_media_group.call_args
-    # First item caption should be None because text was sent separately
+    # Caption on photo should be None because text was sent separately
     assert group_kwargs["media"][0].caption is None
     
     # Cleanup temp screenshot files
