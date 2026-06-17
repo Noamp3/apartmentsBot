@@ -448,23 +448,25 @@ class ListingRepository:
     
     async def get_recent_enrichments(self, hours: int = 24) -> List[EnrichedListing]:
         """Get all enriched listings from the specified time window."""
-        cutoff = datetime.now() - timedelta(hours=hours)
+        cutoff = datetime.utcnow() - timedelta(hours=hours)
+        cutoff_str = cutoff.strftime("%Y-%m-%d %H:%M:%S")
         rows = await self.db.fetch_all(
             """
             SELECT * FROM enriched_listings 
             WHERE enriched_at >= ?
             ORDER BY enriched_at DESC
             """,
-            (cutoff.isoformat(),)
+            (cutoff_str,)
         )
         return [self._row_to_enriched(row) for row in rows]
     
     async def cleanup_old_listings(self, days_to_keep: int = 7):
         """Remove listings older than specified days."""
-        cutoff = datetime.now() - timedelta(days=days_to_keep)
+        cutoff = datetime.utcnow() - timedelta(days=days_to_keep)
+        cutoff_str = cutoff.strftime("%Y-%m-%d %H:%M:%S")
         await self.db.execute(
             "DELETE FROM enriched_listings WHERE enriched_at < ?",
-            (cutoff.isoformat(),)
+            (cutoff_str,)
         )
     
     def _row_to_enriched(self, row) -> EnrichedListing:
