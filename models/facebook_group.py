@@ -13,6 +13,7 @@ class FacebookGroup:
     url: str
     id: Optional[int] = None
     added_at: datetime = field(default_factory=datetime.now)
+    last_scraped_count: int = 0
 
     def __post_init__(self):
         """Ensure added_at is a datetime object."""

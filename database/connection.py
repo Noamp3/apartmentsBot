@@ -104,7 +104,8 @@ CREATE TABLE IF NOT EXISTS ai_cache (
 CREATE TABLE IF NOT EXISTS facebook_groups (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     url TEXT UNIQUE NOT NULL,
-    added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_scraped_count INTEGER DEFAULT 0
 );
 
 -- Sent notifications (for preventing duplicates)
@@ -271,6 +272,13 @@ class DatabaseManager:
             
         try:
             await self._connection.execute("CREATE INDEX IF NOT EXISTS idx_ai_cache_persona ON ai_cache(cache_type, persona)")
+            await self._connection.commit()
+        except aiosqlite.OperationalError:
+            pass
+
+        # Safe migration: Add 'last_scraped_count' column to facebook_groups if it doesn't exist
+        try:
+            await self._connection.execute("ALTER TABLE facebook_groups ADD COLUMN last_scraped_count INTEGER DEFAULT 0")
             await self._connection.commit()
         except aiosqlite.OperationalError:
             pass

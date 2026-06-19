@@ -206,7 +206,11 @@ class FacebookScraper(BaseScraper):
         return False
 
     # Core scraping loop orchestration
-    async def scrape(self, on_listing_scraped: Optional[callable] = None) -> List[Listing]:
+    async def scrape(
+        self, 
+        on_listing_scraped: Optional[callable] = None,
+        on_group_completed: Optional[callable] = None
+    ) -> List[Listing]:
         """Scrape configured Facebook groups and main feed if enabled."""
         if not self.group_urls and not getattr(settings, 'FACEBOOK_SCRAPE_MAIN_FEED', False):
             log.warning("No Facebook group URLs or main feed scraping configured")
@@ -221,8 +225,14 @@ class FacebookScraper(BaseScraper):
                 for group_url in self.group_urls:
                     try:
                         log.info(f"Scraping Facebook group", url=group_url)
-                        group_listings = await self._scrape_group(group_url)
+                        group_listings = await self._scrape_group(group_url, on_listing_scraped=on_listing_scraped)
                         listings.extend(group_listings)
+                        
+                        if on_group_completed:
+                            try:
+                                await on_group_completed(group_url, group_listings)
+                            except Exception as cb_err:
+                                log.error(f"Error in on_group_completed callback: {cb_err}", exc_info=True)
                         
                         # Delay between groups
                         await self.anti_detection.human_like_delay(5, 10)
@@ -239,7 +249,7 @@ class FacebookScraper(BaseScraper):
             if getattr(settings, 'FACEBOOK_SCRAPE_MAIN_FEED', False):
                 try:
                     log.info("Scraping Facebook main feed...")
-                    main_feed_listings = await self._scrape_main_feed()
+                    main_feed_listings = await self._scrape_main_feed(on_listing_scraped=on_listing_scraped)
                     listings.extend(main_feed_listings)
                 except FacebookLoginRequiredException as le:
                     log.error(f"Facebook login required for main feed: {le}")

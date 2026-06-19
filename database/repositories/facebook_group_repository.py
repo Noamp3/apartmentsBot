@@ -28,8 +28,8 @@ class FacebookGroupRepository:
         return group
         
     async def get_all_groups(self) -> List[FacebookGroup]:
-        """Fetch all Facebook groups."""
-        rows = await self.db.fetch_all("SELECT * FROM facebook_groups ORDER BY added_at ASC")
+        """Fetch all Facebook groups sorted dynamically by scraped counts."""
+        rows = await self.db.fetch_all("SELECT * FROM facebook_groups ORDER BY COALESCE(last_scraped_count, 0) DESC, added_at ASC")
         return [self._row_to_group(row) for row in rows]
         
     async def get_by_id(self, group_id: int) -> Optional[FacebookGroup]:
@@ -54,10 +54,23 @@ class FacebookGroupRepository:
         """Delete a Facebook group from the database by URL."""
         await self.db.execute("DELETE FROM facebook_groups WHERE url = ?", (url.strip(),))
         
+    async def update_scraped_count(self, url: str, count: int):
+        """Update the last scraped count for a group."""
+        await self.db.execute(
+            "UPDATE facebook_groups SET last_scraped_count = ? WHERE url = ?",
+            (count, url.strip())
+        )
+
     def _row_to_group(self, row) -> FacebookGroup:
         """Convert database row to FacebookGroup object."""
+        try:
+            last_scraped_count = row["last_scraped_count"]
+        except (KeyError, IndexError):
+            last_scraped_count = 0
+            
         return FacebookGroup(
             id=row["id"],
             url=row["url"],
-            added_at=row["added_at"]
+            added_at=row["added_at"],
+            last_scraped_count=last_scraped_count
         )

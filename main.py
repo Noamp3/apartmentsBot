@@ -419,6 +419,9 @@ class ApartmentBotApplication:
         """Run a complete processing cycle: scrape -> enrich -> match -> notify."""
         log.info("Starting processing cycle")
         
+        # Reload Facebook groups to ensure correct dynamic order
+        await self.reload_facebook_groups()
+        
         db = await get_db()
         seen_repo = SeenListingsRepository(db)
         
@@ -461,7 +464,7 @@ class ApartmentBotApplication:
                 if duplicate_info:
                     duplicate_id, matched_fields = duplicate_info
                     log.info(
-                        f"Cross-source duplicate detected (pre-enrichment)",
+                         f"Cross-source duplicate detected (pre-enrichment)",
                         current_listing_id=listing.id[:8],
                         current_source=listing.source,
                         current_author=listing.author[:20] if listing.author else None,
@@ -490,9 +493,38 @@ class ApartmentBotApplication:
                     await self.process_enrich_and_notify_batch(batch_to_process)
                 except Exception as e:
                     log.error(f"Error processing scraped batch: {e}", exc_info=True)
+                    
+        async def on_group_completed(group_url: str, group_listings: List[Listing]):
+            # 1. Update database with count of scraped listings
+            try:
+                db_manager = await get_db()
+                from database.repositories.facebook_group_repository import FacebookGroupRepository
+                fb_group_repo = FacebookGroupRepository(db_manager)
+                await fb_group_repo.update_scraped_count(group_url, len(group_listings))
+                log.info(f"Updated database: group {group_url} scraped count = {len(group_listings)}")
+            except Exception as e:
+                log.error(f"Failed to update group scraped count in DB: {e}", exc_info=True)
+                
+            # 2. Immediately flush and process any new listings from this group
+            nonlocal accumulating_listings
+            batch_to_process = []
+            async with lock:
+                if accumulating_listings:
+                    batch_to_process = list(accumulating_listings)
+                    accumulating_listings.clear()
+                    
+            if batch_to_process:
+                log.info(f"Group scraping complete ({group_url}). Flushing batch of {len(batch_to_process)} listings immediately.")
+                try:
+                    await self.process_enrich_and_notify_batch(batch_to_process)
+                except Exception as e:
+                    log.error(f"Error processing flushed batch: {e}", exc_info=True)
         
         # Run scrapers concurrently
-        fb_task = asyncio.create_task(self.facebook_scraper.scrape(on_listing_scraped=on_listing_scraped))
+        fb_task = asyncio.create_task(self.facebook_scraper.scrape(
+            on_listing_scraped=on_listing_scraped,
+            on_group_completed=on_group_completed
+        ))
         yad2_task = asyncio.create_task(self.yad2_scraper.scrape(on_listing_scraped=on_listing_scraped))
         
         fb_res, yad2_res = await asyncio.gather(fb_task, yad2_task, return_exceptions=True)
