@@ -146,6 +146,9 @@ async def test_on_group_completed_updates_db_and_flushes_listings():
         
         await on_group_completed_cb(group_url, group_listings)
         
+        # Give event loop a small tick to allow background task to run
+        await asyncio.sleep(0.01)
+        
         # Verify database update count was called
         mock_fb_group_repo.update_scraped_count.assert_called_once_with(group_url, 1)
         

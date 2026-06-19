@@ -444,6 +444,19 @@ class ApartmentBotApplication:
         fb_new_count = 0
         yad2_new_count = 0
         
+        background_tasks = set()
+        
+        async def run_batch_in_background(batch):
+            try:
+                await self.process_enrich_and_notify_batch(batch)
+            except Exception as e:
+                log.error(f"Error in background batch processing: {e}", exc_info=True)
+
+        def start_background_batch(batch):
+            task = asyncio.create_task(run_batch_in_background(batch))
+            background_tasks.add(task)
+            task.add_done_callback(background_tasks.discard)
+        
         async def on_listing_scraped(listing: Listing):
             nonlocal fb_new_count, yad2_new_count
             
@@ -489,10 +502,7 @@ class ApartmentBotApplication:
                     accumulating_listings.clear()
             
             if batch_to_process:
-                try:
-                    await self.process_enrich_and_notify_batch(batch_to_process)
-                except Exception as e:
-                    log.error(f"Error processing scraped batch: {e}", exc_info=True)
+                start_background_batch(batch_to_process)
                     
         async def on_group_completed(group_url: str, group_listings: List[Listing]):
             # 1. Update database with count of scraped listings
@@ -514,11 +524,8 @@ class ApartmentBotApplication:
                     accumulating_listings.clear()
                     
             if batch_to_process:
-                log.info(f"Group scraping complete ({group_url}). Flushing batch of {len(batch_to_process)} listings immediately.")
-                try:
-                    await self.process_enrich_and_notify_batch(batch_to_process)
-                except Exception as e:
-                    log.error(f"Error processing flushed batch: {e}", exc_info=True)
+                log.info(f"Group scraping complete ({group_url}). Flushing batch of {len(batch_to_process)} listings in background.")
+                start_background_batch(batch_to_process)
         
         # Run scrapers concurrently
         fb_task = asyncio.create_task(self.facebook_scraper.scrape(
@@ -555,11 +562,13 @@ class ApartmentBotApplication:
             
         if remaining_batch:
             log.info(f"Flushing remaining {len(remaining_batch)} listings at end of cycle")
-            try:
-                await self.process_enrich_and_notify_batch(remaining_batch)
-            except Exception as e:
-                log.error(f"Error flushing remaining listings: {e}", exc_info=True)
-                
+            start_background_batch(remaining_batch)
+            
+        # Wait for all background enrichment and notifications to finish before declaring cycle complete
+        if background_tasks:
+            log.info(f"Waiting for {len(background_tasks)} background enrichment/matching task(s) to finish...")
+            await asyncio.gather(*background_tasks, return_exceptions=True)
+            
         # Track scrape details with actual new counts
         telemetry.track_scrape("facebook", duration_fb, len(fb_listings), fb_new_count, failed=fb_failed)
         telemetry.track_scrape("yad2", duration_yad2, len(yad2_listings), yad2_new_count, failed=yad2_failed)
