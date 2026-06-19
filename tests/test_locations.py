@@ -155,3 +155,131 @@ class TestIsraeliLocationDatabase:
         is_match, reasons = matcher.evaluate_listing(enriched, [rule_florentin, rule_lev_hair])
         assert is_match, f"Failed: {reasons}"
         assert len(reasons) == 0
+
+    def test_is_city_mismatch(self):
+        """Test the is_city_mismatch helper method."""
+        # Exact and alias matches
+        assert not self.db.is_city_mismatch("תל אביב", "תל אביב")
+        assert not self.db.is_city_mismatch("תל-אביב", "תל אביב")
+        assert not self.db.is_city_mismatch("תא", "תל אביב")
+        assert not self.db.is_city_mismatch("תל אביב - יפו", "תל אביב")
+        assert not self.db.is_city_mismatch("בתא", "תל אביב")
+        assert not self.db.is_city_mismatch("בחלקי תל אביב", "תל אביב")
+        
+        # Explicit mismatches
+        assert self.db.is_city_mismatch("רמת גן", "תל אביב")
+        assert self.db.is_city_mismatch("גבעתיים", "תל אביב")
+        assert self.db.is_city_mismatch("נתיבות", "תל אביב")
+        assert self.db.is_city_mismatch("הוד השרון", "תל אביב")
+
+    def test_homonymous_neighborhood_override(self):
+        """Test that matching a neighborhood in a different explicit city is discarded."""
+        # Florentin is a TLV neighborhood, but the raw text mentions Ramat Gan
+        res = self.db.normalize_location("פלורנטין רמת גן")
+        assert res["city"] == "רמת גן"
+        assert res["neighborhood"] is None
+        
+        # Lev HaIr in Ramat Gan
+        res2 = self.db.normalize_location("לב העיר, רמת גן")
+        assert res2["city"] == "רמת גן"
+        assert res2["neighborhood"] is None
+
+    def test_matcher_enforces_city_match(self):
+        """Test that ZeroAIUserMatcher prevents listings from other cities from matching area rules."""
+        from core.matcher import ZeroAIUserMatcher
+        from models.listing import Listing, EnrichedListing
+        from models.search_rule import SearchRule, RuleType
+        from datetime import datetime
+
+        matcher = ZeroAIUserMatcher()
+        
+        # Florentin in Ramat Gan (city mismatch!)
+        listing = Listing(
+            id="test_mismatch", source="facebook", url="url", title="title", 
+            description="דירה בפלורנטין רמת גן", location="רמת גן", raw_text="text",
+            posted_at=datetime.now()
+        )
+        enriched = EnrichedListing(listing=listing)
+        enriched.extracted_location = "רמת גן"
+        enriched.extracted_neighborhood = ""
+
+        rule = SearchRule(
+            id=1, user_id=123, rule_type=RuleType.AREA, 
+            value="פלורנטין", is_active=True
+        )
+
+        is_match, reasons = matcher.evaluate_listing(enriched, [rule])
+        assert not is_match
+        assert any("לא תואם" in r for r in reasons)
+
+    def test_matcher_enforces_city_match_border_area(self):
+        """Test that ZeroAIUserMatcher prevents listings from other cities from matching border area rules."""
+        from core.matcher import ZeroAIUserMatcher
+        from models.listing import Listing, EnrichedListing
+        from models.search_rule import SearchRule, RuleType
+        from datetime import datetime
+
+        matcher = ZeroAIUserMatcher()
+        
+        # Listing in Givatayim (unidentified neighborhood, but city is Givatayim)
+        listing = Listing(
+            id="test_givatayim_border", source="facebook", url="url", title="title", 
+            description="דירה בגבעתיים", location="גבעתיים", raw_text="text",
+            posted_at=datetime.now()
+        )
+        enriched = EnrichedListing(listing=listing)
+        enriched.extracted_location = "גבעתיים"
+
+        # User wants TLV border area
+        rule = SearchRule(
+            id=1, user_id=123, rule_type=RuleType.BORDER_AREA, 
+            value="לב העיר,רוטשילד,הצפון הישן", is_active=True
+        )
+
+        is_match, reasons = matcher.evaluate_listing(enriched, [rule])
+        assert not is_match
+        assert any("לא תואם" in r for r in reasons)
+
+    def test_matcher_rejects_empty_locations(self):
+        """Test that ZeroAIUserMatcher rejects listings with completely empty location info."""
+        from core.matcher import ZeroAIUserMatcher
+        from models.listing import Listing, EnrichedListing
+        from models.search_rule import SearchRule, RuleType
+        from datetime import datetime
+
+        matcher = ZeroAIUserMatcher()
+        
+        # Listing with completely empty location
+        listing = Listing(
+            id="test_empty_location", source="facebook", url="url", title="title", 
+            description="description", location="", raw_text="text",
+            posted_at=datetime.now()
+        )
+        enriched = EnrichedListing(listing=listing)
+        enriched.extracted_location = ""
+        enriched.extracted_neighborhood = ""
+        enriched.extracted_street = ""
+
+        # User wants TLV border area
+        rule_border = SearchRule(
+            id=1, user_id=123, rule_type=RuleType.BORDER_AREA, 
+            value="לב העיר,רוטשילד,הצפון הישן", is_active=True
+        )
+        
+        # User wants TLV area
+        rule_area = SearchRule(
+            id=2, user_id=123, rule_type=RuleType.AREA, 
+            value="תל אביב", is_active=True
+        )
+
+        # Should be rejected for both
+        is_match_border, reasons_border = matcher.evaluate_listing(enriched, [rule_border])
+        assert not is_match_border
+        assert any("לא תואם" in r for r in reasons_border)
+
+        is_match_area, reasons_area = matcher.evaluate_listing(enriched, [rule_area])
+        assert not is_match_area
+        assert any("לא תואם" in r for r in reasons_area)
+
+
+

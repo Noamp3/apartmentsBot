@@ -192,6 +192,11 @@ class IsraeliLocationDatabase:
                 city = c
                 break
         
+        # If neighborhood found, check if a different city was explicitly mentioned in the location.
+        # If a different city was found, then the neighborhood is a false positive (since our neighborhood list is for Tel Aviv/specific cities).
+        if neighborhood and city and neighborhood.city != city:
+            neighborhood = None
+
         # If neighborhood found but no city, use neighborhood's city
         if neighborhood and not city:
             city = neighborhood.city
@@ -204,6 +209,50 @@ class IsraeliLocationDatabase:
         if hasattr(self, "_normalize_cache"):
             self._normalize_cache[location] = res
         return res
+
+    def is_city_mismatch(self, listing_city: str, target_city: str) -> bool:
+        """Check if listing_city is explicitly a different city than target_city.
+        
+        Returns True if listing_city is a non-empty string and does not match target_city or its aliases,
+        accounting for Hebrew prefixes (ב/מ/ה).
+        """
+        if not listing_city:
+            return False
+            
+        listing_city_lower = listing_city.strip().lower()
+        target_city_lower = target_city.strip().lower()
+        
+        # Get target city and all its aliases
+        target_names = [target_city_lower]
+        if target_city_lower in self.city_aliases:
+            target_names.extend([a.lower() for a in self.city_aliases[target_city_lower]])
+        elif target_city in self.city_aliases:
+            target_names.extend([a.lower() for a in self.city_aliases[target_city]])
+            
+        # Check if the listing city is exactly one of the target city names/aliases
+        if listing_city_lower in target_names:
+            return False
+            
+        # Check if target city or its aliases are a substring of listing_city (longer aliases only)
+        for target_name in target_names:
+            if len(target_name) > 3 and target_name in listing_city_lower:
+                return False
+                
+        # Check word boundaries for short aliases
+        import re
+        words = re.split(r'[\s\-\,\"\']+', listing_city_lower)
+        for target_name in target_names:
+            if target_name in words:
+                return False
+            # Check for Hebrew prefixes (ב/מ/ה) before the target name
+            if f"ב{target_name}" in words or f"מ{target_name}" in words or f"ה{target_name}" in words:
+                return False
+            if listing_city_lower in (f"ב{target_name}", f"מ{target_name}", f"ה{target_name}"):
+                return False
+                
+        # If listing_city is not empty but does not match any target name, it's a mismatch!
+        return True
+
     
     def is_location_match(
         self, 

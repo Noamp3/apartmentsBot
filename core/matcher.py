@@ -240,6 +240,23 @@ class ZeroAIUserMatcher:
         allow_bordering: bool = True
     ) -> Tuple[bool, str]:
         """Check if listing location matches target area."""
+        # Enforce city check: Listing's city must not mismatch target city
+        target_norm = self.location_db.normalize_location(target_area)
+        target_city = target_norm["city"]
+        if not target_city and target_norm["neighborhood"]:
+            target_n = self.location_db.neighborhood_lookup.get(target_norm["neighborhood"].lower())
+            if target_n:
+                target_city = target_n.city
+        if not target_city:
+            target_city = "תל אביב"
+
+        listing_city_str = enriched.extracted_location or enriched.listing.location
+        if not listing_city_str and not enriched.extracted_neighborhood and not enriched.extracted_street:
+            return False, "מיקום הדירה ריק לחלוטין"
+
+        if self.location_db.is_city_mismatch(listing_city_str, target_city):
+            return False, f"העיר {listing_city_str} אינה {target_city}"
+
         # Use location database for matching
         # Build a composite listing location signal so the database can extract the neighborhood
         location_signals = []
@@ -279,6 +296,23 @@ class ZeroAIUserMatcher:
         # Parse the neighborhood list
         allowed_neighborhoods = [n.strip() for n in neighborhoods_csv.split(",")]
         
+        # Enforce city check: Listing's city must not mismatch target city of border area
+        target_city = None
+        for allowed in allowed_neighborhoods:
+            n_obj = self.location_db.neighborhood_lookup.get(allowed.lower())
+            if n_obj:
+                target_city = n_obj.city
+                break
+        if not target_city:
+            target_city = "תל אביב"
+
+        listing_city_str = enriched.extracted_location or enriched.listing.location
+        if not listing_city_str and not enriched.extracted_neighborhood and not enriched.extracted_street:
+            return False, "מיקום הדירה ריק לחלוטין"
+
+        if self.location_db.is_city_mismatch(listing_city_str, target_city):
+            return False, f"העיר {listing_city_str} אינה {target_city}"
+            
         # Normalize listing location
         # Use all available signals: extracted neighborhood > street > location
         # We combine them so normalize_location can find the neighborhood in any of them
@@ -311,6 +345,7 @@ class ZeroAIUserMatcher:
             return True, ""
             
         return False, f"השכונה לא באזור המוגדר"
+
     
     def _check_custom_rule(
         self, 
