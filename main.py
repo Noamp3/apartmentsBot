@@ -35,8 +35,12 @@ from bot import ApartmentBot
 from models.listing import EnrichedListing, Listing
 
 # Initialize logging
+import logging
 LoggerFactory.initialize(debug=settings.DEBUG)
 log = Loggers.app()
+
+from utils.admin_notifier import admin_notifier_handler
+logging.root.addHandler(admin_notifier_handler)
 
 
 class ApartmentBotApplication:
@@ -231,6 +235,10 @@ class ApartmentBotApplication:
         
         await self.bot.setup()
         log.info("Telegram bot initialized")
+        
+        # Bind bot to the admin error notification handler
+        from utils.admin_notifier import admin_notifier_handler
+        admin_notifier_handler.set_bot(self.bot)
         
         # Inject bot into Facebook scraper for Telegram-based logins
         if self.facebook_scraper:

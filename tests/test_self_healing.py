@@ -235,3 +235,14 @@ async def test_heal_attribute_fails_after_10_tries(mock_ai_engine, temp_cache_pa
     assert healed is None
     assert mock_ai_engine.generate_content.call_count == 10
 
+
+def test_manager_loads_defaults_for_prefixed_facebook_sources(temp_cache_path):
+    """Test that the manager successfully falls back to facebook defaults for facebook_group and facebook_feed."""
+    group_manager = SelfHealingManager(source="facebook_group", persist_path=temp_cache_path)
+    assert group_manager.get_selector("post_container") == 'div[role="article"]'
+    assert group_manager.get_selector("post_url") == 'a[href*="/posts/"], a[href*="/permalink/"], a[href*="story_fbid"]'
+
+    feed_manager = SelfHealingManager(source="facebook_feed", persist_path=temp_cache_path)
+    assert feed_manager.get_selector("post_container") == 'div[role="article"]'
+    assert feed_manager.get_selector("post_url") == 'a[href*="/posts/"], a[href*="/permalink/"], a[href*="story_fbid"]'
+

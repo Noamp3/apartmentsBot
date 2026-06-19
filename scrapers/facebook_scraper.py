@@ -254,6 +254,8 @@ class FacebookScraper(BaseScraper):
 
     async def _scrape_group(self, group_url: str, on_listing_scraped: Optional[callable] = None) -> List[Listing]:
         """Scrape a single Facebook group."""
+        self.healer.source = "facebook_group"
+        self.healer.load_healed_selectors()
         listings = []
         page = await self._context.new_page()
         
@@ -342,6 +344,8 @@ class FacebookScraper(BaseScraper):
 
     async def _scrape_main_feed(self, on_listing_scraped: Optional[callable] = None) -> List[Listing]:
         """Scrape the Facebook main feed."""
+        self.healer.source = "facebook_feed"
+        self.healer.load_healed_selectors()
         listings = []
         page = await self._context.new_page()
         main_feed_url = "https://www.facebook.com/"

@@ -96,6 +96,8 @@ class SelfHealingManager:
 
         # 2. Check defaults
         source_defaults = self.DEFAULT_SELECTORS.get(self.source, {})
+        if not source_defaults and self.source.startswith("facebook"):
+            source_defaults = self.DEFAULT_SELECTORS.get("facebook", {})
         return source_defaults.get(key, "")
 
     def get_selectors_list(self, key: str) -> List[str]:
