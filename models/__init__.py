@@ -5,6 +5,7 @@ from models.user import User
 from models.search_rule import SearchRule, RuleType
 from models.listing import Listing, EnrichedListing
 from models.rejection_log import RejectionLog
+from models.facebook_group import FacebookGroup
 
 __all__ = [
     "User",
@@ -13,4 +14,5 @@ __all__ = [
     "Listing",
     "EnrichedListing",
     "RejectionLog",
+    "FacebookGroup",
 ]

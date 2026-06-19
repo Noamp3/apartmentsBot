@@ -51,6 +51,12 @@ class ListingFormatter:
         if enriched.extracted_bedrooms:
             rooms_val = ListingFormatter._escape_markdown(str(enriched.extracted_bedrooms))
             lines.append(f"🛏️ *חדרים:* {rooms_val}")
+            
+        # Sublet Info
+        if enriched.is_sublet:
+            duration_val = ListingFormatter._escape_markdown(enriched.sublet_duration or "לא צוין")
+            dates_val = ListingFormatter._escape_markdown(enriched.sublet_dates or "לא צוין")
+            lines.append(f"⏳ *סאבלט:* {duration_val} \\| תאריכים: {dates_val}")
         
         # Location
         location = enriched.extracted_neighborhood or enriched.extracted_location
@@ -173,6 +179,12 @@ class ListingFormatter:
         if enriched.extracted_bedrooms:
             rooms_val = ListingFormatter._escape_markdown(str(enriched.extracted_bedrooms))
             lines.append(f"🛏️ *חדרים:* {rooms_val}")
+            
+        # Sublet Info
+        if enriched.is_sublet:
+            duration_val = ListingFormatter._escape_markdown(enriched.sublet_duration or "לא צוין")
+            dates_val = ListingFormatter._escape_markdown(enriched.sublet_dates or "לא צוין")
+            lines.append(f"⏳ *סאבלט:* {duration_val} \\| תאריכים: {dates_val}")
         
         # Location
         location = enriched.extracted_neighborhood or enriched.extracted_location
@@ -332,12 +344,13 @@ class ListingFormatter:
         return "\n".join(lines)
     
     @staticmethod
-    def format_rules_list(rules: list, allow_bordering: bool = True, allow_roomies: bool = True) -> str:
+    def format_rules_list(rules: list, allow_bordering: bool = True, allow_roomies: bool = True, allow_sublets: bool = False) -> str:
         """Format user's active search rules."""
         if not rules:
             status_val = "פעיל ✅" if allow_bordering else "כבוי ❌"
             roomies_val = "פעיל ✅" if allow_roomies else "כבוי ❌"
-            return f"📋 *אין לך כללי חיפוש פעילים\\.*\n📍 *חיפוש בשכונות גובלות:* {status_val}\n🏠 *קבלת דירות שותפים:* {roomies_val}\n\nשלח הודעה עם הדרישות שלך ואני אוסיף אותן\\!"
+            sublets_val = "פעיל ✅" if allow_sublets else "כבוי ❌"
+            return f"📋 *אין לך כללי חיפוש פעילים\\.*\n📍 *חיפוש בשכונות גובלות:* {status_val}\n🏠 *קבלת דירות שותפים:* {roomies_val}\n⏳ *קבלת סאבלטים:* {sublets_val}\n\nשלח הודעה עם הדרישות שלך ואני אוסיף אותן\\!"
         
         lines = []
         lines.append("📋 *כללי החיפוש שלך:*")
@@ -374,6 +387,8 @@ class ListingFormatter:
         lines.append(f"📍 *חיפוש בשכונות גובלות:* {status_val}")
         roomies_val = "פעיל ✅" if allow_roomies else "כבוי ❌"
         lines.append(f"🏠 *קבלת דירות שותפים:* {roomies_val}")
+        sublets_val = "פעיל ✅" if allow_sublets else "כבוי ❌"
+        lines.append(f"⏳ *קבלת סאבלטים:* {sublets_val}")
         lines.append("")
         lines.append("_שלח הודעה כדי להוסיף כלל חדש_")
         lines.append("_או /clear למחיקת כל הכללים_")

@@ -57,6 +57,9 @@ class CallbackHandler:
         elif data == "toggle_roomies":
             await self._toggle_roomies(query, user_id)
             
+        elif data == "toggle_sublets":
+            await self._toggle_sublets(query, user_id)
+            
         elif data.startswith("set_persona:"):
             persona_name = data.split(":")[1]
             await self._set_persona(query, context, persona_name)
@@ -446,14 +449,16 @@ class CallbackHandler:
         
         # Get formatted rules list
         from bot.formatters.listing_formatter import ListingFormatter
-        message = ListingFormatter.format_rules_list(rules, new_status, user_obj.allow_roomies)
+        message = ListingFormatter.format_rules_list(rules, new_status, user_obj.allow_roomies, user_obj.allow_sublets)
         
         # Re-build toggle inline buttons
         button_border = "❌ השבת שכונות גובלות" if new_status else "✅ הפעל שכונות גובלות"
         button_roomies = "❌ השבת דירות שותפים" if user_obj.allow_roomies else "✅ הפעל דירות שותפים"
+        button_sublets = "❌ השבת סאבלטים" if user_obj.allow_sublets else "✅ הפעל סאבלטים"
         keyboard = [
             [InlineKeyboardButton(button_border, callback_data="toggle_bordering")],
-            [InlineKeyboardButton(button_roomies, callback_data="toggle_roomies")]
+            [InlineKeyboardButton(button_roomies, callback_data="toggle_roomies")],
+            [InlineKeyboardButton(button_sublets, callback_data="toggle_sublets")]
         ]
         
         # Friendly feedback
@@ -490,14 +495,16 @@ class CallbackHandler:
         
         # Get formatted rules list
         from bot.formatters.listing_formatter import ListingFormatter
-        message = ListingFormatter.format_rules_list(rules, user_obj.allow_bordering_neighborhoods, new_status)
+        message = ListingFormatter.format_rules_list(rules, user_obj.allow_bordering_neighborhoods, new_status, user_obj.allow_sublets)
         
         # Re-build toggles inline buttons
         button_border = "❌ השבת שכונות גובלות" if user_obj.allow_bordering_neighborhoods else "✅ הפעל שכונות גובלות"
         button_roomies = "❌ השבת דירות שותפים" if new_status else "✅ הפעל דירות שותפים"
+        button_sublets = "❌ השבת סאבלטים" if user_obj.allow_sublets else "✅ הפעל סאבלטים"
         keyboard = [
             [InlineKeyboardButton(button_border, callback_data="toggle_bordering")],
-            [InlineKeyboardButton(button_roomies, callback_data="toggle_roomies")]
+            [InlineKeyboardButton(button_roomies, callback_data="toggle_roomies")],
+            [InlineKeyboardButton(button_sublets, callback_data="toggle_sublets")]
         ]
         
         # Friendly feedback
@@ -509,6 +516,52 @@ class CallbackHandler:
         
         # Show alert with feedback
         await query.answer(f"{persona_def.emoji} קבלת דירות שותפים {status_text}", show_alert=True)
+        
+        # Edit the message to show the updated status
+        await self._safe_edit_message_text(query, message, parse_mode='MarkdownV2')
+        # Edit the message with the new inline keyboard as well
+        await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup(keyboard))
+        
+    async def _toggle_sublets(self, query, user_id: int):
+        """Toggle sublet search preference."""
+        db = await get_db()
+        user_repo = UserRepository(db)
+        rule_repo = RuleRepository(db)
+        
+        user_obj = await user_repo.get_by_telegram_id(user_id)
+        if not user_obj:
+            await query.answer("❌ משתמש לא נמצא")
+            return
+            
+        new_status = not user_obj.allow_sublets
+        await user_repo.update_allow_sublets(user_id, new_status)
+        
+        # Reload rules and user object
+        rules = await rule_repo.get_user_rules(user_id)
+        
+        # Get formatted rules list
+        from bot.formatters.listing_formatter import ListingFormatter
+        message = ListingFormatter.format_rules_list(rules, user_obj.allow_bordering_neighborhoods, user_obj.allow_roomies, new_status)
+        
+        # Re-build toggles inline buttons
+        button_border = "❌ השבת שכונות גובלות" if user_obj.allow_bordering_neighborhoods else "✅ הפעל שכונות גובלות"
+        button_roomies = "❌ השבת דירות שותפים" if user_obj.allow_roomies else "✅ הפעל דירות שותפים"
+        button_sublets = "❌ השבת סאבלטים" if new_status else "✅ הפעל סאבלטים"
+        keyboard = [
+            [InlineKeyboardButton(button_border, callback_data="toggle_bordering")],
+            [InlineKeyboardButton(button_roomies, callback_data="toggle_roomies")],
+            [InlineKeyboardButton(button_sublets, callback_data="toggle_sublets")]
+        ]
+        
+        # Friendly feedback
+        persona_name = user_obj.persona
+        from core.personas import get_persona
+        persona_def = get_persona(persona_name)
+        
+        status_text = "מאופשר כעת! אשלח לך גם סאבלטים 😉" if new_status else "מנוטרל! אשלח לך אך ורק דירות רגילות (ללא סאבלטים) 🎯"
+        
+        # Show alert with feedback
+        await query.answer(f"{persona_def.emoji} קבלת סאבלטים {status_text}", show_alert=True)
         
         # Edit the message to show the updated status
         await self._safe_edit_message_text(query, message, parse_mode='MarkdownV2')
@@ -710,6 +763,7 @@ class CallbackHandler:
         from datetime import datetime
         
         query = update.callback_query
+        data = query.data if isinstance(query.data, str) else ""
         storage_state_path = "data/fb_storage_state.json"
         cookies_path = "data/fb_cookies.json"
         
@@ -734,28 +788,133 @@ class CallbackHandler:
         status_msg += "_תוכל להתחיל התחברות אינטראקטיבית חדשה כדי לרענן את הסשן או ללחוץ על הרצה ידנית._"
         
         keyboard = [
+            [InlineKeyboardButton("👥 ניהול קבוצות פייסבוק", callback_data="admin_menu_fb_groups")],
             [InlineKeyboardButton("🔑 התחל התחברות אינטראקטיבית", callback_data="admin_menu_fb_login_trigger")],
             [InlineKeyboardButton("🔄 הרצת סורק ידנית", callback_data="admin_menu_fb_scrape_trigger")],
             [InlineKeyboardButton("↩️ חזרה לתפריט ראשי", callback_data="admin_menu_main")]
         ]
         
         # Route special action triggers
-        if query.data == "admin_menu_fb_login_trigger":
+        if data == "admin_menu_fb_login_trigger":
             # Call fb login command
             admin_command_handler = context.bot_data.get("admin_command_handler")
             if admin_command_handler:
                 await query.answer("מתנייד להתחברות לפייסבוק...", show_alert=False)
                 await admin_command_handler.admin_fb_login(update=update, context=context)
                 return
-        elif query.data == "admin_menu_fb_scrape_trigger":
+        elif data == "admin_menu_fb_scrape_trigger":
             admin_command_handler = context.bot_data.get("admin_command_handler")
             if admin_command_handler:
                 await query.answer("מפעיל סריקה ידנית...", show_alert=False)
                 await admin_command_handler.admin_scrape(update=update, context=context)
                 return
+        elif data == "admin_menu_fb_groups":
+            await self._show_admin_fb_groups_menu(update, context)
+            return
+        elif data == "admin_menu_fb_group_add":
+            await self._prompt_add_fb_group(update, context)
+            return
+        elif data == "admin_menu_fb_group_remove_list":
+            await self._show_remove_fb_groups_list(update, context)
+            return
+        elif data.startswith("admin_menu_fb_group_remove:"):
+            group_id = int(data.split(":")[1])
+            await self._remove_fb_group(update, context, group_id)
+            return
                 
         await self._safe_edit_message_text(query, status_msg, parse_mode="HTML")
         await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup(keyboard))
+
+    async def _show_admin_fb_groups_menu(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Show the menu with current Facebook groups and actions to add/remove."""
+        query = update.callback_query
+        db = await get_db()
+        from database.repositories.facebook_group_repository import FacebookGroupRepository
+        fb_group_repo = FacebookGroupRepository(db)
+        groups = await fb_group_repo.get_all_groups()
+        
+        msg = "👥 <b>ניהול קבוצות פייסבוק לסריקה</b>\n\n"
+        if groups:
+            msg += "<b>הקבוצות הפעילות כעת במערכת:</b>\n"
+            for idx, g in enumerate(groups, 1):
+                msg += f"{idx}. <code>{html.escape(g.url)}</code>\n"
+        else:
+            msg += "❌ אין קבוצות פייסבוק מוגדרות במערכת.\n"
+            
+        msg += "\nבחר אחת מהפעולות הבאות:"
+        
+        keyboard = [
+            [InlineKeyboardButton("➕ הוסף קבוצת פייסבוק", callback_data="admin_menu_fb_group_add")],
+            [InlineKeyboardButton("❌ הסר קבוצת פייסבוק", callback_data="admin_menu_fb_group_remove_list")],
+            [InlineKeyboardButton("↩️ חזרה לתפריט פייסבוק", callback_data="admin_menu_fb")]
+        ]
+        
+        await self._safe_edit_message_text(query, msg, parse_mode="HTML")
+        await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup(keyboard))
+
+    async def _prompt_add_fb_group(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Prompt the admin to enter the URL of the new Facebook group."""
+        query = update.callback_query
+        
+        context.user_data["admin_waiting_for_fb_group"] = True
+        
+        msg = (
+            "✍️ <b>הוספת קבוצת פייסבוק חדשה</b>\n\n"
+            "אנא שלח את כתובת ה-URL של קבוצת הפייסבוק (למשל: <code>https://www.facebook.com/groups/123456</code>).\n\n"
+            "שלח <code>ביטול</code> או <code>cancel</code> כדי לבטל את הפעולה."
+        )
+        
+        keyboard = [
+            [InlineKeyboardButton("↩️ ביטול וחזרה", callback_data="admin_menu_fb_groups")]
+        ]
+        
+        await self._safe_edit_message_text(query, msg, parse_mode="HTML")
+        await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup(keyboard))
+
+    async def _show_remove_fb_groups_list(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Show the list of Facebook groups with inline buttons to delete them."""
+        query = update.callback_query
+        db = await get_db()
+        from database.repositories.facebook_group_repository import FacebookGroupRepository
+        fb_group_repo = FacebookGroupRepository(db)
+        groups = await fb_group_repo.get_all_groups()
+        
+        msg = "❌ <b>הסרת קבוצת פייסבוק</b>\n\nבחר את הקבוצה שברצונך להסיר מהרשימה:\n"
+        
+        keyboard = []
+        if groups:
+            for g in groups:
+                # Display first part of URL or group ID to keep button text reasonable
+                display_name = g.url.split("/groups/")[-1].strip("/")
+                if len(display_name) > 25:
+                    display_name = display_name[:22] + "..."
+                keyboard.append([InlineKeyboardButton(f"🗑️ {display_name}", callback_data=f"admin_menu_fb_group_remove:{g.id}")])
+                
+        keyboard.append([InlineKeyboardButton("↩️ חזרה", callback_data="admin_menu_fb_groups")])
+        
+        await self._safe_edit_message_text(query, msg, parse_mode="HTML")
+        await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup(keyboard))
+
+    async def _remove_fb_group(self, update: Update, context: ContextTypes.DEFAULT_TYPE, group_id: int):
+        """Delete the selected Facebook group and update the scraper."""
+        query = update.callback_query
+        db = await get_db()
+        from database.repositories.facebook_group_repository import FacebookGroupRepository
+        fb_group_repo = FacebookGroupRepository(db)
+        
+        group = await fb_group_repo.get_by_id(group_id)
+        if group:
+            await fb_group_repo.delete(group_id)
+            await query.answer(f"הקבוצה הוסרה בהצלחה", show_alert=True)
+            
+            # Reload scraper group URLs
+            app_instance = context.bot_data.get("app_instance")
+            if app_instance:
+                await app_instance.reload_facebook_groups()
+        else:
+            await query.answer("שגיאה: הקבוצה לא נמצאה", show_alert=True)
+            
+        await self._show_admin_fb_groups_menu(update, context)
 
     async def _show_admin_clear_menu(self, query, context):
         """Show clean menu with dropping buttons."""

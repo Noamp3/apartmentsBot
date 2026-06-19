@@ -148,14 +148,17 @@ class CommandHandler:
         user_obj = await user_repo.get_by_telegram_id(user_id)
         allow_bordering = user_obj.allow_bordering_neighborhoods if user_obj else True
         allow_roomies = user_obj.allow_roomies if user_obj else True
+        allow_sublets = user_obj.allow_sublets if user_obj else False
         
-        message = ListingFormatter.format_rules_list(rules, allow_bordering, allow_roomies)
+        message = ListingFormatter.format_rules_list(rules, allow_bordering, allow_roomies, allow_sublets)
         
         button_border = "❌ השבת שכונות גובלות" if allow_bordering else "✅ הפעל שכונות גובלות"
         button_roomies = "❌ השבת דירות שותפים" if allow_roomies else "✅ הפעל דירות שותפים"
+        button_sublets = "❌ השבת סאבלטים" if allow_sublets else "✅ הפעל סאבלטים"
         keyboard = [
             [InlineKeyboardButton(button_border, callback_data="toggle_bordering")],
-            [InlineKeyboardButton(button_roomies, callback_data="toggle_roomies")]
+            [InlineKeyboardButton(button_roomies, callback_data="toggle_roomies")],
+            [InlineKeyboardButton(button_sublets, callback_data="toggle_sublets")]
         ]
         
         await self._safe_reply_text(
@@ -192,13 +195,15 @@ class CommandHandler:
         msg = escape_markdown(msg)
         
         rules = await rule_repo.get_user_rules(user_id)
-        rules_message = ListingFormatter.format_rules_list(rules, new_status, user_obj.allow_roomies)
+        rules_message = ListingFormatter.format_rules_list(rules, new_status, user_obj.allow_roomies, user_obj.allow_sublets)
         
         button_border = "❌ השבת שכונות גובלות" if new_status else "✅ הפעל שכונות גובלות"
         button_roomies = "❌ השבת דירות שותפים" if user_obj.allow_roomies else "✅ הפעל דירות שותפים"
+        button_sublets = "❌ השבת סאבלטים" if user_obj.allow_sublets else "✅ הפעל סאבלטים"
         keyboard = [
             [InlineKeyboardButton(button_border, callback_data="toggle_bordering")],
-            [InlineKeyboardButton(button_roomies, callback_data="toggle_roomies")]
+            [InlineKeyboardButton(button_roomies, callback_data="toggle_roomies")],
+            [InlineKeyboardButton(button_sublets, callback_data="toggle_sublets")]
         ]
         
         await self._safe_reply_text(
@@ -235,13 +240,60 @@ class CommandHandler:
         msg = escape_markdown(msg)
         
         rules = await rule_repo.get_user_rules(user_id)
-        rules_message = ListingFormatter.format_rules_list(rules, user_obj.allow_bordering_neighborhoods, new_status)
+        rules_message = ListingFormatter.format_rules_list(rules, user_obj.allow_bordering_neighborhoods, new_status, user_obj.allow_sublets)
         
         button_border = "❌ השבת שכונות גובלות" if user_obj.allow_bordering_neighborhoods else "✅ הפעל שכונות גובלות"
         button_roomies = "❌ השבת דירות שותפים" if new_status else "✅ הפעל דירות שותפים"
+        button_sublets = "❌ השבת סאבלטים" if user_obj.allow_sublets else "✅ הפעל סאבלטים"
         keyboard = [
             [InlineKeyboardButton(button_border, callback_data="toggle_bordering")],
-            [InlineKeyboardButton(button_roomies, callback_data="toggle_roomies")]
+            [InlineKeyboardButton(button_roomies, callback_data="toggle_roomies")],
+            [InlineKeyboardButton(button_sublets, callback_data="toggle_sublets")]
+        ]
+        
+        await self._safe_reply_text(
+            update,
+            f"{msg}\n\n{rules_message}",
+            parse_mode='MarkdownV2',
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+        
+    @ensure_user_exists
+    async def toggle_sublets(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /toggle_sublets command."""
+        user_id = update.effective_user.id
+        db = await get_db()
+        user_repo = UserRepository(db)
+        rule_repo = RuleRepository(db)
+        
+        user_obj = await user_repo.get_by_telegram_id(user_id)
+        if not user_obj:
+            await update.message.reply_text("❌ משתמש לא נמצא")
+            return
+            
+        new_status = not user_obj.allow_sublets
+        await user_repo.update_allow_sublets(user_id, new_status)
+        
+        # Friendly feedback
+        persona_name = user_obj.persona
+        from core.personas import get_persona
+        persona_def = get_persona(persona_name)
+        
+        status_text = "מאופשר כעת! אשלח לך גם סאבלטים 😉" if new_status else "מנוטרל! אשלח לך אך ורק דירות רגילות (ללא סאבלטים) 🎯"
+        
+        msg = f"{persona_def.emoji} *קבלת סאבלטים {status_text}*"
+        msg = escape_markdown(msg)
+        
+        rules = await rule_repo.get_user_rules(user_id)
+        rules_message = ListingFormatter.format_rules_list(rules, user_obj.allow_bordering_neighborhoods, user_obj.allow_roomies, new_status)
+        
+        button_border = "❌ השבת שכונות גובלות" if user_obj.allow_bordering_neighborhoods else "✅ הפעל שכונות גובלות"
+        button_roomies = "❌ השבת דירות שותפים" if user_obj.allow_roomies else "✅ הפעל דירות שותפים"
+        button_sublets = "❌ השבת סאבלטים" if new_status else "✅ הפעל סאבלטים"
+        keyboard = [
+            [InlineKeyboardButton(button_border, callback_data="toggle_bordering")],
+            [InlineKeyboardButton(button_roomies, callback_data="toggle_roomies")],
+            [InlineKeyboardButton(button_sublets, callback_data="toggle_sublets")]
         ]
         
         await self._safe_reply_text(

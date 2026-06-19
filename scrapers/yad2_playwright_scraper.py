@@ -101,7 +101,7 @@ class Yad2PlaywrightScraper(BaseScraper):
         
         return params
     
-    async def scrape(self) -> List[Listing]:
+    async def scrape(self, on_listing_scraped: Optional[callable] = None) -> List[Listing]:
         """Scrape listings from Yad2 using Playwright."""
         log.debug(f"Starting Yad2 Playwright scrape. City={self.city_id}, Price={self.min_price}-{self.max_price}")
         listings = []
@@ -110,7 +110,7 @@ class Yad2PlaywrightScraper(BaseScraper):
             await self._init_browser()
             
             log.info("Scraping Yad2 via Playwright (full browser)")
-            listings = await self._scrape_with_browser()
+            listings = await self._scrape_with_browser(on_listing_scraped=on_listing_scraped)
             
         except Exception as e:
             log.error(f"Yad2 Playwright scrape failed: {e}", exc_info=True)
@@ -226,7 +226,7 @@ class Yad2PlaywrightScraper(BaseScraper):
         if hasattr(self, '_playwright') and self._playwright:
             await self._playwright.stop()
     
-    async def _scrape_with_browser(self) -> List[Listing]:
+    async def _scrape_with_browser(self, on_listing_scraped: Optional[callable] = None) -> List[Listing]:
         """Scrape listings using browser automation."""
         listings = []
         page = await self._context.new_page()
@@ -274,8 +274,14 @@ class Yad2PlaywrightScraper(BaseScraper):
                         break
                     
                     log.debug(f"Found {len(page_listings)} listings on page {page_num}")
-                    listings.extend(page_listings)
                     
+                    for listing in page_listings:
+                        listings.append(listing)
+                        if on_listing_scraped:
+                            await on_listing_scraped(listing)
+                        if len(listings) >= self.max_listings:
+                            break
+                            
                     if len(listings) >= self.max_listings:
                         log.debug(f"Reached max listings limit ({self.max_listings})")
                         break
@@ -523,6 +529,9 @@ class Yad2PlaywrightScraper(BaseScraper):
                     return None
             
             log.debug(f"Successfully parsed listing: {title} ({url})")
+            from utils.hebrew_utils import is_sublet_text
+            is_sublet = is_sublet_text(raw_text)
+            
             return Listing(
                 id=self.generate_listing_id(url),
                 source=self.source_name,
@@ -536,6 +545,7 @@ class Yad2PlaywrightScraper(BaseScraper):
                 images=images[:5],
                 posted_at=posted_at,
                 scraped_at=datetime.now(),
+                is_sublet=is_sublet,
             )
             
         except Exception as e:

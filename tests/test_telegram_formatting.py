@@ -139,14 +139,14 @@ def test_rules_list_markdown_v2_escaping():
         SearchRule(id=4, user_id=123, rule_type=RuleType.BORDER_AREA, value="נווה צדק,כרם התימנים", original_text="נווה צדק וכרם התימנים")
     ]
     
-    rules_msg = ListingFormatter.format_rules_list(rules, allow_bordering=True)
+    rules_msg = ListingFormatter.format_rules_list(rules, allow_bordering=True, allow_roomies=True, allow_sublets=True)
     validate_markdown_v2(rules_msg)
     assert "נווה צדק" in rules_msg
     assert "כרם התימנים" in rules_msg
     assert "שכונות שנבחרו" in rules_msg
     
     # Test empty rules
-    empty_msg = ListingFormatter.format_rules_list([], allow_bordering=False)
+    empty_msg = ListingFormatter.format_rules_list([], allow_bordering=False, allow_roomies=False, allow_sublets=False)
     validate_markdown_v2(empty_msg)
 
 

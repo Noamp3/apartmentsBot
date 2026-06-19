@@ -480,3 +480,23 @@ def extract_yad2_posted_date(images: List[str]) -> Optional[datetime]:
                 continue
     return posted_at
 
+
+def is_sublet_text(text: str) -> bool:
+    """Check if the text indicates a sublet.
+    
+    Returns True if the text contains keywords like סאבלט, סבלט, סאבלטים, סבלטים.
+    """
+    if not text:
+        return False
+        
+    text_normalized = text.lower().strip()
+    patterns = [
+        r"סאבלט",
+        r"סבלט",
+        r"לסאבלט",
+        r"לסבלט",
+        r"sublet",
+        r"sub-let",
+    ]
+    return any(re.search(p, text_normalized) for p in patterns)
+

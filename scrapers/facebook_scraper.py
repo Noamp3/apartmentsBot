@@ -8,6 +8,7 @@ permalink extraction. Refactored into modular components.
 import asyncio
 import hashlib
 import os
+import re
 from datetime import datetime
 from typing import List, Optional
 
@@ -179,11 +180,36 @@ class FacebookScraper(BaseScraper):
     async def _extract_post_url(self, page, post_element, soup: BeautifulSoup) -> str:
         return await self.parser.extract_post_url(page, post_element, soup)
 
+    def is_apartment_related(self, text: str) -> bool:
+        """Check if the text preview of a post contains apartment-related keywords."""
+        if not text:
+            return False
+        
+        text_lower = text.lower()
+        
+        # English keywords (with word boundaries)
+        english_keywords = [
+            r'\bapartment\b', r'\bapartments\b', r'\bsublet\b', r'\bsublets\b',
+            r'\broom\b', r'\brooms\b', r'\bflat\b', r'\bflats\b', r'\bstudio\b',
+            r'\broommate\b', r'\broommates\b', r'\brent\b', r'\brenting\b'
+        ]
+        for pattern in english_keywords:
+            if re.search(pattern, text_lower):
+                return True
+                
+        # Hebrew keywords pattern (allowing Hebrew prefixes)
+        # Prefixes: ב, ה, ו, ל, מ, ש, כ
+        pattern_str = r'(?:\s|^|[בוהלמשכ]+)(דירה|דירות|דירת|להשכרה|להשכיר|שותף|שותפה|שותפים|שותפות|סאבלט|סאבלטים|סבלט|שכירות|משכיר|ארנונה|מרוהט|מרוהטת|ריהוט|חדר|חדרים)(?:\s|$|[.,!?;:])'
+        if re.search(pattern_str, text_lower) or any(w in text_lower for w in ["דירה", "דירות", "סאבלט", "להשכרה"]):
+            return True
+            
+        return False
+
     # Core scraping loop orchestration
     async def scrape(self) -> List[Listing]:
-        """Scrape all configured Facebook groups."""
-        if not self.group_urls:
-            log.warning("No Facebook group URLs configured")
+        """Scrape configured Facebook groups and main feed if enabled."""
+        if not self.group_urls and not getattr(settings, 'FACEBOOK_SCRAPE_MAIN_FEED', False):
+            log.warning("No Facebook group URLs or main feed scraping configured")
             return []
         
         listings = []
@@ -191,23 +217,34 @@ class FacebookScraper(BaseScraper):
         try:
             await self._init_browser()
             
-            for group_url in self.group_urls:
+            if self.group_urls:
+                for group_url in self.group_urls:
+                    try:
+                        log.info(f"Scraping Facebook group", url=group_url)
+                        group_listings = await self._scrape_group(group_url)
+                        listings.extend(group_listings)
+                        
+                        # Delay between groups
+                        await self.anti_detection.human_like_delay(5, 10)
+                        
+                    except FacebookLoginRequiredException as le:
+                        log.error(f"Aborting scraping cycle: Facebook login is required but failed. {le}")
+                        break
+                    except Exception as e:
+                        log.error(f"Failed to scrape group", url=group_url, error=str(e))
+                        import traceback
+                        traceback.print_exc()
+                        continue
+            
+            if getattr(settings, 'FACEBOOK_SCRAPE_MAIN_FEED', False):
                 try:
-                    log.info(f"Scraping Facebook group", url=group_url)
-                    group_listings = await self._scrape_group(group_url)
-                    listings.extend(group_listings)
-                    
-                    # Delay between groups
-                    await self.anti_detection.human_like_delay(5, 10)
-                    
+                    log.info("Scraping Facebook main feed...")
+                    main_feed_listings = await self._scrape_main_feed()
+                    listings.extend(main_feed_listings)
                 except FacebookLoginRequiredException as le:
-                    log.error(f"Aborting scraping cycle: Facebook login is required but failed. {le}")
-                    break
+                    log.error(f"Facebook login required for main feed: {le}")
                 except Exception as e:
-                    log.error(f"Failed to scrape group", url=group_url, error=str(e))
-                    import traceback
-                    traceback.print_exc()
-                    continue
+                    log.error(f"Failed to scrape Facebook main feed", error=str(e))
         
         finally:
             await self._close_browser()
@@ -215,7 +252,7 @@ class FacebookScraper(BaseScraper):
         log.info(f"Facebook scrape complete", total_listings=len(listings))
         return listings
 
-    async def _scrape_group(self, group_url: str) -> List[Listing]:
+    async def _scrape_group(self, group_url: str, on_listing_scraped: Optional[callable] = None) -> List[Listing]:
         """Scrape a single Facebook group."""
         listings = []
         page = await self._context.new_page()
@@ -286,6 +323,8 @@ class FacebookScraper(BaseScraper):
                                 
                         log.debug(f"Parsed Facebook listing #{i+1}: {listing.title[:40]}...")
                         listings.append(listing)
+                        if on_listing_scraped:
+                            await on_listing_scraped(listing)
                     else:
                         log.debug(f"Skipped invalid post {i}")
                 except Exception as e:
@@ -295,6 +334,73 @@ class FacebookScraper(BaseScraper):
         except Exception as e:
             log.error(f"Group scraping failed", url=group_url, error=str(e))
             await self._save_debug_info(page, "scrape_failed")
+        
+        finally:
+            await page.close()
+        
+        return listings
+
+    async def _scrape_main_feed(self, on_listing_scraped: Optional[callable] = None) -> List[Listing]:
+        """Scrape the Facebook main feed."""
+        listings = []
+        page = await self._context.new_page()
+        main_feed_url = "https://www.facebook.com/"
+        
+        try:
+            log.info(f"Navigating to Facebook main feed: {main_feed_url}")
+            await page.goto(main_feed_url, wait_until='domcontentloaded', timeout=60000)
+            await self.anti_detection.human_like_delay(3, 5)
+            
+            # Check if login required
+            current_url = page.url
+            page_content = await page.content()
+            
+            if 'login' in current_url or 'checkpoint' in current_url or ('Log In' in page_content and 'Create new account' in page_content):
+                log.info("Login required for Facebook main feed access")
+                logged_in = await self._login_to_facebook(page)
+                if logged_in:
+                    await page.goto(main_feed_url, wait_until='domcontentloaded', timeout=60000)
+                    await self.anti_detection.human_like_delay(3, 5)
+                else:
+                    log.error("Cannot access Facebook main feed without login")
+                    await self._notify_login_required()
+                    raise FacebookLoginRequiredException("Facebook login is required and failed or was not completed.")
+            
+            await self._dismiss_overlays(page)
+            
+            # Scroll and collect posts with is_main_feed=True
+            post_data_list = await self._scroll_and_collect_posts(page, scroll_count=10, is_main_feed=True)
+            
+            if not post_data_list:
+                log.warning("No posts found in Facebook main feed")
+                await self._save_debug_info(page, "no_main_posts")
+                return []
+            
+            log.info(f"Found {len(post_data_list)} posts in main feed")
+            
+            for i, raw_data in enumerate(post_data_list):
+                try:
+                    listing = self.parse_listing(raw_data)
+                    if listing:
+                        if listing.posted_at:
+                            age = datetime.now() - listing.posted_at
+                            if age.days >= 1:
+                                log.debug(f"Skipping old listing: {listing.title[:40]}... (age: {age.days} days, posted: {listing.posted_at})")
+                                continue
+                                
+                        log.debug(f"Parsed Facebook listing #{i+1}: {listing.title[:40]}...")
+                        listings.append(listing)
+                        if on_listing_scraped:
+                            await on_listing_scraped(listing)
+                    else:
+                        log.debug(f"Skipped invalid post {i}")
+                except Exception as e:
+                    log.debug(f"Error processing post {i}: {e}")
+                    continue
+        
+        except Exception as e:
+            log.error(f"Main feed scraping failed", error=str(e))
+            await self._save_debug_info(page, "main_feed_failed")
         
         finally:
             await page.close()
@@ -342,7 +448,7 @@ class FacebookScraper(BaseScraper):
         except:
             pass
 
-    async def _scroll_and_collect_posts(self, page, scroll_count: int = 10) -> List[dict]:
+    async def _scroll_and_collect_posts(self, page, scroll_count: int = 10, is_main_feed: bool = False) -> List[dict]:
         """Scroll and collect post DATA immediately as they load."""
         all_post_data = []
         seen_post_ids = set()
@@ -365,6 +471,10 @@ class FacebookScraper(BaseScraper):
                         
                         if post_id not in seen_post_ids:
                             seen_post_ids.add(post_id)
+                            
+                            if is_main_feed and not self.is_apartment_related(text_preview):
+                                log.debug(f"Skipping unrelated main feed post: {text_preview[:50].replace(chr(10), ' ')}...")
+                                continue
                             
                             raw_data = await self._extract_post_data_immediate(page, post)
                             if raw_data:
@@ -492,6 +602,9 @@ class FacebookScraper(BaseScraper):
         
         log.debug(f"Parsed: ID={listing_id[:8]}, URL={'[OK]' if url else '[MISSING]'}, Price={price}, Phone={phone}, Location={location}, Posted={posted_at}")
         
+        from utils.hebrew_utils import is_sublet_text
+        is_sublet = is_sublet_text(text)
+        
         return Listing(
             id=listing_id,
             source=self.source_name,
@@ -508,6 +621,7 @@ class FacebookScraper(BaseScraper):
             screenshots=raw_data.get('screenshots', {}),
             posted_at=posted_at,
             scraped_at=datetime.now(),
+            is_sublet=is_sublet,
         )
 
     def _extract_date_from_text(self, text: str) -> Optional[datetime]:

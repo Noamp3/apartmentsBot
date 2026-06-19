@@ -6,6 +6,7 @@ from database.repositories.rule_repository import RuleRepository
 from database.repositories.listing_repository import ListingRepository, SeenListingsRepository
 from database.repositories.rejection_repository import RejectionRepository
 from database.repositories.notification_repository import NotificationRepository
+from database.repositories.facebook_group_repository import FacebookGroupRepository
 
 __all__ = [
     "UserRepository",
@@ -14,4 +15,5 @@ __all__ = [
     "SeenListingsRepository",
     "RejectionRepository",
     "NotificationRepository",
+    "FacebookGroupRepository",
 ]

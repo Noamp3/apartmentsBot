@@ -18,8 +18,8 @@ class UserRepository:
         """Create or update a user record without triggering cascade deletions."""
         await self.db.execute(
             """
-            INSERT INTO users (telegram_id, chat_id, username, created_at, is_active, first_notified_at, persona, is_admin, onboarding_step, allow_bordering_neighborhoods, allow_roomies)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO users (telegram_id, chat_id, username, created_at, is_active, first_notified_at, persona, is_admin, onboarding_step, allow_bordering_neighborhoods, allow_roomies, allow_sublets)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(telegram_id) DO UPDATE SET
                 chat_id = excluded.chat_id,
                 username = excluded.username,
@@ -29,12 +29,13 @@ class UserRepository:
                 is_admin = excluded.is_admin,
                 onboarding_step = excluded.onboarding_step,
                 allow_bordering_neighborhoods = excluded.allow_bordering_neighborhoods,
-                allow_roomies = excluded.allow_roomies
+                allow_roomies = excluded.allow_roomies,
+                allow_sublets = excluded.allow_sublets
             """,
             (user.telegram_id, user.chat_id, user.username, 
              user.created_at.isoformat(), user.is_active,
              user.first_notified_at.isoformat() if user.first_notified_at else None,
-             user.persona, user.is_admin, user.onboarding_step, user.allow_bordering_neighborhoods, user.allow_roomies)
+             user.persona, user.is_admin, user.onboarding_step, user.allow_bordering_neighborhoods, user.allow_roomies, user.allow_sublets)
         )
         return user
     
@@ -138,6 +139,12 @@ class UserRepository:
         except (KeyError, IndexError, TypeError):
             pass
             
+        allow_sublets = False
+        try:
+            allow_sublets = bool(row["allow_sublets"])
+        except (KeyError, IndexError, TypeError):
+            pass
+            
         return User(
             telegram_id=row["telegram_id"],
             chat_id=row["chat_id"],
@@ -150,6 +157,7 @@ class UserRepository:
             onboarding_step=onboarding_step,
             allow_bordering_neighborhoods=allow_bordering,
             allow_roomies=allow_roomies,
+            allow_sublets=allow_sublets,
         )
         
     async def update_persona(self, telegram_id: int, persona: str):
@@ -178,6 +186,13 @@ class UserRepository:
         await self.db.execute(
             "UPDATE users SET allow_roomies = ? WHERE telegram_id = ?",
             (allow_roomies, telegram_id)
+        )
+        
+    async def update_allow_sublets(self, telegram_id: int, allow_sublets: bool):
+        """Update a user's sublet preference."""
+        await self.db.execute(
+            "UPDATE users SET allow_sublets = ? WHERE telegram_id = ?",
+            (allow_sublets, telegram_id)
         )
     
     async def mark_first_notification(self, telegram_id: int):

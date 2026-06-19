@@ -76,6 +76,9 @@ class ApartmentBot:
             TGCommandHandler("toggle_roomies", self.command_handler.toggle_roomies)
         )
         self.application.add_handler(
+            TGCommandHandler("toggle_sublets", self.command_handler.toggle_sublets)
+        )
+        self.application.add_handler(
             TGCommandHandler("rejections", self.command_handler.rejections)
         )
         self.application.add_handler(

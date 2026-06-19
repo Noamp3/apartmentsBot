@@ -65,6 +65,107 @@ class MessageHandler:
         user_repo = UserRepository(db)
         user_obj = await user_repo.get_by_telegram_id(user.id)
         
+        # Check if user mentioned sublet preference in natural language
+        if user_obj:
+            lower_text = text.lower()
+            sublet_positive = any(w in lower_text for w in ["סאבלט", "סבלט", "sublet"])
+            sublet_negative = any(w in lower_text for w in ["בלי סאבלט", "בלי סבלט", "ללא סאבלט", "ללא סבלט", "לא סאבלט", "לא סבלט", "בלי סאבלטים", "בלי סבלטים"])
+            
+            if sublet_positive:
+                if sublet_negative:
+                    await user_repo.update_allow_sublets(user.id, False)
+                    user_obj.allow_sublets = False
+                    log.info("User disabled sublets via natural language", user_id=user.id)
+                else:
+                    await user_repo.update_allow_sublets(user.id, True)
+                    user_obj.allow_sublets = True
+                    log.info("User enabled sublets via natural language", user_id=user.id)
+        
+        # Intercept adding Facebook group from admin
+        if context.user_data.get("admin_waiting_for_fb_group"):
+            # Clear state first
+            context.user_data.pop("admin_waiting_for_fb_group", None)
+            
+            if text.lower() in ("cancel", "ביטול"):
+                await update.message.reply_text("❌ הוספת הקבוצה בוטלה.")
+                # Show groups menu
+                from database.repositories.facebook_group_repository import FacebookGroupRepository
+                fb_group_repo = FacebookGroupRepository(db)
+                groups = await fb_group_repo.get_all_groups()
+                
+                msg = "👥 <b>ניהול קבוצות פייסבוק לסריקה</b>\n\n"
+                if groups:
+                    msg += "<b>הקבוצות הפעילות כעת במערכת:</b>\n"
+                    import html
+                    for idx, g in enumerate(groups, 1):
+                        msg += f"{idx}. <code>{html.escape(g.url)}</code>\n"
+                else:
+                    msg += "❌ אין קבוצות פייסבוק מוגדרות במערכת.\n"
+                    
+                msg += "\nבחר אחת מהפעולות הבאות:"
+                
+                from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+                keyboard = [
+                    [InlineKeyboardButton("➕ הוסף קבוצת פייסבוק", callback_data="admin_menu_fb_group_add")],
+                    [InlineKeyboardButton("❌ הסר קבוצת פייסבוק", callback_data="admin_menu_fb_group_remove_list")],
+                    [InlineKeyboardButton("↩️ חזרה לתפריט פייסבוק", callback_data="admin_menu_fb")]
+                ]
+                await update.message.reply_text(msg, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="HTML")
+                return
+                
+            # Validate URL
+            url = text.strip()
+            if not ("facebook.com" in url or "fb.com" in url):
+                # Put user back in waiting state
+                context.user_data["admin_waiting_for_fb_group"] = True
+                await update.message.reply_text(
+                    "⚠️ <b>כתובת URL לא תקינה!</b>\n\n"
+                    "הכתובת חייבת להיות קישור לקבוצת פייסבוק (למשל: <code>https://www.facebook.com/groups/123456</code>).\n"
+                    "אנא שלח שוב או שלח <code>ביטול</code>.",
+                    parse_mode="HTML"
+                )
+                return
+                
+            # Add to DB
+            from database.repositories.facebook_group_repository import FacebookGroupRepository
+            from models.facebook_group import FacebookGroup
+            fb_group_repo = FacebookGroupRepository(db)
+            
+            # Check if group already exists
+            existing = await fb_group_repo.get_by_url(url)
+            if existing:
+                await update.message.reply_text("ℹ️ קבוצה זו כבר קיימת במערכת.")
+            else:
+                await fb_group_repo.create(FacebookGroup(url=url))
+                await update.message.reply_text("✅ קבוצת הפייסבוק נוספה בהצלחה!")
+                
+                # Reload scraper group URLs
+                app_instance = context.bot_data.get("app_instance")
+                if app_instance:
+                    await app_instance.reload_facebook_groups()
+                    
+            # Show groups menu
+            groups = await fb_group_repo.get_all_groups()
+            msg = "👥 <b>ניהול קבוצות פייסבוק לסריקה</b>\n\n"
+            if groups:
+                msg += "<b>הקבוצות הפעילות כעת במערכת:</b>\n"
+                import html
+                for idx, g in enumerate(groups, 1):
+                    msg += f"{idx}. <code>{html.escape(g.url)}</code>\n"
+            else:
+                msg += "❌ אין קבוצות פייסבוק מוגדרות במערכת.\n"
+                
+            msg += "\nבחר אחת מהפעולות הבאות:"
+            
+            from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+            keyboard = [
+                [InlineKeyboardButton("➕ הוסף קבוצת פייסבוק", callback_data="admin_menu_fb_group_add")],
+                [InlineKeyboardButton("❌ הסר קבוצת פייסבוק", callback_data="admin_menu_fb_group_remove_list")],
+                [InlineKeyboardButton("↩️ חזרה לתפריט פייסבוק", callback_data="admin_menu_fb")]
+            ]
+            await update.message.reply_text(msg, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="HTML")
+            return
+
         # Intercept system broadcast from admin
         if context.user_data.get("admin_waiting_for_broadcast"):
             # Clear state first

@@ -112,6 +112,9 @@ class Settings(BaseSettings):
     FACEBOOK_EMAIL: str = ""
     FACEBOOK_PASSWORD: str = ""
     
+    # Scrape Facebook main feed in addition to groups
+    FACEBOOK_SCRAPE_MAIN_FEED: bool = True
+    
     # Facebook Self-Healing Settings
     FACEBOOK_SELF_HEALING_ENABLED: bool = True
     SELF_HEALING_PERSIST_PATH: str = "data/healed_selectors.json"

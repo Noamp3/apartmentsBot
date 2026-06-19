@@ -1144,6 +1144,9 @@ class ListingEnricher:
             "street": "שם הרחוב המפורש כפי שהוא כתוב ישירות בפוסט בלבד (בלי מספר). אל תנחש, אל תסיק מהתיאור, ואל תשלים שם רחוב מהראש (למניעת הזיות/hallucinations)! אם לא כתוב במפורש בטקסט, רשום null.",
             "has_broker": true/false (האם מוזכר תיווך),
             "roomies": true/false (האם המודעה מחפשת שותף/ה לדירה - למשל להשכרת חדר בדירה, שותף שיכנס לחדר פנוי, או שותפים שמחפשים שותף נוסף. שים לב: ביטויים כמו "מתאים לשותפים" או "סבבה לשותפים" אומרים רק שהדירה מתאימה לזה אך לא שמחפשים שותף, ולכן במקרה כזה השדה צריך להיות false),
+            "is_sublet": true/false (האם מדובר בסאבלט/סבלט לטווח קצר או בינוני. החזר true אם הפוסט מציע סאבלט או השכרה זמנית),
+            "sublet_duration": "משך הסאבלט (למשל: 'חודשיים', 'שבועיים', 'שלושה שבועות', או null אם לא ידוע/לא סאבלט)",
+            "sublet_dates": "תאריכי הסאבלט (למשל: '1.7 עד 31.8', 'יולי-אוגוסט', או null אם לא ידוע/לא סאבלט)",
             "attributes": {{
                 "has_parking": true/false/null,
                 "has_balcony": true/false/null,
@@ -1232,17 +1235,26 @@ class ListingEnricher:
             
             # Same for roomies: combine AI-extracted roomies with regex lookup
             ai_roomies = data.get("roomies")
-            from utils.hebrew_utils import is_looking_for_roomie
+            from utils.hebrew_utils import is_looking_for_roomie, is_sublet_text
             regex_roomies = is_looking_for_roomie(listing.raw_text or listing.description or listing.title)
             if ai_roomies is None:
                 final_roomies = regex_roomies
             else:
                 final_roomies = bool(ai_roomies or regex_roomies)
                 
+            # Same for sublet: combine AI-extracted sublet with regex lookup
+            ai_sublet = data.get("is_sublet")
+            regex_sublet = is_sublet_text(listing.raw_text or listing.description or listing.title)
+            if ai_sublet is None:
+                final_sublet = regex_sublet
+            else:
+                final_sublet = bool(ai_sublet or regex_sublet)
+                
             attrs = data.get("attributes", {})
             if not isinstance(attrs, dict):
                 attrs = {}
             attrs["roomies"] = final_roomies
+            attrs["is_sublet"] = final_sublet
             
             enriched.append(EnrichedListing(
                 listing=listing,
@@ -1253,6 +1265,9 @@ class ListingEnricher:
                 extracted_street=data.get("street", ""),
                 has_broker_fee=data.get("has_broker", False) or has_broker_fee(listing.raw_text),
                 roomies=final_roomies,
+                is_sublet=final_sublet,
+                sublet_duration=data.get("sublet_duration"),
+                sublet_dates=data.get("sublet_dates"),
                 attributes=attrs,
                 area_matches={area: True for area in data.get("all_mentioned_areas", [])},
                 bordering_areas={}
@@ -1264,9 +1279,10 @@ class ListingEnricher:
     def _basic_enrich(self, listing: Listing) -> EnrichedListing:
         """Basic enrichment without AI (fallback)."""
         log.debug(f"Using basic enrichment fallback for {listing.title}")
-        from utils.hebrew_utils import extract_price, extract_bedrooms, is_looking_for_roomie
+        from utils.hebrew_utils import extract_price, extract_bedrooms, is_looking_for_roomie, is_sublet_text
         
         final_roomies = is_looking_for_roomie(listing.raw_text or listing.description or listing.title)
+        final_sublet = is_sublet_text(listing.raw_text or listing.description or listing.title)
         
         return EnrichedListing(
             listing=listing,
@@ -1277,7 +1293,10 @@ class ListingEnricher:
             extracted_street="",
             has_broker_fee=has_broker_fee(listing.raw_text),
             roomies=final_roomies,
-            attributes={"roomies": final_roomies},
+            is_sublet=final_sublet,
+            sublet_duration=None,
+            sublet_dates=None,
+            attributes={"roomies": final_roomies, "is_sublet": final_sublet},
             area_matches={},
             bordering_areas={}
         )

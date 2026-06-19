@@ -142,13 +142,15 @@ class ProcessingService:
             evaluated_count += 1
             try:
                 allow_roomies = getattr(user, 'allow_roomies', True)
+                allow_sublets = getattr(user, 'allow_sublets', False)
                 allow_bordering = getattr(user, 'allow_bordering_neighborhoods', True)
                 
                 is_match, reasons = self.matcher.evaluate_listing(
                     enriched, 
                     rules, 
                     allow_bordering=allow_bordering,
-                    allow_roomies=allow_roomies
+                    allow_roomies=allow_roomies,
+                    allow_sublets=allow_sublets
                 )
                 
                 if is_match:
@@ -190,6 +192,8 @@ class ProcessingService:
                     match_method = "attribute"
                     if not allow_roomies and enriched.roomies:
                         match_method = "roomies_filter"
+                    elif not allow_sublets and enriched.is_sublet:
+                        match_method = "sublet_filter"
                     
                     rejections_to_log.append({
                         "listing_id": enriched.listing.id,

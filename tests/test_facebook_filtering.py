@@ -60,6 +60,57 @@ async def test_filter_exchange_listings():
         assert result_valid is not None
         assert result_valid['text'] == "דירה להשכרה 3 חדרים מהממת ומרווחת ברחוב דיזנגוף תל אביב"
 
+def test_is_apartment_related():
+    scraper = FacebookScraper(group_urls=["http://example.com"])
+    
+    # Valid Hebrew real-estate posts
+    assert scraper.is_apartment_related("דירה להשכרה בתל אביב 3 חדרים") is True
+    assert scraper.is_apartment_related("מחפש שותף לדירה מהממת בדיזנגוף") is True
+    assert scraper.is_apartment_related("סאבלט מהמם לשבועיים בירושלים") is True
+    assert scraper.is_apartment_related("להשכיר חדר במרכז") is True
+    assert scraper.is_apartment_related("מחפשים שותפים לדירת 4 חדרים") is True
+    assert scraper.is_apartment_related("הדירה מרוהטת קומה 2") is True
+    
+    # Valid English real-estate posts
+    assert scraper.is_apartment_related("Beautiful 2-bedroom apartment for rent in Tel Aviv") is True
+    assert scraper.is_apartment_related("Looking for a roommate for a sublet") is True
+    assert scraper.is_apartment_related("Nice room in a shared flat") is True
+    
+    # Unrelated posts (False)
+    assert scraper.is_apartment_related("הלכתי היום לים והיה ממש כיף") is False
+    assert scraper.is_apartment_related("מה אתם חושבים על הבחירות?") is False
+    assert scraper.is_apartment_related("Selling my old bicycle in good condition") is False
+    assert scraper.is_apartment_related("מתכון מטורף לעוגת שוקולד") is False
+    assert scraper.is_apartment_related("הסרט החדש של מארוול פשוט מעולה") is False
+
+@pytest.mark.asyncio
+async def test_main_feed_filtering():
+    scraper = FacebookScraper(group_urls=[])
+    
+    # Mock page and post elements
+    page = AsyncMock()
+    
+    related_post = AsyncMock()
+    related_post.bounding_box.return_value = {"x": 0, "y": 0, "width": 100, "height": 150}
+    related_post.inner_text.return_value = "דירה מדהימה להשכרה בתל אביב"
+    
+    unrelated_post = AsyncMock()
+    unrelated_post.bounding_box.return_value = {"x": 0, "y": 0, "width": 100, "height": 150}
+    unrelated_post.inner_text.return_value = "פוסט כללי על פוליטיקה או חדשות"
+    
+    # Mock find_posts to return both posts
+    scraper._find_posts = AsyncMock(return_value=[related_post, unrelated_post])
+    
+    # Mock _extract_post_data_immediate
+    scraper._extract_post_data_immediate = AsyncMock(return_value={"text": "דירה להשכרה"})
+    
+    # Call _scroll_and_collect_posts on main feed (scroll_count=1)
+    results = await scraper._scroll_and_collect_posts(page, scroll_count=1, is_main_feed=True)
+    
+    # It should only extract data for the related post
+    assert len(results) == 1
+    scraper._extract_post_data_immediate.assert_called_once_with(page, related_post)
+
 if __name__ == "__main__":
     import asyncio
     asyncio.run(test_filter_exchange_listings())

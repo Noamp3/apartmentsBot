@@ -23,7 +23,8 @@ CREATE TABLE IF NOT EXISTS users (
     persona TEXT DEFAULT 'barakush',
     is_admin BOOLEAN DEFAULT FALSE,
     allow_bordering_neighborhoods BOOLEAN DEFAULT TRUE,
-    allow_roomies BOOLEAN DEFAULT TRUE
+    allow_roomies BOOLEAN DEFAULT TRUE,
+    allow_sublets BOOLEAN DEFAULT FALSE
 );
 
 -- Search rules table
@@ -64,6 +65,9 @@ CREATE TABLE IF NOT EXISTS enriched_listings (
     extracted_street TEXT,
     has_broker_fee BOOLEAN DEFAULT FALSE,
     roomies BOOLEAN DEFAULT FALSE,
+    is_sublet BOOLEAN DEFAULT FALSE,
+    sublet_duration TEXT,
+    sublet_dates TEXT,
     attributes TEXT,  -- JSON
     area_matches TEXT,  -- JSON
     bordering_areas TEXT,  -- JSON
@@ -94,6 +98,13 @@ CREATE TABLE IF NOT EXISTS ai_cache (
     persona TEXT NOT NULL DEFAULT 'barakush',
     content TEXT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Facebook groups table
+CREATE TABLE IF NOT EXISTS facebook_groups (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    url TEXT UNIQUE NOT NULL,
+    added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Sent notifications (for preventing duplicates)
@@ -206,6 +217,34 @@ class DatabaseManager:
         # Safe migration: Add 'roomies' column to enriched_listings if it doesn't exist
         try:
             await self._connection.execute("ALTER TABLE enriched_listings ADD COLUMN roomies BOOLEAN DEFAULT FALSE")
+            await self._connection.commit()
+        except aiosqlite.OperationalError:
+            pass
+            
+        # Safe migration: Add 'allow_sublets' column to users if it doesn't exist
+        try:
+            await self._connection.execute("ALTER TABLE users ADD COLUMN allow_sublets BOOLEAN DEFAULT FALSE")
+            await self._connection.commit()
+        except aiosqlite.OperationalError:
+            pass
+            
+        # Safe migration: Add 'is_sublet' column to enriched_listings if it doesn't exist
+        try:
+            await self._connection.execute("ALTER TABLE enriched_listings ADD COLUMN is_sublet BOOLEAN DEFAULT FALSE")
+            await self._connection.commit()
+        except aiosqlite.OperationalError:
+            pass
+            
+        # Safe migration: Add 'sublet_duration' column to enriched_listings if it doesn't exist
+        try:
+            await self._connection.execute("ALTER TABLE enriched_listings ADD COLUMN sublet_duration TEXT DEFAULT NULL")
+            await self._connection.commit()
+        except aiosqlite.OperationalError:
+            pass
+            
+        # Safe migration: Add 'sublet_dates' column to enriched_listings if it doesn't exist
+        try:
+            await self._connection.execute("ALTER TABLE enriched_listings ADD COLUMN sublet_dates TEXT DEFAULT NULL")
             await self._connection.commit()
         except aiosqlite.OperationalError:
             pass

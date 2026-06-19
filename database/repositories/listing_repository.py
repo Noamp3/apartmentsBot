@@ -377,8 +377,8 @@ class ListingRepository:
             INSERT OR REPLACE INTO enriched_listings 
             (listing_id, source, url, title, description, location, raw_text, images, screenshots,
              extracted_price, extracted_bedrooms, extracted_location, extracted_neighborhood, extracted_street,
-             has_broker_fee, roomies, attributes, area_matches, bordering_areas, posted_at, scraped_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             has_broker_fee, roomies, is_sublet, sublet_duration, sublet_dates, attributes, area_matches, bordering_areas, posted_at, scraped_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 enriched.listing.id,
@@ -397,6 +397,9 @@ class ListingRepository:
                 enriched.extracted_street,
                 enriched.has_broker_fee,
                 enriched.roomies,
+                enriched.is_sublet,
+                enriched.sublet_duration,
+                enriched.sublet_dates,
                 json.dumps(enriched.attributes, ensure_ascii=False),
                 json.dumps(enriched.area_matches, ensure_ascii=False),
                 json.dumps(enriched.bordering_areas, ensure_ascii=False),
@@ -497,6 +500,9 @@ class ListingRepository:
             extracted_street=row["extracted_street"] or "" if "extracted_street" in row.keys() else "",
             has_broker_fee=bool(row["has_broker_fee"]),
             roomies=bool(row["roomies"]) if "roomies" in row.keys() else False,
+            is_sublet=bool(row["is_sublet"]) if "is_sublet" in row.keys() else False,
+            sublet_duration=row["sublet_duration"] if "sublet_duration" in row.keys() else None,
+            sublet_dates=row["sublet_dates"] if "sublet_dates" in row.keys() else None,
             attributes=json.loads(row["attributes"]) if row["attributes"] else {},
             area_matches=json.loads(row["area_matches"]) if row["area_matches"] else {},
             bordering_areas=json.loads(row["bordering_areas"]) if row["bordering_areas"] else {},

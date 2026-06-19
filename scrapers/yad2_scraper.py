@@ -108,21 +108,21 @@ class Yad2Scraper(BaseScraper):
         
         return params
     
-    async def scrape(self) -> List[Listing]:
+    async def scrape(self, on_listing_scraped: Optional[callable] = None) -> List[Listing]:
         """Scrape listings from Yad2."""
         log.debug(f"Starting Yad2 scrape. City={self.city_id}, Price={self.min_price}-{self.max_price}")
         listings = []
         
         try:
             log.info("Scraping Yad2 via HTTP (Next.js __NEXT_DATA__)")
-            listings = await self._scrape_html_pages()
+            listings = await self._scrape_html_pages(on_listing_scraped=on_listing_scraped)
         except Exception as e:
             log.error(f"Yad2 scrape failed: {e}", exc_info=True)
         
         log.info(f"Yad2 scrape complete", total_listings=len(listings))
         return listings
     
-    async def _scrape_html_pages(self) -> List[Listing]:
+    async def _scrape_html_pages(self, on_listing_scraped: Optional[callable] = None) -> List[Listing]:
         """Scrape by fetching HTML pages and extracting __NEXT_DATA__."""
         listings = []
         
@@ -180,6 +180,8 @@ class Yad2Scraper(BaseScraper):
                         listing = self._parse_listing_item(item)
                         if listing:
                             listings.append(listing)
+                            if on_listing_scraped:
+                                await on_listing_scraped(listing)
                             if len(listings) >= self.max_listings:
                                 break
                     
@@ -417,6 +419,9 @@ class Yad2Scraper(BaseScraper):
                     return None
             
             log.debug(f"Successfully parsed listing: {title} ({url})")
+            from utils.hebrew_utils import is_sublet_text
+            is_sublet = is_sublet_text(raw_text)
+            
             return Listing(
                 id=self.generate_listing_id(url),
                 source=self.source_name,
@@ -430,6 +435,7 @@ class Yad2Scraper(BaseScraper):
                 images=images[:5],
                 posted_at=posted_at,  # Set the extracted date
                 scraped_at=datetime.now(),
+                is_sublet=is_sublet,
             )
             
         except Exception as e:

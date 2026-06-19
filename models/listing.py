@@ -26,6 +26,7 @@ class Listing:
     screenshots: dict = field(default_factory=dict)  # {"post_screenshot": Optional[str], "gallery_screenshots": List[str]}
     posted_at: Optional[datetime] = None
     scraped_at: datetime = field(default_factory=datetime.now)
+    is_sublet: bool = False
     
     def __post_init__(self):
         """Handle type conversions."""
@@ -58,6 +59,11 @@ class EnrichedListing:
     
     # Flatmate/roommate listing
     roomies: bool = False  # True if looking for a flatmate/roommate (excluding "suitable for roommates")
+    
+    # Sublet listing
+    is_sublet: bool = False
+    sublet_duration: Optional[str] = None
+    sublet_dates: Optional[str] = None
     
     # AI-computed attributes for custom rule matching
     attributes: Dict[str, Any] = field(default_factory=dict)

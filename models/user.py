@@ -21,6 +21,7 @@ class User:
     onboarding_step: Optional[str] = None
     allow_bordering_neighborhoods: bool = True
     allow_roomies: bool = True
+    allow_sublets: bool = False
     
     @property
     def is_new_user(self) -> bool:

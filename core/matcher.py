@@ -141,7 +141,8 @@ class ZeroAIUserMatcher:
         enriched: EnrichedListing, 
         rules: List[SearchRule],
         allow_bordering: bool = True,
-        allow_roomies: bool = True
+        allow_roomies: bool = True,
+        allow_sublets: bool = False
     ) -> Tuple[bool, List[str]]:
         """Evaluate a single enriched listing against user rules.
         
@@ -164,6 +165,10 @@ class ZeroAIUserMatcher:
         # Roomies check
         if not allow_roomies and enriched.roomies:
             return False, RejectionReasons(["דירת שותפים (קבלה מנוטרלת בהגדרות שלך)"], ["הגדרת שותפים"])
+            
+        # Sublet check
+        if not allow_sublets and enriched.is_sublet:
+            return False, RejectionReasons(["סאבלט (קבלה מנוטרלת בהגדרות שלך)"], ["הגדרת סאבלטים"])
         
         # Phase 1: Check hard rules (price, bedrooms)
         passes_hard, hard_failures = self.pre_filter.passes_hard_rules(enriched, rules)

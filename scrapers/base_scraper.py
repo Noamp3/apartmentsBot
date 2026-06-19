@@ -2,7 +2,7 @@
 """Abstract base class for all scrapers."""
 
 from abc import ABC, abstractmethod
-from typing import List
+from typing import List, Optional
 from models.listing import Listing
 
 
@@ -16,7 +16,7 @@ class BaseScraper(ABC):
         pass
     
     @abstractmethod
-    async def scrape(self) -> List[Listing]:
+    async def scrape(self, on_listing_scraped: Optional[callable] = None) -> List[Listing]:
         """Scrape listings from the source.
         
         Returns: List of Listing objects
