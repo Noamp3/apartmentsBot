@@ -206,7 +206,7 @@ class FacebookScraper(BaseScraper):
         return False
 
     # Core scraping loop orchestration
-    async def scrape(self) -> List[Listing]:
+    async def scrape(self, on_listing_scraped: Optional[callable] = None) -> List[Listing]:
         """Scrape configured Facebook groups and main feed if enabled."""
         if not self.group_urls and not getattr(settings, 'FACEBOOK_SCRAPE_MAIN_FEED', False):
             log.warning("No Facebook group URLs or main feed scraping configured")
