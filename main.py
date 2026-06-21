@@ -292,13 +292,18 @@ class ApartmentBotApplication:
         if not batch_listings:
             return
             
-        log.info(f"Processing and enriching batch of {len(batch_listings)} listings")
+        sources = {}
+        for l in batch_listings:
+            sources[l.source] = sources.get(l.source, 0) + 1
+        source_str = ", ".join(f"{s}={c}" for s, c in sources.items())
+        log.info(f"🧠 Enriching batch of {len(batch_listings)} listings ({source_str})")
         db = await get_db()
         seen_repo = SeenListingsRepository(db)
         listing_repo = ListingRepository(db)
         
         # Phase 2: Enrich with AI (ONE batch call)
         enriched_listings = await self.enricher.enrich_listings(batch_listings)
+        log.info(f"🧠 Enrichment done: {len(enriched_listings)}/{len(batch_listings)} listings enriched")
         
         # Mark as seen
         await seen_repo.mark_many_seen(batch_listings)
@@ -410,15 +415,16 @@ class ApartmentBotApplication:
             log.info(f"Filtered {cross_source_duplicates_post} cross-source duplicate(s) after enrichment")
             
         if not valid_enriched_listings:
-            log.info("No valid listings after enrichment in this batch")
+            log.info("No valid listings remaining after enrichment in this batch")
             return
         
         # Phase 3: Match and Notify
+        log.info(f"🔔 Matching {len(valid_enriched_listings)} enriched listings against user rules")
         await self.processing_service.process_cycle(valid_enriched_listings)
 
     async def run_processing_cycle(self):
         """Run a complete processing cycle: scrape -> enrich -> match -> notify."""
-        log.info("Starting processing cycle")
+        log.info("═══ Starting processing cycle ═══")
         
         # Reload Facebook groups to ensure correct dynamic order
         await self.reload_facebook_groups()
@@ -444,6 +450,7 @@ class ApartmentBotApplication:
         
         fb_new_count = 0
         yad2_new_count = 0
+        batch_count = 0
         
         background_tasks = set()
         
@@ -503,6 +510,12 @@ class ApartmentBotApplication:
                     accumulating_listings.clear()
             
             if batch_to_process:
+                nonlocal batch_count
+                batch_count += 1
+                log.info(
+                    f"🧠 Batch #{batch_count}: sending {len(batch_to_process)} listings to enrich -> match pipeline",
+                    fb_new=fb_new_count, yad2_new=yad2_new_count
+                )
                 start_background_batch(batch_to_process)
                     
         async def on_group_completed(group_url: str, group_listings: List[Listing]):
@@ -525,10 +538,20 @@ class ApartmentBotApplication:
                     accumulating_listings.clear()
                     
             if batch_to_process:
-                log.info(f"Group scraping complete ({group_url}). Flushing batch of {len(batch_to_process)} listings in background.")
+                nonlocal batch_count
+                batch_count += 1
+                log.info(
+                    f"🧠 Batch #{batch_count}: flushing {len(batch_to_process)} remaining listings after group complete",
+                    group_url=group_url
+                )
                 start_background_batch(batch_to_process)
         
         # Run scrapers concurrently
+        log.info(
+            "📡 Phase 1: SCRAPE — launching scrapers",
+            fb_groups=len(self.facebook_scraper.group_urls),
+            max_concurrent_fb=settings.MAX_CONCURRENT_FB_PAGES
+        )
         fb_task = asyncio.create_task(self.facebook_scraper.scrape(
             on_listing_scraped=on_listing_scraped,
             on_group_completed=on_group_completed
@@ -546,7 +569,9 @@ class ApartmentBotApplication:
             telemetry.track_error("facebook_scraper", type(fb_res).__name__)
         else:
             fb_listings = fb_res
-            log.info(f"Facebook: {len(fb_listings)} listings")
+            log.info(
+                f"📡 Facebook scrape done: {len(fb_listings)} total, {fb_new_count} new ({duration_fb:.1f}s)"
+            )
             
         if isinstance(yad2_res, Exception):
             yad2_failed = True
@@ -554,7 +579,9 @@ class ApartmentBotApplication:
             telemetry.track_error("yad2_scraper", type(yad2_res).__name__)
         else:
             yad2_listings = yad2_res
-            log.info(f"Yad2: {len(yad2_listings)} listings")
+            log.info(
+                f"📡 Yad2 scrape done: {len(yad2_listings)} total, {yad2_new_count} new ({duration_yad2:.1f}s)"
+            )
             
         # Flush any remaining listings
         async with lock:
@@ -567,14 +594,22 @@ class ApartmentBotApplication:
             
         # Wait for all background enrichment and notifications to finish before declaring cycle complete
         if background_tasks:
-            log.info(f"Waiting for {len(background_tasks)} background enrichment/matching task(s) to finish...")
+            log.info(f"⏳ Waiting for {len(background_tasks)} background enrich/match task(s)...")
             await asyncio.gather(*background_tasks, return_exceptions=True)
             
         # Track scrape details with actual new counts
         telemetry.track_scrape("facebook", duration_fb, len(fb_listings), fb_new_count, failed=fb_failed)
         telemetry.track_scrape("yad2", duration_yad2, len(yad2_listings), yad2_new_count, failed=yad2_failed)
         
-        log.info("Processing cycle complete")
+        total_duration = time.perf_counter() - start_fb
+        log.info(
+            f"═══ Processing cycle complete ({total_duration:.1f}s) ═══",
+            fb_total=len(fb_listings),
+            fb_new=fb_new_count,
+            yad2_total=len(yad2_listings),
+            yad2_new=yad2_new_count,
+            batches_processed=batch_count
+        )
     
     async def start(self):
         """Start the application."""

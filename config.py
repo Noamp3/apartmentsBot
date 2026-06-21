@@ -115,6 +115,11 @@ class Settings(BaseSettings):
     # Scrape Facebook main feed in addition to groups
     FACEBOOK_SCRAPE_MAIN_FEED: bool = True
     
+    # Parallel Facebook Scraping
+    MAX_CONCURRENT_FB_PAGES: int = 2  # Max browser pages open simultaneously
+    PARALLEL_FB_STAGGER_MIN: float = 3.0  # Min seconds between launching parallel pages
+    PARALLEL_FB_STAGGER_MAX: float = 8.0  # Max seconds between launching parallel pages
+    
     # Facebook Self-Healing Settings
     FACEBOOK_SELF_HEALING_ENABLED: bool = True
     SELF_HEALING_PERSIST_PATH: str = "data/healed_selectors.json"

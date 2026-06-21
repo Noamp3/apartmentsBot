@@ -28,6 +28,22 @@ from config import settings
 
 log = Loggers.scraper()
 
+
+def _get_group_label(group_url: str) -> str:
+    """Extract a short human-readable label from a Facebook group URL.
+    
+    e.g. 'https://www.facebook.com/groups/apartments.tlv/' -> 'apartments.tlv'
+    """
+    try:
+        url = group_url.rstrip('/')
+        parts = url.split('/groups/')
+        if len(parts) > 1:
+            return parts[1].split('/')[0].split('?')[0]
+    except Exception:
+        pass
+    return group_url[-40:]  # fallback: last 40 chars
+
+
 class FacebookLoginRequiredException(Exception):
     """Raised when Facebook requires login but authentication fails or is not available."""
     pass
@@ -83,6 +99,10 @@ class FacebookScraper(BaseScraper):
             healer=self.healer,
             anti_detection=self.anti_detection
         )
+        
+        # Parallel scraping state (initialized per scrape cycle)
+        self._page_semaphore: Optional[asyncio.Semaphore] = None
+        self._abort_event: Optional[asyncio.Event] = None
         
         # Ensure data directory exists
         os.makedirs(os.path.dirname(self.cookies_file), exist_ok=True)
@@ -261,7 +281,7 @@ class FacebookScraper(BaseScraper):
         on_listing_scraped: Optional[callable] = None,
         on_group_completed: Optional[callable] = None
     ) -> List[Listing]:
-        """Scrape configured Facebook groups and main feed if enabled."""
+        """Scrape configured Facebook groups (in parallel) and main feed if enabled."""
         if not self.group_urls and not getattr(settings, 'FACEBOOK_SCRAPE_MAIN_FEED', False):
             log.warning("No Facebook group URLs or main feed scraping configured")
             return []
@@ -272,29 +292,38 @@ class FacebookScraper(BaseScraper):
             await self._init_browser()
             
             if self.group_urls:
-                for group_url in self.group_urls:
-                    try:
-                        log.info(f"Scraping Facebook group", url=group_url)
-                        group_listings = await self._scrape_group(group_url, on_listing_scraped=on_listing_scraped)
-                        listings.extend(group_listings)
-                        
-                        if on_group_completed:
-                            try:
-                                await on_group_completed(group_url, group_listings)
-                            except Exception as cb_err:
-                                log.error(f"Error in on_group_completed callback: {cb_err}", exc_info=True)
-                        
-                        # Delay between groups
-                        await self.anti_detection.human_like_delay(5, 10)
-                        
-                    except FacebookLoginRequiredException as le:
-                        log.error(f"Aborting scraping cycle: Facebook login is required but failed. {le}")
-                        break
-                    except Exception as e:
-                        log.error(f"Failed to scrape group", url=group_url, error=str(e))
-                        import traceback
-                        traceback.print_exc()
-                        continue
+                # Pre-load healer state ONCE before parallel dispatch (avoids race condition)
+                self.healer.source = "facebook_group"
+                self.healer.load_healed_selectors()
+                
+                # Initialize parallel scraping controls
+                max_concurrent = settings.MAX_CONCURRENT_FB_PAGES
+                self._page_semaphore = asyncio.Semaphore(max_concurrent)
+                self._abort_event = asyncio.Event()
+                
+                log.info(
+                    "Starting parallel Facebook group scraping",
+                    groups=len(self.group_urls),
+                    max_concurrent=max_concurrent
+                )
+                
+                # Launch all groups as parallel tasks (semaphore limits concurrency)
+                tasks = []
+                for i, group_url in enumerate(self.group_urls):
+                    task = asyncio.create_task(
+                        self._scrape_group_parallel(
+                            group_url, i, on_listing_scraped, on_group_completed
+                        )
+                    )
+                    tasks.append(task)
+                
+                results = await asyncio.gather(*tasks, return_exceptions=True)
+                
+                for result in results:
+                    if isinstance(result, list):
+                        listings.extend(result)
+                    elif isinstance(result, Exception):
+                        log.error("Parallel group scrape failed", error=str(result))
             
             if getattr(settings, 'FACEBOOK_SCRAPE_MAIN_FEED', False):
                 try:
@@ -307,25 +336,96 @@ class FacebookScraper(BaseScraper):
                     log.error(f"Failed to scrape Facebook main feed", error=str(e))
         
         finally:
+            self._page_semaphore = None
+            self._abort_event = None
             await self._close_browser()
         
         log.info(f"Facebook scrape complete", total_listings=len(listings))
         return listings
 
-    async def _scrape_group(self, group_url: str, on_listing_scraped: Optional[callable] = None) -> List[Listing]:
+    async def _scrape_group_parallel(
+        self,
+        group_url: str,
+        index: int,
+        on_listing_scraped: Optional[callable],
+        on_group_completed: Optional[callable]
+    ) -> List[Listing]:
+        """Wrapper around _scrape_group with semaphore control, staggered launch, and abort coordination."""
+        label = _get_group_label(group_url)
+        
+        # Stagger launch: each task waits a bit longer so pages don't all open at once
+        if index > 0:
+            stagger_delay = index * random.uniform(
+                settings.PARALLEL_FB_STAGGER_MIN,
+                settings.PARALLEL_FB_STAGGER_MAX
+            )
+            # Cap total stagger so later groups don't wait forever
+            stagger_delay = min(stagger_delay, 30)
+            log.info(f"[{label}] Waiting {stagger_delay:.0f}s stagger before acquiring slot")
+            await asyncio.sleep(stagger_delay)
+        
+        # Check if abort was triggered while waiting in the stagger queue
+        if self._abort_event.is_set():
+            log.warning(f"[{label}] Skipping — abort signal (pre-semaphore)")
+            return []
+        
+        async with self._page_semaphore:
+            # Double-check abort after acquiring semaphore
+            if self._abort_event.is_set():
+                log.warning(f"[{label}] Skipping — abort signal (post-semaphore)")
+                return []
+            
+            try:
+                log.info(f"📋 [{label}] Starting group scrape (slot #{index})")
+                is_first = (index == 0)
+                group_listings = await self._scrape_group(
+                    group_url,
+                    on_listing_scraped=on_listing_scraped,
+                    is_first_group=is_first
+                )
+                
+                if on_group_completed:
+                    try:
+                        await on_group_completed(group_url, group_listings)
+                    except Exception as cb_err:
+                        log.error(f"[{label}] Error in on_group_completed callback: {cb_err}", exc_info=True)
+                
+                return group_listings
+                
+            except FacebookLoginRequiredException as le:
+                log.error(f"[{label}] ⛔ Login required — aborting all parallel scrapes", error=str(le))
+                self._abort_event.set()
+                return []
+            except Exception as e:
+                log.error(f"[{label}] Failed to scrape group", error=str(e))
+                import traceback
+                traceback.print_exc()
+                return []
+
+    async def _scrape_group(
+        self,
+        group_url: str,
+        on_listing_scraped: Optional[callable] = None,
+        is_first_group: bool = False
+    ) -> List[Listing]:
         """Scrape a single Facebook group."""
-        self.healer.source = "facebook_group"
-        self.healer.load_healed_selectors()
+        # NOTE: healer.source and load_healed_selectors() are set ONCE in scrape()
+        # before parallel dispatch to avoid race conditions.
+        import time as _time
+        group_start = _time.perf_counter()
+        label = _get_group_label(group_url)
         listings = []
+        skipped_old = 0
+        skipped_invalid = 0
         page = await self._context.new_page()
         
         # Use desktop URL
         desktop_url = self._convert_to_desktop_url(group_url)
         
         try:
-            # === SESSION WARMING (more natural behavior) ===
-            if random.random() < 0.3:  # 30% chance
-                log.info("Session warming: visiting Facebook homepage first")
+            # === SESSION WARMING (only for first group to avoid parallel homepage stampede) ===
+            if is_first_group and random.random() < 0.3:  # 30% chance, first group only
+                log.info(f"[{label}] Session warming: visiting homepage first")
                 await page.goto("https://www.facebook.com", wait_until='domcontentloaded', timeout=30000)
                 await self.anti_detection.human_like_delay(2, 4)
                 await self.anti_detection.random_mouse_movement(page)
@@ -333,7 +433,7 @@ class FacebookScraper(BaseScraper):
             
             await asyncio.sleep(random.uniform(0.5, 2))
             
-            log.info(f"Navigating to group: {desktop_url}")
+            log.info(f"[{label}] Navigating to group page")
             await page.goto(desktop_url, wait_until='domcontentloaded', timeout=60000)
             await self.anti_detection.human_like_delay(3, 5)
             
@@ -342,13 +442,13 @@ class FacebookScraper(BaseScraper):
             page_content = await page.content()
             
             if 'login' in current_url or 'checkpoint' in current_url or ('Log In' in page_content and 'Create new account' in page_content):
-                log.info("Login required for Facebook group access")
+                log.info(f"[{label}] Login required for group access")
                 logged_in = await self._login_to_facebook(page)
                 if logged_in:
                     await page.goto(desktop_url, wait_until='domcontentloaded', timeout=60000)
                     await self.anti_detection.human_like_delay(3, 5)
                 else:
-                    log.error("Cannot access Facebook group without login")
+                    log.error(f"[{label}] Cannot access group without login")
                     await self._notify_login_required()
                     raise FacebookLoginRequiredException("Facebook login is required and failed or was not completed.")
             
@@ -359,19 +459,21 @@ class FacebookScraper(BaseScraper):
             if "/groups/" in current_url and ("/members" in current_url or "/about" in current_url):
                 tab_name = "/members" if "/members" in current_url else "/about"
                 discussion_url = current_url.split(tab_name)[0] + "/"
-                log.info(f"Detected auto-redirect to {tab_name} tab. Correcting course to base group URL: {discussion_url}")
+                log.info(f"[{label}] Auto-redirect to {tab_name} tab detected, correcting")
                 await page.goto(discussion_url, wait_until='domcontentloaded', timeout=60000)
                 await self.anti_detection.human_like_delay(3, 5)
                 await self._dismiss_overlays(page)
             
-            post_data_list = await self._scroll_and_collect_posts(page, scroll_count=10)
+            log.info(f"[{label}] 🔍 Starting scroll & collect (scroll_count=10)")
+            post_data_list = await self._scroll_and_collect_posts(page, scroll_count=10, group_label=label)
             
             if not post_data_list:
-                log.warning("No posts found in Facebook group", url=group_url)
+                duration = _time.perf_counter() - group_start
+                log.warning(f"[{label}] No posts found ({duration:.1f}s)", url=group_url)
                 await self._save_debug_info(page, "no_posts")
                 return []
             
-            log.info(f"Found {len(post_data_list)} posts")
+            log.info(f"[{label}] Collected {len(post_data_list)} raw posts, parsing...")
             
             for i, raw_data in enumerate(post_data_list):
                 try:
@@ -380,26 +482,34 @@ class FacebookScraper(BaseScraper):
                         if listing.posted_at:
                             age = datetime.now() - listing.posted_at
                             if age.days >= 1:
-                                log.debug(f"Skipping old listing: {listing.title[:40]}... (age: {age.days} days, posted: {listing.posted_at})")
+                                skipped_old += 1
+                                log.debug(f"[{label}] Skipping old listing (age: {age.days}d): {listing.title[:40]}...")
                                 continue
                                 
-                        log.debug(f"Parsed Facebook listing #{i+1}: {listing.title[:40]}...")
                         listings.append(listing)
                         if on_listing_scraped:
                             await on_listing_scraped(listing)
                     else:
-                        log.debug(f"Skipped invalid post {i}")
+                        skipped_invalid += 1
                 except Exception as e:
-                    log.debug(f"Error processing post {i}: {e}")
+                    skipped_invalid += 1
+                    log.debug(f"[{label}] Error processing post {i}: {e}")
                     continue
         
         except Exception as e:
-            log.error(f"Group scraping failed", url=group_url, error=str(e))
+            log.error(f"[{label}] Group scraping failed", error=str(e))
             await self._save_debug_info(page, "scrape_failed")
         
         finally:
             await page.close()
         
+        duration = _time.perf_counter() - group_start
+        log.info(
+            f"[{label}] ✅ Group scrape complete in {duration:.1f}s",
+            new_listings=len(listings),
+            skipped_old=skipped_old,
+            skipped_invalid=skipped_invalid
+        )
         return listings
 
     async def _scrape_main_feed(self, on_listing_scraped: Optional[callable] = None) -> List[Listing]:
@@ -473,7 +583,7 @@ class FacebookScraper(BaseScraper):
 
     async def _dismiss_overlays(self, page):
         """Dismiss any overlays, popups, or dialogs blocking the page."""
-        log.info("Dismissing any overlays...")
+        log.debug("Dismissing overlays")
         
         dismiss_selectors = [
             'div[role="dialog"] div[aria-label="Close"]',
@@ -502,7 +612,7 @@ class FacebookScraper(BaseScraper):
         try:
             await page.focus('body')
             await self.anti_detection.human_like_delay(0.5, 1)
-            log.info("Focused page body to ensure keyboard controls work")
+            log.debug("Focused page body")
         except:
             pass
         
@@ -512,8 +622,9 @@ class FacebookScraper(BaseScraper):
         except:
             pass
 
-    async def _scroll_and_collect_posts(self, page, scroll_count: int = 10, is_main_feed: bool = False) -> List[dict]:
+    async def _scroll_and_collect_posts(self, page, scroll_count: int = 10, is_main_feed: bool = False, group_label: str = "feed") -> List[dict]:
         """Scroll and collect post DATA immediately as they load."""
+        tag = f"[{group_label}]"
         all_post_data = []
         seen_post_ids = set()
         
@@ -551,7 +662,7 @@ class FacebookScraper(BaseScraper):
                                         already_seen_in_db_count += 1
                                     
                                     if checked_count == 10 and already_seen_in_db_count == 10:
-                                        log.info("Terminating search in group early: first 10 posts are already seen in database")
+                                        log.info(f"{tag} Early termination: first 10 posts already seen in DB")
                                         return all_post_data
 
                     except Exception as e:
@@ -560,7 +671,23 @@ class FacebookScraper(BaseScraper):
             except Exception as e:
                 log.debug(f"Error finding posts: {e}")
             
-            log.info(f"Scroll {i+1}/{scroll_count}: collected {len(all_post_data)} unique posts so far")
+            log.info(f"{tag} Scroll {i+1}/{scroll_count}: {len(all_post_data)} posts collected")
+            
+            # Check for abort signal from parallel scraping (e.g. another page hit a checkpoint)
+            if self._abort_event and self._abort_event.is_set():
+                log.warning(f"{tag} Abort signal received mid-scroll, stopping early")
+                break
+            
+            # Check for mid-scroll checkpoint/rate-limit redirect
+            try:
+                current_url = page.url
+                if 'checkpoint' in current_url or 'login' in current_url:
+                    log.warning(f"{tag} Checkpoint/login detected during scroll — triggering abort")
+                    if self._abort_event:
+                        self._abort_event.set()
+                    break
+            except Exception:
+                pass  # Page may be navigating
             
             scroll_distance = random.randint(600, 1200)
             await page.mouse.wheel(0, scroll_distance)
