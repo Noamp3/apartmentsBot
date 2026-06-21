@@ -209,6 +209,7 @@ class ApartmentBotApplication:
             group_urls=group_urls,
             anti_detection=anti_detection,
             is_seen_callback=seen_repo.is_seen,
+            duplicate_check_callback=seen_repo.find_duplicate_by_fingerprint,
             ai_engine=healer_engine
         )
         

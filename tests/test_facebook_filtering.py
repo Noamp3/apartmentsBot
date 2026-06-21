@@ -109,7 +109,7 @@ async def test_main_feed_filtering():
     
     # It should only extract data for the related post
     assert len(results) == 1
-    scraper._extract_post_data_immediate.assert_called_once_with(page, related_post)
+    scraper._extract_post_data_immediate.assert_called_once_with(page, related_post, capture_screenshots=False)
 
 @pytest.mark.asyncio
 async def test_filter_sponsored_posts():

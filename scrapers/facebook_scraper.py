@@ -55,6 +55,7 @@ class FacebookScraper(BaseScraper):
         group_urls: List[str],
         anti_detection: AntiDetectionModule = None,
         is_seen_callback: callable = None,
+        duplicate_check_callback: callable = None,
         cookies_file: str = None,
         storage_state_file: str = None,
         ai_engine = None
@@ -62,6 +63,7 @@ class FacebookScraper(BaseScraper):
         self.group_urls = group_urls
         self.anti_detection = anti_detection or AntiDetectionModule()
         self.is_seen_callback = is_seen_callback
+        self.duplicate_check_callback = duplicate_check_callback
         self.cookies_file = cookies_file or self.COOKIES_FILE
         self.storage_state_file = storage_state_file or self.STORAGE_STATE_FILE
         
@@ -171,8 +173,56 @@ class FacebookScraper(BaseScraper):
     async def _find_posts(self, page) -> List:
         return await self.parser.find_posts(page)
 
-    async def _extract_post_data_immediate(self, page, post_element) -> Optional[dict]:
-        return await self.parser.extract_post_data_immediate(page, post_element)
+    async def _extract_post_data_immediate(self, page, post_element, capture_screenshots: bool = True) -> Optional[dict]:
+        return await self.parser.extract_post_data_immediate(page, post_element, capture_screenshots)
+
+    async def _process_and_extract_post(self, page, post_element) -> Optional[dict]:
+        """Extract basic post data, check if it's seen or a duplicate, and conditionally capture screenshots."""
+        # 1. Extract metadata without screenshots
+        raw_data = await self._extract_post_data_immediate(page, post_element, capture_screenshots=False)
+        if not raw_data:
+            return None
+
+        listing_id = self._generate_id_from_raw(raw_data)
+
+        # 2. Check if already seen in DB
+        is_in_db = False
+        if self.is_seen_callback:
+            is_in_db = await self.is_seen_callback(listing_id)
+
+        # 3. Check if it's a cross-source duplicate
+        is_duplicate = False
+        if not is_in_db and self.duplicate_check_callback:
+            temp_listing = self.parse_listing(raw_data)
+            duplicate_info = await self.duplicate_check_callback(temp_listing)
+            if duplicate_info:
+                is_duplicate = True
+
+        raw_data['_is_seen'] = is_in_db
+        raw_data['_is_duplicate'] = is_duplicate
+
+        # 4. Conditionally capture screenshots
+        if not is_in_db and not is_duplicate:
+            import hashlib
+            url = raw_data.get('url', '')
+            text = raw_data.get('text', '') or ''
+            id_seed = url if url and len(url) > 30 else f"facebook_{hashlib.md5(text[:200].encode()).hexdigest()}"
+            parser_listing_id = hashlib.md5(id_seed.encode()).hexdigest()
+
+            from utils.screenshot_utils import save_post_screenshot, save_gallery_screenshots
+            post_screenshot = await save_post_screenshot(post_element, parser_listing_id)
+            gallery_screenshots = await save_gallery_screenshots(post_element, parser_listing_id)
+            raw_data['screenshots'] = {
+                'post_screenshot': post_screenshot,
+                'gallery_screenshots': gallery_screenshots
+            }
+        else:
+            if is_duplicate:
+                log.info(f"Skipping screenshot capturing for cross-source duplicate listing (ID={listing_id[:8]})")
+            else:
+                log.debug(f"Skipping screenshot capturing for already seen listing (ID={listing_id[:8]})")
+
+        return raw_data
 
     async def _extract_post_data(self, page, post_element) -> Optional[dict]:
         return await self.parser.extract_post_data(page, post_element)
@@ -490,17 +540,14 @@ class FacebookScraper(BaseScraper):
                                 log.debug(f"Skipping unrelated main feed post: {text_preview[:50].replace(chr(10), ' ')}...")
                                 continue
                             
-                            raw_data = await self._extract_post_data_immediate(page, post)
+                            raw_data = await self._process_and_extract_post(page, post)
                             if raw_data:
                                 all_post_data.append(raw_data)
                                 log.debug(f"Extracted post: {raw_data.get('text', '')[:50]}...")
                                 
                                 if self.is_seen_callback and checked_count < 10:
                                     checked_count += 1
-                                    listing_id = self._generate_id_from_raw(raw_data)
-                                    
-                                    is_in_db = await self.is_seen_callback(listing_id)
-                                    if is_in_db:
+                                    if raw_data.get('_is_seen'):
                                         already_seen_in_db_count += 1
                                     
                                     if checked_count == 10 and already_seen_in_db_count == 10:
@@ -567,7 +614,7 @@ class FacebookScraper(BaseScraper):
                             
                             if post_id not in seen_post_ids:
                                 seen_post_ids.add(post_id)
-                                raw_data = await self._extract_post_data_immediate(page, post)
+                                raw_data = await self._process_and_extract_post(page, post)
                                 if raw_data:
                                     all_post_data.append(raw_data)
                         except Exception as e:

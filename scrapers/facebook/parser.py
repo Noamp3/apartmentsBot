@@ -294,7 +294,7 @@ class FacebookPostParser:
         
         return []
 
-    async def extract_post_data_immediate(self, page, post_element) -> Optional[dict]:
+    async def extract_post_data_immediate(self, page, post_element, capture_screenshots: bool = True) -> Optional[dict]:
         """Extract post data immediately while element is valid."""
         try:
             await self.expand_post(post_element)
@@ -376,10 +376,13 @@ class FacebookPostParser:
             id_seed = url if url and len(url) > 30 else f"facebook_{hashlib.md5(text[:200].encode()).hexdigest()}"
             listing_id = hashlib.md5(id_seed.encode()).hexdigest()
             
-            # Capture screenshots using our utility functions
-            from utils.screenshot_utils import save_post_screenshot, save_gallery_screenshots
-            post_screenshot = await save_post_screenshot(post_element, listing_id)
-            gallery_screenshots = await save_gallery_screenshots(post_element, listing_id)
+            post_screenshot = None
+            gallery_screenshots = []
+            if capture_screenshots:
+                # Capture screenshots using our utility functions
+                from utils.screenshot_utils import save_post_screenshot, save_gallery_screenshots
+                post_screenshot = await save_post_screenshot(post_element, listing_id)
+                gallery_screenshots = await save_gallery_screenshots(post_element, listing_id)
             
             return {
                 'text': text,
@@ -388,7 +391,7 @@ class FacebookPostParser:
                 'screenshots': {
                     'post_screenshot': post_screenshot,
                     'gallery_screenshots': gallery_screenshots
-                },
+                } if capture_screenshots else {},
                 'price': price,
                 'author': author,
                 'phone': phone,

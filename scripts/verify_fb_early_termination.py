@@ -17,8 +17,9 @@ class TestFacebookEarlyTermination(unittest.IsolatedAsyncioTestCase):
         # Mock browser stuff to avoid actual launches
         self.scraper._init_browser = AsyncMock()
         self.scraper._close_browser = AsyncMock()
-        self.scraper._context = MagicMock()
-        self.scraper._context.new_page = AsyncMock()
+        self.scraper.session_manager = MagicMock()
+        self.scraper.session_manager.context = MagicMock()
+        self.scraper.session_manager.context.new_page = AsyncMock()
 
     @patch("scrapers.facebook_scraper.log")
     async def test_early_termination_all_seen(self, mock_log):
