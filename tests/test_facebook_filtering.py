@@ -111,7 +111,32 @@ async def test_main_feed_filtering():
     assert len(results) == 1
     scraper._extract_post_data_immediate.assert_called_once_with(page, related_post)
 
+@pytest.mark.asyncio
+async def test_filter_sponsored_posts():
+    from scrapers.facebook.parser import FacebookPostParser
+    
+    # Initialize parser
+    parser = FacebookPostParser(healer=MagicMock(), anti_detection=MagicMock())
+    parser.expand_post = AsyncMock()
+    
+    # Mock post element with sponsored text in Hebrew
+    post_element_heb = AsyncMock()
+    post_element_heb.inner_text.return_value = "ויטוריו דיוואני\nממומן\nרהיטים מטורפים"
+    post_element_heb.inner_html.return_value = "<div>...</div>"
+    
+    result_heb = await parser.extract_post_data_immediate(MagicMock(), post_element_heb)
+    assert result_heb is None
+    
+    # Mock post element with sponsored text in English
+    post_element_eng = AsyncMock()
+    post_element_eng.inner_text.return_value = "Vitorio Divani\nSponsored\nSome nice tables"
+    post_element_eng.inner_html.return_value = "<div>...</div>"
+    
+    result_eng = await parser.extract_post_data_immediate(MagicMock(), post_element_eng)
+    assert result_eng is None
+
 if __name__ == "__main__":
     import asyncio
     asyncio.run(test_filter_exchange_listings())
+    asyncio.run(test_filter_sponsored_posts())
     print("SUCCESS")

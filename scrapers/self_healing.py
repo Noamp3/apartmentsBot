@@ -119,7 +119,11 @@ class SelfHealingManager:
                 tag.decompose()
 
             # Filter attributes to keep layout elements but reduce bloat
-            allowed_attrs = {"class", "id", "role", "href", "data-pagelet", "data-testid", "dir", "aria-label"}
+            allowed_attrs = {
+                "class", "id", "role", "href", "data-pagelet", "data-testid", "dir",
+                "aria-label", "title", "datetime", "aria-describedby", "aria-hidden",
+                "type", "name"
+            }
             for tag in soup.find_all(True):
                 # Filter down tag attributes
                 tag.attrs = {k: v for k, v in tag.attrs.items() if k in allowed_attrs}
@@ -169,7 +173,7 @@ class SelfHealingManager:
                     continue
 
             if feed_element:
-                raw_html = await feed_element.inner_html()
+                raw_html = await feed_element.evaluate("el => el.outerHTML")
             else:
                 raw_html = await page.content()
 
@@ -296,7 +300,7 @@ CRITICAL: Return ONLY a valid, raw JSON block. Your entire response must start w
 
         try:
             # 1. Grab element HTML and text contents
-            raw_html = await post_element.inner_html()
+            raw_html = await post_element.evaluate("el => el.outerHTML")
             cleaned_html = self.clean_html(raw_html, max_chars=8000)
 
             try:

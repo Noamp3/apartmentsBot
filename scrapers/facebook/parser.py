@@ -300,6 +300,13 @@ class FacebookPostParser:
             await self.expand_post(post_element)
             full_text = await post_element.inner_text()
             
+            # Skip sponsored posts / ads immediately
+            lines = [line.strip() for line in full_text.split('\n') if line.strip()]
+            for line in lines[:10]:
+                if line == "ממומן" or line.lower() == "sponsored":
+                    log.info("Skipping sponsored post/advertisement")
+                    return None
+            
             html = await post_element.inner_html()
             soup = BeautifulSoup(html, 'html.parser')
             
