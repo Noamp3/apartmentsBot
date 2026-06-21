@@ -417,23 +417,12 @@ class BaseAIEngine(ABC):
 
     async def resolve_neighborhoods_via_llm(self, hebrew_text: str, supported_neighborhoods: List[str]) -> List[str]:
         """Resolve border/geographic constraints into specific neighborhoods using LLM."""
-        prompt = f"""You are a Tel Aviv geography and real-estate expert.
-A user wants to find apartments within certain geographic borders/constraints in Tel Aviv.
-User request: "{hebrew_text}"
-
-Below is the list of all supported neighborhoods in Tel Aviv. Identify and select ALL neighborhoods from this list that satisfy the user's geographic constraints.
-Note: You must only select exact neighborhood names from this list. If a neighborhood is on the boundary or partially in, include it. Be thorough but accurate.
-
-List of supported neighborhoods:
-{", ".join(supported_neighborhoods)}
-
-Respond ONLY with a JSON object containing a 'neighborhoods' key with the list of matching neighborhood names.
-Do not include any explanation or markdown formatting outside the JSON code block.
-
-Example output:
-{{
-  "neighborhoods": ["לב העיר", "רוטשילד"]
-}}"""
+        from core.prompt_manager import render_prompt
+        prompt = render_prompt(
+            "neighborhood_resolution",
+            hebrew_text=hebrew_text,
+            supported_neighborhoods=", ".join(supported_neighborhoods)
+        )
         try:
             response = await self.generate_content(prompt)
             data = self._parse_json_response(response)
@@ -1128,55 +1117,8 @@ class ListingEnricher:
             for i, l in enumerate(listings)
         ])
         
-        prompt = f"""
-        נתח את כל הדירות הבאות וחלץ מידע מובנה.
-        
-        {listings_text}
-        
-        עבור כל דירה החזר:
-        {{
-            "listing_num": מספר הדירה (1, 2, 3...),
-            "is_real_estate": true/false (האם הפוסט מציע נכס נדל"ן להשכרה או חדר בדירת שותפים לטווח בינוני-ארוך. החזר false אם מדובר במכירת רהיטים, הובלות, חיפוש דירה של מישהו אחר, סאבלט קצר של ימים בודדים, פוסט מסחרי/נופש, או ספאם כלשהו שאינו מודעה המציעה דירה או חדר להשכרה),
-            "price": מספר או null (שים לב: אל תחלץ מספר טלפון בן 10 ספרות כמחיר!),
-            "bedrooms": מספר או null,
-            "location": "עיר (ברירת מחדל: תל אביב)",
-            "neighborhood": "שם השכונה המפורש כפי שהוא כתוב ישירות בפוסט בלבד. אל תנחש, אל תסיק מהרחוב, ואל תשלים שכונה מהראש (למניעת הזיות/hallucinations)! אם לא כתוב במפורש בטקסט, רשום null.",
-            "street": "שם הרחוב המפורש כפי שהוא כתוב ישירות בפוסט בלבד (בלי מספר). אל תנחש, אל תסיק מהתיאור, ואל תשלים שם רחוב מהראש (למניעת הזיות/hallucinations)! אם לא כתוב במפורש בטקסט, רשום null.",
-            "has_broker": true/false (האם מוזכר תיווך),
-            "roomies": true/false (האם המודעה מחפשת שותף/ה לדירה - למשל להשכרת חדר בדירה, שותף שיכנס לחדר פנוי, או שותפים שמחפשים שותף נוסף. שים לב: ביטויים כמו "מתאים לשותפים" או "סבבה לשותפים" אומרים רק שהדירה מתאימה לזה אך לא שמחפשים שותף, ולכן במקרה כזה השדה צריך להיות false),
-            "is_sublet": true/false (האם מדובר בסאבלט/סבלט לטווח קצר או בינוני. החזר true אם הפוסט מציע סאבלט או השכרה זמנית),
-            "sublet_duration": "משך הסאבלט (למשל: 'חודשיים', 'שבועיים', 'שלושה שבועות', או null אם לא ידוע/לא סאבלט)",
-            "sublet_dates": "תאריכי הסאבלט (למשל: '1.7 עד 31.8', 'יולי-אוגוסט', או null אם לא ידוע/לא סאבלט)",
-            "attributes": {{
-                "has_parking": true/false/null,
-                "has_balcony": true/false/null,
-                "has_elevator": true/false/null,
-                "has_ac": true/false/null,
-                "floor_number": מספר או null,
-                "is_ground_floor": true/false/null,
-                "is_high_floor": true/false/null,
-                "is_renovated": true/false/null,
-                "allows_pets": true/false/null,
-                "suitable_for_roommates": true/false/null,
-                "has_storage": true/false/null,
-                "has_security": true/false/null,
-                "near_public_transport": true/false/null,
-                "near_beach": true/false/null,
-                "is_furnished": true/false/null,
-                "from_owner_direct": true/false/null
-            }},
-            "all_mentioned_areas": ["תל אביב", "פלורנטין", ...],
-            "posted_hours_ago": מספר שעות מאז הפרסום, או null אם לא ניתן לחלץ (לדוגמה: "2h" = 2, "אתמול" = 24, "3 ימים" = 72)
-        }}
-        
-        דגשים חשובים:
-        - חדרים: אם כתוב "3 חדרים", bedrooms הוא 3.
-        - מחיר: אם כתוב "5,000 ש"ח", price הוא 5000. 
-        - !!! אזהרה: אל תחלץ מספרי טלפון (כמו 054...) כמחיר בשום פנים ואופן !!!
-        
-        החזר JSON:
-        {{"listings": [...]}}
-        """
+        from core.prompt_manager import render_prompt
+        prompt = render_prompt("listing_enrichment", listings_text=listings_text)
         
         log.debug(f"Sending enrichment batch prompt ({len(listings)} listings)")
         response = await self.ai_engine.generate_content(prompt)

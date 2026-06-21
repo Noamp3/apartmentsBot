@@ -1,0 +1,35 @@
+We are scraping Facebook group posts using Playwright in Python.
+The current CSS selector to find individual post containers is `{{current_selector}}`.
+However, this selector failed to find any elements on the current page.
+{{failed_instruction}}
+
+--- RICH SCRAPER EXECUTION CONTEXT ---
+- Scraper Source: {{source}}
+- Current Page URL: {{page_url}}
+- Current Page Title: {{page_title}}
+- Execution Local Time: {{current_time_str}}
+- Failed Selector: `{{current_selector}}` (returned 0 matching elements)
+--------------------------------------
+
+Here is a cleaned, structural version of the HTML DOM:
+---
+{{cleaned_html}}
+---
+
+Your task:
+1. Analyze this HTML and find a robust CSS selector that matches the outermost element representing each individual post container in the group feed.
+2. In Facebook, feed posts are repeating structural nodes (usually a wrapper element containing the post author, text, timestamp links, etc.). Look for repeating class patterns, role="article", or structural div structures that represent a single post item.
+3. Keep the selector robust but simple (e.g. 'div[role="article"]', 'div.x1yztbdb', or dynamic class lists if standard tags are gone). Avoid over-specific nth-child selectors.
+4. Structural Landmarks: A correct post container is a recurring parent card/box that typically encloses:
+   - The post author/username near the top of its descendants.
+   - An elapsed relative age string (e.g. '2h', 'Yesterday', 'אתמול', 'שעות', 'ימים').
+   - The main listing description text in Hebrew (containing words like 'חדרים', 'להשכרה', and price markers).
+   - Anchor links (`<a>`) pointing to the post permalinks.
+
+Return a JSON object matching this schema:
+{
+    "selector": "the CSS selector (e.g., 'div[role=\"article\"]')",
+    "reason": "Brief explanation of why you chose this based on the DOM structure."
+}
+
+CRITICAL: Return ONLY a valid, raw JSON block. Your entire response must start with '{' and end with '}' and be directly parsesable by json.loads(). Do NOT include any conversational preamble, warnings, or explanatory text before or after the JSON.

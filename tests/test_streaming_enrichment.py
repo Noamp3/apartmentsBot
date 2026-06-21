@@ -39,7 +39,7 @@ async def test_streaming_enrichment_processing_cycle():
     app.enricher.enrich_listings = AsyncMock(side_effect=mock_enrich_listings)
     
     # Mock location db and geo grounding engine
-    app.geo_grounding_ai_engine = MagicMock()
+    app.geo_grounding_ai_engine = None
     
     # Mock processing service (matching & notifications)
     app.processing_service = MagicMock()
@@ -60,13 +60,13 @@ async def test_streaming_enrichment_processing_cycle():
     ]
     
     # Mock scrape methods to feed listings through the callback
-    async def mock_scrape_fb(on_listing_scraped=None):
+    async def mock_scrape_fb(on_listing_scraped=None, **kwargs):
         if on_listing_scraped:
             for l in listings_scraped[:3]:
                 await on_listing_scraped(l)
         return listings_scraped[:3]
         
-    async def mock_scrape_yad2(on_listing_scraped=None):
+    async def mock_scrape_yad2(on_listing_scraped=None, **kwargs):
         if on_listing_scraped:
             for l in listings_scraped[3:]:
                 await on_listing_scraped(l)

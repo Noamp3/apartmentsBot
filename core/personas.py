@@ -30,9 +30,9 @@ class PersonaDefinition:
 PERSONAS: Dict[str, PersonaDefinition] = {}
 
 def load_personas():
-    """Dynamically load all personas from the core/personas/ directory."""
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    personas_dir = os.path.join(current_dir, "personas")
+    """Dynamically load all personas from the prompts/personas/ directory."""
+    from core.prompt_manager import get_prompts_dir
+    personas_dir = os.path.join(get_prompts_dir(), "personas")
     
     if not os.path.exists(personas_dir):
         return

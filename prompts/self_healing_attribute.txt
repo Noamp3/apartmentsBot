@@ -1,0 +1,39 @@
+We are scraping Facebook group posts using Playwright in Python.
+We have located the post container, but we failed to extract the '{{attribute_name}}' attribute using the current selectors: `{{current_selectors}}`.
+{{failed_instruction}}
+
+--- RICH SCRAPER EXECUTION CONTEXT ---
+- Scraper Source: {{source}}
+- Current Page URL: {{page_url}}
+- Current Page Title: {{page_title}}
+- Execution Local Time: {{current_time_str}}
+- Target Attribute to Heal: '{{attribute_name}}'
+- Current Failed Selector(s) for this attribute: `{{current_selectors}}`
+- Full Plaintext Content of the Post Container (highly useful to match names, dates, text, and structure):
+---
+{{post_text_preview}}
+---
+--------------------------------------
+
+Here is the cleaned, structural inner HTML of a single post container element:
+---
+{{cleaned_html}}
+---
+
+Your task:
+1. Inspect this HTML and identify a working, robust CSS selector to extract the '{{attribute_name}}' element relative to the post container.
+2. Requirements for '{{attribute_name}}':
+   - 'post_url': The link (`<a>` tag) representing the post permalink. Look for hrefs containing '/posts/', '/permalink/', 'story_fbid', 'fbid=', or '/groups/'.
+   - 'post_date': The timestamp element. Look for text with short numbers like '2h', 'Yesterday', 'אתמול', '1 ימים', or date strings ('Dec 28'). It might be inside a span, abbr, or a-tag.
+   - 'post_text': The main text content message of the post (usually a div with dir="auto", user-generated content, or class name like data-ad-preview="message").
+   - 'author': The name of the post author. Usually inside a bold, strong, h2, h3 tag, or a link pointing to user profile / profile.php.
+3. Provide a CSS selector that starts matching *inside* the post container (e.g., if the timestamp span is inside a link, you can return 'a[role="link"] span' or 'span.x4k7w5x').
+
+Return a JSON object matching this schema:
+{
+    "selector": "the healed CSS selector (e.g., 'a[href*=\"/posts/\"]' or 'span.x4k7w5x')",
+    "reason": "Brief explanation of how the selector targets the correct element in the post DOM."
+}
+
+CRITICAL: The JSON object must have exactly two root-level keys: "selector" and "reason". Do NOT nest the keys inside any other outer key (such as "post_url", "post_date", or "post_text"). 
+Return ONLY a valid, raw JSON block. Your entire response must start with '{' and end with '}' and be directly parsesable by json.loads(). Do NOT include any conversational preamble or explanatory text outside the JSON.

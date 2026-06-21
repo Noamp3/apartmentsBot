@@ -203,43 +203,17 @@ class SelfHealingManager:
                         + "\nPlease analyze the HTML again and suggest a DIFFERENT, valid selector.\n"
                     )
 
-                prompt = f"""
-We are scraping Facebook group posts using Playwright in Python.
-The current CSS selector to find individual post containers is `{current_selector}`.
-However, this selector failed to find any elements on the current page.
-{failed_instruction}
-
---- RICH SCRAPER EXECUTION CONTEXT ---
-- Scraper Source: {self.source}
-- Current Page URL: {page_url}
-- Current Page Title: {page_title}
-- Execution Local Time: {current_time_str}
-- Failed Selector: `{current_selector}` (returned 0 matching elements)
---------------------------------------
-
-Here is a cleaned, structural version of the HTML DOM:
----
-{cleaned_html}
----
-
-Your task:
-1. Analyze this HTML and find a robust CSS selector that matches the outermost element representing each individual post container in the group feed.
-2. In Facebook, feed posts are repeating structural nodes (usually a wrapper element containing the post author, text, timestamp links, etc.). Look for repeating class patterns, role="article", or structural div structures that represent a single post item.
-3. Keep the selector robust but simple (e.g. 'div[role="article"]', 'div.x1yztbdb', or dynamic class lists if standard tags are gone). Avoid over-specific nth-child selectors.
-4. Structural Landmarks: A correct post container is a recurring parent card/box that typically encloses:
-   - The post author/username near the top of its descendants.
-   - An elapsed relative age string (e.g. '2h', 'Yesterday', 'אתמול', 'שעות', 'ימים').
-   - The main listing description text in Hebrew (containing words like 'חדרים', 'להשכרה', and price markers).
-   - Anchor links (`<a>`) pointing to the post permalinks.
-
-Return a JSON object matching this schema:
-{{
-    "selector": "the CSS selector (e.g., 'div[role=\"article\"]')",
-    "reason": "Brief explanation of why you chose this based on the DOM structure."
-}}
-
-CRITICAL: Return ONLY a valid, raw JSON block. Your entire response must start with '{' and end with '}' and be directly parsesable by json.loads(). Do NOT include any conversational preamble, warnings, or explanatory text before or after the JSON.
-"""
+                from core.prompt_manager import render_prompt
+                prompt = render_prompt(
+                    "self_healing_container",
+                    current_selector=current_selector,
+                    failed_instruction=failed_instruction,
+                    source=self.source,
+                    page_url=page_url,
+                    page_title=page_title,
+                    current_time_str=current_time_str,
+                    cleaned_html=cleaned_html
+                )
 
                 log.info(f"Sending DOM structure to LLM for container healing (attempt {attempt})...")
                 response = await self.ai_engine.generate_content(prompt, image_path=screenshot_path)
@@ -332,47 +306,19 @@ CRITICAL: Return ONLY a valid, raw JSON block. Your entire response must start w
                         + "\nPlease analyze the HTML again and suggest a DIFFERENT, valid selector.\n"
                     )
 
-                prompt = f"""
-We are scraping Facebook group posts using Playwright in Python.
-We have located the post container, but we failed to extract the '{attribute_name}' attribute using the current selectors: `{current_selectors}`.
-{failed_instruction}
-
---- RICH SCRAPER EXECUTION CONTEXT ---
-- Scraper Source: {self.source}
-- Current Page URL: {page_url}
-- Current Page Title: {page_title}
-- Execution Local Time: {current_time_str}
-- Target Attribute to Heal: '{attribute_name}'
-- Current Failed Selector(s) for this attribute: `{current_selectors}`
-- Full Plaintext Content of the Post Container (highly useful to match names, dates, text, and structure):
----
-{post_text_preview}
----
---------------------------------------
-
-Here is the cleaned, structural inner HTML of a single post container element:
----
-{cleaned_html}
----
-
-Your task:
-1. Inspect this HTML and identify a working, robust CSS selector to extract the '{attribute_name}' element relative to the post container.
-2. Requirements for '{attribute_name}':
-   - 'post_url': The link (`<a>` tag) representing the post permalink. Look for hrefs containing '/posts/', '/permalink/', 'story_fbid', 'fbid=', or '/groups/'.
-   - 'post_date': The timestamp element. Look for text with short numbers like '2h', 'Yesterday', 'אתמול', '1 ימים', or date strings ('Dec 28'). It might be inside a span, abbr, or a-tag.
-   - 'post_text': The main text content message of the post (usually a div with dir="auto", user-generated content, or class name like data-ad-preview="message").
-   - 'author': The name of the post author. Usually inside a bold, strong, h2, h3 tag, or a link pointing to user profile / profile.php.
-3. Provide a CSS selector that starts matching *inside* the post container (e.g., if the timestamp span is inside a link, you can return 'a[role="link"] span' or 'span.x4k7w5x').
-
-Return a JSON object matching this schema:
-{{
-    "selector": "the healed CSS selector (e.g., 'a[href*=\"/posts/\"]' or 'span.x4k7w5x')",
-    "reason": "Brief explanation of how the selector targets the correct element in the post DOM."
-}}
-
-CRITICAL: The JSON object must have exactly two root-level keys: "selector" and "reason". Do NOT nest the keys inside any other outer key (such as "post_url", "post_date", or "post_text"). 
-Return ONLY a valid, raw JSON block. Your entire response must start with '{' and end with '}' and be directly parsesable by json.loads(). Do NOT include any conversational preamble or explanatory text outside the JSON.
-"""
+                from core.prompt_manager import render_prompt
+                prompt = render_prompt(
+                    "self_healing_attribute",
+                    attribute_name=attribute_name,
+                    current_selectors=current_selectors,
+                    failed_instruction=failed_instruction,
+                    source=self.source,
+                    page_url=page_url,
+                    page_title=page_title,
+                    current_time_str=current_time_str,
+                    post_text_preview=post_text_preview,
+                    cleaned_html=cleaned_html
+                )
 
                 log.info(f"Sending element DOM to LLM for attribute '{attribute_name}' healing (attempt {attempt})...")
                 response = await self.ai_engine.generate_content(prompt, image_path=screenshot_path)
