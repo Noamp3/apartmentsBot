@@ -507,6 +507,7 @@ class FacebookScraper(BaseScraper):
                 try:
                     listing = self.parse_listing(raw_data)
                     if listing:
+                        listing.group_url = group_url
                         if listing.posted_at:
                             age = datetime.now() - listing.posted_at
                             if age.days >= 1:
@@ -657,8 +658,7 @@ class FacebookScraper(BaseScraper):
         seen_post_ids = set()
         
         post_selector = self.healer.get_selector("post_container")
-        checked_count = 0
-        already_seen_in_db_count = 0
+        successive_seen_streak = 0
         
         for i in range(scroll_count):
             try:
@@ -684,14 +684,14 @@ class FacebookScraper(BaseScraper):
                                 all_post_data.append(raw_data)
                                 log.debug(f"Extracted post: {raw_data.get('text', '')[:50]}...")
                                 
-                                if self.is_seen_callback and checked_count < 10:
-                                    checked_count += 1
+                                if self.is_seen_callback:
                                     if raw_data.get('_is_seen'):
-                                        already_seen_in_db_count += 1
-                                    
-                                    if checked_count == 10 and already_seen_in_db_count == 10:
-                                        log.info(f"{tag} Early termination: first 10 posts already seen in DB")
-                                        return all_post_data
+                                        successive_seen_streak += 1
+                                        if successive_seen_streak >= 10:
+                                            log.info(f"{tag} Early termination: encountered 10 successive posts already seen in DB")
+                                            return all_post_data
+                                    else:
+                                        successive_seen_streak = 0
 
                     except Exception as e:
                         log.debug(f"Error extracting post: {e}")
