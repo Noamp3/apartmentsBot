@@ -93,7 +93,7 @@ graph TB
   - [personas.py](file:///c:/Users/noamp/Downloads/apartmentsBot/core/personas.py) - Defines AI bot personalities ("barakush", "yekke", "mom", "stoner") and their prompt guidelines.
 * **`scrapers/`**
   - [base_scraper.py](file:///c:/Users/noamp/Downloads/apartmentsBot/scrapers/base_scraper.py) - Abstract scraper wrapper base.
-  - [facebook_scraper.py](file:///c:/Users/noamp/Downloads/apartmentsBot/scrapers/facebook_scraper.py) - Session-aware scraper for Facebook groups.
+  - [facebook_scraper.py](file:///c:/Users/noamp/Downloads/apartmentsBot/scrapers/facebook_scraper.py) - Session-aware parallel scraper for Facebook groups with staggered launch and abort coordination.
   - [yad2_playwright_scraper.py](file:///c:/Users/noamp/Downloads/apartmentsBot/scrapers/yad2_playwright_scraper.py) - Playwright client to query Yad2 feeds.
   - [anti_detection.py](file:///c:/Users/noamp/Downloads/apartmentsBot/scrapers/anti_detection.py) - Stealth configurations (browser profile, platform, connection spoofing).
   - [self_healing.py](file:///c:/Users/noamp/Downloads/apartmentsBot/scrapers/self_healing.py) - Captures HTML structure anomalies, resolves broken CSS/XPath selectors via LLM, and persists them.
@@ -656,6 +656,9 @@ Settings are read from `.env` using [config.py](file:///c:/Users/noamp/Downloads
 | `FACEBOOK_GROUP_URLS` | `str` | `""` | Comma-separated list of target Facebook groups |
 | `FACEBOOK_EMAIL` | `str` | `""` | Login email for Facebook authentication |
 | `FACEBOOK_PASSWORD` | `str` | `""` | Login password for Facebook authentication |
+| `MAX_CONCURRENT_FB_PAGES` | `int` | `2` | Maximum concurrent Facebook browser pages/groups scraped in parallel |
+| `PARALLEL_FB_STAGGER_MIN` | `float` | `3.0` | Minimum delay in seconds before launching next parallel Facebook scraper task |
+| `PARALLEL_FB_STAGGER_MAX` | `float` | `8.0` | Maximum delay in seconds before launching next parallel Facebook scraper task |
 | `FACEBOOK_SELF_HEALING_ENABLED` | `bool` | `True` | Dynamic selector fixes for DOM structure shifts |
 | `HEADLESS_MODE` | `bool` | `False` | Run Playwright in headless mode (defaults to `False` for stealth) |
 
@@ -663,6 +666,13 @@ Settings are read from `.env` using [config.py](file:///c:/Users/noamp/Downloads
 Web layouts (especially Facebook) frequently change class names and DOM paths, breaking scrapers.
 To maintain scraper resilience, the bot uses `SelfHealingManager` defined in [scrapers/self_healing.py](file:///c:/Users/noamp/Downloads/apartmentsBot/scrapers/self_healing.py).
 When a selector fails to find a critical element (like post wrapper or post text), it takes a screenshot, extracts the nearby HTML snippet, and calls the AI model (`SELF_HEALING_MODEL`) to find the updated CSS selector or XPath. This healed selector is automatically cached in `data/healed_selectors.json` for subsequent runs.
+
+### Parallel Facebook Scraping & Staggered Launch
+To process Facebook scraping faster without getting blocked as a bot:
+1. **Staggered Concurrent Launch**: The groups are scraped concurrently using `asyncio.gather()`. A semaphore (`_page_semaphore`) limits the number of pages open simultaneously to `MAX_CONCURRENT_FB_PAGES`. The initiation of subsequent pages is staggered by a randomized delay between `PARALLEL_FB_STAGGER_MIN` and `PARALLEL_FB_STAGGER_MAX` seconds.
+2. **Session Warming**: To avoid concurrent authentication flows, session state warming (and loading cookies/selectors) is locked to the first running scraper task. Subsequent parallel tasks wait and inherit this initialized browser context directly.
+3. **Abortion on Checkpoint**: If any concurrent scraper encounters a login required / verification checkpoint, it triggers a global abort event (`_abort_event`). Other parallel tasks check this signal during scroll operations and terminate gracefully immediately to prevent sending suspicious concurrent traffic to block pages.
+4. **Group-Prefixed Logging**: Logs are automatically prefixed with the group label (extracted from the URL, e.g. `[group-name]`) to provide clear execution trace.
 
 ### Blackout and Adaptive Interval Scheduling
 The scheduling system runs inside [scrapers/scheduler.py](file:///c:/Users/noamp/Downloads/apartmentsBot/scrapers/scheduler.py):
