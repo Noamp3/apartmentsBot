@@ -250,6 +250,22 @@ class ApartmentBotApplication:
             process_callback=self.run_processing_cycle,
             rate_limiter=self.rate_limiter
         )
+        
+        # Load custom scraping settings from DB if they exist
+        try:
+            from database.repositories.system_repository import SystemRepository
+            system_repo = SystemRepository(db)
+            db_interval = await system_repo.get_scrape_interval()
+            if db_interval is not None:
+                self.scheduler.interval = db_interval
+                log.info(f"Loaded custom scrape interval: {db_interval} minutes")
+                
+            db_auto_adjust = await system_repo.get_auto_adjust_interval()
+            self.scheduler.auto_adjust = db_auto_adjust
+            log.info(f"Loaded auto_adjust_interval setting: {db_auto_adjust}")
+        except Exception as e:
+            log.error(f"Failed to load system settings from DB on startup: {e}")
+            
         log.info("Scheduler initialized")
     
     async def run_cleanup(self):
@@ -431,185 +447,239 @@ class ApartmentBotApplication:
         
         db = await get_db()
         seen_repo = SeenListingsRepository(db)
+        from database.repositories.system_repository import SystemRepository
+        system_repo = SystemRepository(db)
         
-        # Phase 1: Scrape all sources concurrently
+        # Start scraping run log in DB
+        try:
+            run_id = await system_repo.start_scraping_run()
+        except Exception as e:
+            log.error(f"Failed to start scraping run in DB: {e}")
+            run_id = None
+            
         import time
-        
-        start_fb = time.perf_counter()
-        start_yad2 = time.perf_counter()
+        start_time = time.perf_counter()
         
         fb_listings = []
         yad2_listings = []
         fb_failed = False
         yad2_failed = False
-        
-        # State for accumulating new unique listings across both scrapers
-        accumulating_listings = []
-        seen_ids_in_cycle = set()
-        lock = asyncio.Lock()
-        
         fb_new_count = 0
         yad2_new_count = 0
         batch_count = 0
         
-        background_tasks = set()
-        
-        async def run_batch_in_background(batch):
-            try:
-                await self.process_enrich_and_notify_batch(batch)
-            except Exception as e:
-                log.error(f"Error in background batch processing: {e}", exc_info=True)
+        try:
+            # Phase 1: Scrape all sources concurrently
+            start_fb = time.perf_counter()
+            start_yad2 = time.perf_counter()
+            
+            # State for accumulating new unique listings across both scrapers
+            accumulating_listings = []
+            seen_ids_in_cycle = set()
+            lock = asyncio.Lock()
+            
+            background_tasks = set()
+            
+            async def run_batch_in_background(batch):
+                try:
+                    await self.process_enrich_and_notify_batch(batch)
+                except Exception as e:
+                    log.error(f"Error in background batch processing: {e}", exc_info=True)
 
-        def start_background_batch(batch):
-            task = asyncio.create_task(run_batch_in_background(batch))
-            background_tasks.add(task)
-            task.add_done_callback(background_tasks.discard)
-        
-        async def on_listing_scraped(listing: Listing):
-            nonlocal fb_new_count, yad2_new_count
+            def start_background_batch(batch):
+                task = asyncio.create_task(run_batch_in_background(batch))
+                background_tasks.add(task)
+                task.add_done_callback(background_tasks.discard)
             
-            # Check if this listing was already seen in previous cycles
-            is_in_db = await seen_repo.is_seen(listing.id)
-            if is_in_db:
-                return
+            async def on_listing_scraped(listing: Listing):
+                nonlocal fb_new_count, yad2_new_count
                 
-            batch_to_process = []
-            async with lock:
-                # Deduplicate within the current cycle
-                if listing.id in seen_ids_in_cycle:
+                # Check if this listing was already seen in previous cycles
+                is_in_db = await seen_repo.is_seen(listing.id)
+                if is_in_db:
                     return
-                seen_ids_in_cycle.add(listing.id)
+                    
+                batch_to_process = []
+                async with lock:
+                    # Deduplicate within the current cycle
+                    if listing.id in seen_ids_in_cycle:
+                        return
+                    seen_ids_in_cycle.add(listing.id)
+                    
+                    # Check pre-enrichment fingerprint duplicate detection
+                    duplicate_info = await seen_repo.find_duplicate_by_fingerprint(listing)
+                    if duplicate_info:
+                        duplicate_id, matched_fields = duplicate_info
+                        log.info(
+                             f"Cross-source duplicate detected (pre-enrichment)",
+                            current_listing_id=listing.id[:8],
+                            current_source=listing.source,
+                            current_author=listing.author[:20] if listing.author else None,
+                            current_phone=listing.phone,
+                            current_price=listing.price,
+                            current_bedrooms=listing.bedrooms,
+                            matched_listing_id=duplicate_id[:8],
+                            matched_fields=matched_fields,
+                        )
+                        await seen_repo.mark_seen(listing)
+                        return
+                    
+                    # It is a fresh unique listing!
+                    if listing.source == "facebook":
+                        fb_new_count += 1
+                    elif listing.source == "yad2":
+                        yad2_new_count += 1
+                    
+                    accumulating_listings.append(listing)
+                    if len(accumulating_listings) >= self.enricher.batch_size:
+                        batch_to_process = list(accumulating_listings)
+                        accumulating_listings.clear()
                 
-                # Check pre-enrichment fingerprint duplicate detection
-                duplicate_info = await seen_repo.find_duplicate_by_fingerprint(listing)
-                if duplicate_info:
-                    duplicate_id, matched_fields = duplicate_info
+                if batch_to_process:
+                    nonlocal batch_count
+                    batch_count += 1
                     log.info(
-                         f"Cross-source duplicate detected (pre-enrichment)",
-                        current_listing_id=listing.id[:8],
-                        current_source=listing.source,
-                        current_author=listing.author[:20] if listing.author else None,
-                        current_phone=listing.phone,
-                        current_price=listing.price,
-                        current_bedrooms=listing.bedrooms,
-                        matched_listing_id=duplicate_id[:8],
-                        matched_fields=matched_fields,
+                        f"🧠 Batch #{batch_count}: sending {len(batch_to_process)} listings to enrich -> match pipeline",
+                        fb_new=fb_new_count, yad2_new=yad2_new_count
                     )
-                    await seen_repo.mark_seen(listing)
-                    return
-                
-                # It is a fresh unique listing!
-                if listing.source == "facebook":
-                    fb_new_count += 1
-                elif listing.source == "yad2":
-                    yad2_new_count += 1
-                
-                accumulating_listings.append(listing)
-                if len(accumulating_listings) >= self.enricher.batch_size:
-                    batch_to_process = list(accumulating_listings)
-                    accumulating_listings.clear()
-            
-            if batch_to_process:
-                nonlocal batch_count
-                batch_count += 1
-                log.info(
-                    f"🧠 Batch #{batch_count}: sending {len(batch_to_process)} listings to enrich -> match pipeline",
-                    fb_new=fb_new_count, yad2_new=yad2_new_count
-                )
-                start_background_batch(batch_to_process)
+                    start_background_batch(batch_to_process)
+                        
+            async def on_group_completed(group_url: str, group_listings: List[Listing]):
+                # 1. Update database with count of scraped listings
+                try:
+                    db_manager = await get_db()
+                    from database.repositories.facebook_group_repository import FacebookGroupRepository
+                    fb_group_repo = FacebookGroupRepository(db_manager)
+                    await fb_group_repo.update_scraped_count(group_url, len(group_listings))
+                    log.info(f"Updated database: group {group_url} scraped count = {len(group_listings)}")
+                except Exception as e:
+                    log.error(f"Failed to update group scraped count in DB: {e}", exc_info=True)
                     
-        async def on_group_completed(group_url: str, group_listings: List[Listing]):
-            # 1. Update database with count of scraped listings
-            try:
-                db_manager = await get_db()
-                from database.repositories.facebook_group_repository import FacebookGroupRepository
-                fb_group_repo = FacebookGroupRepository(db_manager)
-                await fb_group_repo.update_scraped_count(group_url, len(group_listings))
-                log.info(f"Updated database: group {group_url} scraped count = {len(group_listings)}")
-            except Exception as e:
-                log.error(f"Failed to update group scraped count in DB: {e}", exc_info=True)
+                # 2. Immediately flush and process any new listings from this group
+                nonlocal accumulating_listings
+                batch_to_process = []
+                async with lock:
+                    if accumulating_listings:
+                        batch_to_process = list(accumulating_listings)
+                        accumulating_listings.clear()
+                        
+                if batch_to_process:
+                    nonlocal batch_count
+                    batch_count += 1
+                    log.info(
+                        f"🧠 Batch #{batch_count}: flushing {len(batch_to_process)} remaining listings after group complete",
+                        group_url=group_url
+                    )
+                    start_background_batch(batch_to_process)
+            
+            # Run scrapers concurrently
+            log.info(
+                "📡 Phase 1: SCRAPE — launching scrapers",
+                fb_groups=len(self.facebook_scraper.group_urls),
+                max_concurrent_fb=settings.MAX_CONCURRENT_FB_PAGES
+            )
+            fb_task = asyncio.create_task(self.facebook_scraper.scrape(
+                on_listing_scraped=on_listing_scraped,
+                on_group_completed=on_group_completed
+            ))
+            yad2_task = asyncio.create_task(self.yad2_scraper.scrape(on_listing_scraped=on_listing_scraped))
+            
+            fb_res, yad2_res = await asyncio.gather(fb_task, yad2_task, return_exceptions=True)
+            
+            duration_fb = time.perf_counter() - start_fb
+            duration_yad2 = time.perf_counter() - start_yad2
+            
+            if isinstance(fb_res, Exception):
+                fb_failed = True
+                log.error(f"Facebook scrape failed: {fb_res}")
+                telemetry.track_error("facebook_scraper", type(fb_res).__name__)
+            else:
+                fb_listings = fb_res
+                log.info(
+                    f"📡 Facebook scrape done: {len(fb_listings)} total, {fb_new_count} new ({duration_fb:.1f}s)"
+                )
                 
-            # 2. Immediately flush and process any new listings from this group
-            nonlocal accumulating_listings
-            batch_to_process = []
+            if isinstance(yad2_res, Exception):
+                yad2_failed = True
+                log.error(f"Yad2 scrape failed: {yad2_res}")
+                telemetry.track_error("yad2_scraper", type(yad2_res).__name__)
+            else:
+                yad2_listings = yad2_res
+                log.info(
+                    f"📡 Yad2 scrape done: {len(yad2_listings)} total, {yad2_new_count} new ({duration_yad2:.1f}s)"
+                )
+                
+            # Flush any remaining listings
             async with lock:
-                if accumulating_listings:
-                    batch_to_process = list(accumulating_listings)
-                    accumulating_listings.clear()
+                remaining_batch = list(accumulating_listings)
+                accumulating_listings.clear()
+                
+            if remaining_batch:
+                log.info(f"Flushing remaining {len(remaining_batch)} listings at end of cycle")
+                start_background_batch(remaining_batch)
+                
+            # Wait for all background enrichment and notifications to finish before declaring cycle complete
+            if background_tasks:
+                log.info(f"⏳ Waiting for {len(background_tasks)} background enrich/match task(s)...")
+                await asyncio.gather(*background_tasks, return_exceptions=True)
+                
+            # Track scrape details with actual new counts
+            telemetry.track_scrape("facebook", duration_fb, len(fb_listings), fb_new_count, failed=fb_failed)
+            telemetry.track_scrape("yad2", duration_yad2, len(yad2_listings), yad2_new_count, failed=yad2_failed)
+            
+            total_duration = time.perf_counter() - start_time
+            log.info(
+                f"═══ Processing cycle complete ({total_duration:.1f}s) ═══",
+                fb_total=len(fb_listings),
+                fb_new=fb_new_count,
+                yad2_total=len(yad2_listings),
+                yad2_new=yad2_new_count,
+                batches_processed=batch_count
+            )
+            
+            # Record successful scraping run status
+            if run_id is not None:
+                status = "completed"
+                if fb_failed and yad2_failed:
+                    status = "failed"
+                elif fb_failed or yad2_failed:
+                    status = "partial_success"
+                
+                try:
+                    await system_repo.complete_scraping_run(
+                        run_id=run_id,
+                        fb_total=len(fb_listings),
+                        fb_new=fb_new_count,
+                        fb_failed=fb_failed,
+                        yad2_total=len(yad2_listings),
+                        yad2_new=yad2_new_count,
+                        yad2_failed=yad2_failed,
+                        status=status,
+                        duration_seconds=total_duration
+                    )
+                except Exception as e:
+                    log.error(f"Failed to complete scraping run in DB: {e}")
                     
-            if batch_to_process:
-                nonlocal batch_count
-                batch_count += 1
-                log.info(
-                    f"🧠 Batch #{batch_count}: flushing {len(batch_to_process)} remaining listings after group complete",
-                    group_url=group_url
-                )
-                start_background_batch(batch_to_process)
-        
-        # Run scrapers concurrently
-        log.info(
-            "📡 Phase 1: SCRAPE — launching scrapers",
-            fb_groups=len(self.facebook_scraper.group_urls),
-            max_concurrent_fb=settings.MAX_CONCURRENT_FB_PAGES
-        )
-        fb_task = asyncio.create_task(self.facebook_scraper.scrape(
-            on_listing_scraped=on_listing_scraped,
-            on_group_completed=on_group_completed
-        ))
-        yad2_task = asyncio.create_task(self.yad2_scraper.scrape(on_listing_scraped=on_listing_scraped))
-        
-        fb_res, yad2_res = await asyncio.gather(fb_task, yad2_task, return_exceptions=True)
-        
-        duration_fb = time.perf_counter() - start_fb
-        duration_yad2 = time.perf_counter() - start_yad2
-        
-        if isinstance(fb_res, Exception):
-            fb_failed = True
-            log.error(f"Facebook scrape failed: {fb_res}")
-            telemetry.track_error("facebook_scraper", type(fb_res).__name__)
-        else:
-            fb_listings = fb_res
-            log.info(
-                f"📡 Facebook scrape done: {len(fb_listings)} total, {fb_new_count} new ({duration_fb:.1f}s)"
-            )
-            
-        if isinstance(yad2_res, Exception):
-            yad2_failed = True
-            log.error(f"Yad2 scrape failed: {yad2_res}")
-            telemetry.track_error("yad2_scraper", type(yad2_res).__name__)
-        else:
-            yad2_listings = yad2_res
-            log.info(
-                f"📡 Yad2 scrape done: {len(yad2_listings)} total, {yad2_new_count} new ({duration_yad2:.1f}s)"
-            )
-            
-        # Flush any remaining listings
-        async with lock:
-            remaining_batch = list(accumulating_listings)
-            accumulating_listings.clear()
-            
-        if remaining_batch:
-            log.info(f"Flushing remaining {len(remaining_batch)} listings at end of cycle")
-            start_background_batch(remaining_batch)
-            
-        # Wait for all background enrichment and notifications to finish before declaring cycle complete
-        if background_tasks:
-            log.info(f"⏳ Waiting for {len(background_tasks)} background enrich/match task(s)...")
-            await asyncio.gather(*background_tasks, return_exceptions=True)
-            
-        # Track scrape details with actual new counts
-        telemetry.track_scrape("facebook", duration_fb, len(fb_listings), fb_new_count, failed=fb_failed)
-        telemetry.track_scrape("yad2", duration_yad2, len(yad2_listings), yad2_new_count, failed=yad2_failed)
-        
-        total_duration = time.perf_counter() - start_fb
-        log.info(
-            f"═══ Processing cycle complete ({total_duration:.1f}s) ═══",
-            fb_total=len(fb_listings),
-            fb_new=fb_new_count,
-            yad2_total=len(yad2_listings),
-            yad2_new=yad2_new_count,
-            batches_processed=batch_count
-        )
+        except Exception as e:
+            log.exception(f"Unhandled exception in run_processing_cycle: {e}")
+            total_duration = time.perf_counter() - start_time
+            if run_id is not None:
+                try:
+                    await system_repo.complete_scraping_run(
+                        run_id=run_id,
+                        fb_total=len(fb_listings),
+                        fb_new=fb_new_count,
+                        fb_failed=fb_failed or (len(fb_listings) == 0),
+                        yad2_total=len(yad2_listings),
+                        yad2_new=yad2_new_count,
+                        yad2_failed=yad2_failed or (len(yad2_listings) == 0),
+                        status="failed",
+                        duration_seconds=total_duration,
+                        error_message=str(e)
+                    )
+                except Exception as db_err:
+                    log.error(f"Failed to record failed scraping run in DB: {db_err}")
+            raise
     
     async def start(self):
         """Start the application."""

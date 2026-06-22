@@ -7,6 +7,7 @@ import html
 import os
 from pathlib import Path
 
+from config import settings
 from database import get_db
 from database.repositories import RuleRepository, UserRepository
 from utils.logger import Loggers
@@ -83,6 +84,13 @@ class CallbackHandler:
                 await self._show_admin_logs(query, context)
             elif data.startswith("admin_menu_fb"):
                 await self._show_admin_fb_menu(update, context)
+            elif data == "admin_menu_change_frequency_prompt":
+                await self._show_change_frequency_prompt(update, context)
+            elif data.startswith("admin_menu_set_frequency:"):
+                mins = int(data.split(":")[1])
+                await self._set_frequency(update, context, mins)
+            elif data == "admin_menu_toggle_auto_adjust":
+                await self._toggle_auto_adjust(update, context)
             elif data == "admin_menu_clear":
                 await self._show_admin_clear_menu(query, context)
             elif data == "admin_menu_server":
@@ -767,8 +775,61 @@ class CallbackHandler:
         storage_state_path = "data/fb_storage_state.json"
         cookies_path = "data/fb_cookies.json"
         
-        status_msg = "🔐 <b>ניהול וסטטיסטיקות פייסבוק:</b>\n\n"
+        db = await get_db()
+        from database.repositories.system_repository import SystemRepository
+        system_repo = SystemRepository(db)
         
+        # Get last scraping run
+        last_run = await system_repo.get_last_run()
+        
+        # Get scheduler and properties
+        app_instance = context.bot_data.get("app_instance")
+        scheduler = app_instance.scheduler if app_instance else None
+        
+        interval = scheduler.interval if scheduler else settings.SCRAPE_INTERVAL_MINUTES
+        auto_adjust = getattr(scheduler, "auto_adjust", True) if scheduler else True
+        next_run = scheduler.get_next_run_time() if scheduler else None
+        
+        status_msg = "🔐 <b>ניהול וסטטיסטיקות סריקה ופייסבוק:</b>\n\n"
+        
+        status_msg += "⏱️ <b>קצב והגדרות סריקה:</b>\n"
+        status_msg += f"• תדירות סריקה נוכחית: <code>{interval}</code> דקות\n"
+        status_msg += f"• כיוונון אוטומטי (לפי קבוצות ומכסה): <code>{'כן ✅' if auto_adjust else 'לא ❌'}</code>\n"
+        if next_run:
+            status_msg += f"• ריצה הבאה מתוזמנת: <code>{next_run.strftime('%H:%M:%S')}</code>\n\n"
+        else:
+            status_msg += "• ריצה הבאה מתוזמנת: <code>לא פעיל / כבוי</code>\n\n"
+            
+        status_msg += "📊 <b>סבב סריקה אחרון:</b>\n"
+        if last_run:
+            status_str = "רצה כעת 🔄"
+            if last_run["status"] == "completed":
+                status_str = "הושלם בהצלחה ✅"
+            elif last_run["status"] == "partial_success":
+                status_str = "הושלם חלקית ⚠️"
+            elif last_run["status"] == "failed":
+                status_str = "נכשל ❌"
+                
+            try:
+                start_dt = datetime.fromisoformat(last_run["start_time"])
+                start_str = start_dt.strftime("%d/%m/%Y %H:%M")
+            except Exception:
+                start_str = last_run["start_time"]
+                
+            duration = last_run["duration_seconds"] or 0.0
+            
+            status_msg += f"• סטטוס: <code>{status_str}</code>\n"
+            status_msg += f"• זמן התחלה: <code>{start_str}</code>\n"
+            status_msg += f"• משך סבב: <code>{duration:.1f}</code> שניות\n"
+            status_msg += f"• פייסבוק: נסרקו <code>{last_run['fb_total']}</code> (חדשים: <code>{last_run['fb_new']}</code>) {'❌' if last_run['fb_failed'] else ''}\n"
+            status_msg += f"• יד2: נסרקו <code>{last_run['yad2_total']}</code> (חדשים: <code>{last_run['yad2_new']}</code>) {'❌' if last_run['yad2_failed'] else ''}\n"
+            if last_run["error_message"]:
+                status_msg += f"• שגיאה: <code>{last_run['error_message']}</code>\n"
+            status_msg += "\n"
+        else:
+            status_msg += "• לא נמצאו ריצות קודמות\n\n"
+            
+        status_msg += "🔑 <b>חיבור פייסבוק:</b>\n"
         if os.path.exists(storage_state_path):
             mtime = os.path.getmtime(storage_state_path)
             date_str = datetime.fromtimestamp(mtime).strftime("%d/%m/%Y %H:%M")
@@ -785,12 +846,17 @@ class CallbackHandler:
         else:
             status_msg += "❌ <b>קובץ Cookies:</b> חסר\n\n"
             
-        status_msg += "_תוכל להתחיל התחברות אינטראקטיבית חדשה כדי לרענן את הסשן או ללחוץ על הרצה ידנית._"
+        status_msg += "_תוכל להתחיל התחברות אינטראקטיבית חדשה, לשנות תדירות סריקה או ללחוץ על הרצה ידנית._"
         
         keyboard = [
-            [InlineKeyboardButton("👥 ניהול קבוצות פייסבוק", callback_data="admin_menu_fb_groups")],
-            [InlineKeyboardButton("🔑 התחל התחברות אינטראקטיבית", callback_data="admin_menu_fb_login_trigger")],
-            [InlineKeyboardButton("🔄 הרצת סורק ידנית", callback_data="admin_menu_fb_scrape_trigger")],
+            [
+                InlineKeyboardButton("👥 ניהול קבוצות פייסבוק", callback_data="admin_menu_fb_groups"),
+                InlineKeyboardButton("⏱️ תדירות סריקה", callback_data="admin_menu_change_frequency_prompt")
+            ],
+            [
+                InlineKeyboardButton("🔑 התחל התחברות אינטראקטיבית", callback_data="admin_menu_fb_login_trigger"),
+                InlineKeyboardButton("🔄 הרצת סורק ידנית", callback_data="admin_menu_fb_scrape_trigger")
+            ],
             [InlineKeyboardButton("↩️ חזרה לתפריט ראשי", callback_data="admin_menu_main")]
         ]
         
@@ -824,6 +890,109 @@ class CallbackHandler:
                 
         await self._safe_edit_message_text(query, status_msg, parse_mode="HTML")
         await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup(keyboard))
+
+    async def _show_change_frequency_prompt(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Show prompt with preset frequencies and toggle auto-adjust."""
+        query = update.callback_query
+        
+        db = await get_db()
+        from database.repositories.system_repository import SystemRepository
+        system_repo = SystemRepository(db)
+        
+        app_instance = context.bot_data.get("app_instance")
+        scheduler = app_instance.scheduler if app_instance else None
+        
+        interval = scheduler.interval if scheduler else settings.SCRAPE_INTERVAL_MINUTES
+        auto_adjust = getattr(scheduler, "auto_adjust", True) if scheduler else True
+        
+        msg = f"⏱️ <b>הגדרת תדירות סריקה מותאמת אישית:</b>\n\n"
+        msg += f"תדירות נוכחית: <code>{interval}</code> דקות.\n"
+        msg += f"כיוונון אוטומטי (מבוסס מכסת Gemini): <code>{'פעיל ✅' if auto_adjust else 'כבוי ❌'}</code>\n\n"
+        msg += "בחר אחת מהתדירויות הבאות כקבועות (זה יכבה כיוונון אוטומטי):"
+        
+        keyboard = [
+            [
+                InlineKeyboardButton("5 דק׳", callback_data="admin_menu_set_frequency:5"),
+                InlineKeyboardButton("10 דק׳", callback_data="admin_menu_set_frequency:10")
+            ],
+            [
+                InlineKeyboardButton("15 דק׳", callback_data="admin_menu_set_frequency:15"),
+                InlineKeyboardButton("30 דק׳", callback_data="admin_menu_set_frequency:30")
+            ],
+            [
+                InlineKeyboardButton("60 דק׳", callback_data="admin_menu_set_frequency:60"),
+                InlineKeyboardButton("120 דק׳", callback_data="admin_menu_set_frequency:120")
+            ],
+            [
+                InlineKeyboardButton(
+                    "🔄 הפעל/כבה כיוונון אוטומטי",
+                    callback_data="admin_menu_toggle_auto_adjust"
+                )
+            ],
+            [InlineKeyboardButton("↩️ חזרה", callback_data="admin_menu_fb")]
+        ]
+        
+        await self._safe_edit_message_text(query, msg, parse_mode="HTML")
+        await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup(keyboard))
+
+    async def _set_frequency(self, update: Update, context: ContextTypes.DEFAULT_TYPE, minutes: int):
+        """Set a fixed frequency and disable auto-adjust."""
+        query = update.callback_query
+        
+        db = await get_db()
+        from database.repositories.system_repository import SystemRepository
+        system_repo = SystemRepository(db)
+        
+        # Save to DB
+        await system_repo.set_scrape_interval(minutes)
+        await system_repo.set_auto_adjust_interval(False)
+        
+        # Apply to scheduler
+        app_instance = context.bot_data.get("app_instance")
+        scheduler = app_instance.scheduler if app_instance else None
+        if scheduler:
+            scheduler.auto_adjust = False
+            scheduler.update_interval(minutes)
+            
+        await query.answer(f"⏱️ תדירות הסריקה עודכנה ל-{minutes} דקות (כיוונון אוטומטי כבוי)", show_alert=True)
+        await self._show_admin_fb_menu(update, context)
+
+    async def _toggle_auto_adjust(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Toggle auto-adjust interval based on quota limits."""
+        query = update.callback_query
+        
+        db = await get_db()
+        from database.repositories.system_repository import SystemRepository
+        system_repo = SystemRepository(db)
+        
+        app_instance = context.bot_data.get("app_instance")
+        scheduler = app_instance.scheduler if app_instance else None
+        
+        current_auto_adjust = getattr(scheduler, "auto_adjust", True) if scheduler else True
+        new_auto_adjust = not current_auto_adjust
+        
+        # Save to DB
+        await system_repo.set_auto_adjust_interval(new_auto_adjust)
+        
+        # Apply to scheduler
+        if scheduler:
+            scheduler.auto_adjust = new_auto_adjust
+            if new_auto_adjust:
+                # Let it recalculate optimal interval immediately
+                optimal = scheduler.calculate_optimal_interval()
+                scheduler.update_interval(optimal)
+                alert_text = f"✅ כיוונון אוטומטי הופעל. התדירות הותאמה ל-{optimal} דקות."
+            else:
+                # Revert to default/saved config interval
+                saved_interval = await system_repo.get_scrape_interval()
+                interval = saved_interval or settings.SCRAPE_INTERVAL_MINUTES
+                scheduler.update_interval(interval)
+                alert_text = f"❌ כיוונון אוטומטי כבוי. התדירות נקבעה ל-{interval} דקות."
+        else:
+            alert_text = "ההגדרה נשמרה בבסיס הנתונים."
+            
+        await query.answer(alert_text, show_alert=True)
+        await self._show_change_frequency_prompt(update, context)
 
     async def _show_admin_fb_groups_menu(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Show the menu with current Facebook groups and actions to add/remove."""

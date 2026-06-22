@@ -93,6 +93,20 @@ class ScrapingScheduler:
         asyncio.create_task(self._run_cycle())
         log.info("Manual cycle triggered")
 
+    def update_interval(self, interval_minutes: int):
+        """Update scheduler interval and reschedule the job in APScheduler."""
+        self.interval = interval_minutes
+        if self._running:
+            job = self.scheduler.get_job('main_cycle')
+            if job:
+                job.reschedule(
+                    trigger=IntervalTrigger(
+                        minutes=interval_minutes,
+                        jitter=settings.SCRAPE_JITTER_SECONDS
+                    )
+                )
+                log.info(f"Rescheduled main cycle to interval: {interval_minutes} minutes")
+
     def _is_blackout_period(self) -> bool:
         """Check if current time is within the blackout period."""
         now = datetime.now()
@@ -160,6 +174,7 @@ class QuotaAwareScheduler(ScrapingScheduler):
         super().__init__(process_callback)
         self.rate_limiter = rate_limiter
         self.target_cycles_per_day = target_cycles_per_day
+        self.auto_adjust = True
     
     def calculate_optimal_interval(self) -> int:
         """Calculate optimal minutes between cycles based on quota."""
@@ -205,7 +220,8 @@ class QuotaAwareScheduler(ScrapingScheduler):
         await super()._run_cycle()
         
         # Adjust next interval based on remaining quota
-        new_interval = self.calculate_optimal_interval()
-        if new_interval != self.interval:
-            self.interval = new_interval
-            log.info(f"Adjusted interval to {new_interval} minutes")
+        if getattr(self, "auto_adjust", True):
+            new_interval = self.calculate_optimal_interval()
+            if new_interval != self.interval:
+                self.update_interval(new_interval)
+                log.info(f"Adjusted interval to {new_interval} minutes")

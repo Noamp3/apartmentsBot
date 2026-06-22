@@ -105,7 +105,8 @@ CREATE TABLE IF NOT EXISTS facebook_groups (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     url TEXT UNIQUE NOT NULL,
     added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    last_scraped_count INTEGER DEFAULT 0
+    last_scraped_count INTEGER DEFAULT 0,
+    name TEXT DEFAULT NULL
 );
 
 -- Sent notifications (for preventing duplicates)
@@ -129,6 +130,29 @@ CREATE TABLE IF NOT EXISTS listing_fingerprints (
     source TEXT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (listing_id) REFERENCES seen_listings(listing_id) ON DELETE CASCADE
+);
+
+-- System settings table
+CREATE TABLE IF NOT EXISTS system_settings (
+    key TEXT PRIMARY KEY,
+    value TEXT,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Scraping runs table
+CREATE TABLE IF NOT EXISTS scraping_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    start_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    end_time TIMESTAMP,
+    duration_seconds REAL,
+    fb_total INTEGER DEFAULT 0,
+    fb_new INTEGER DEFAULT 0,
+    fb_failed BOOLEAN DEFAULT FALSE,
+    yad2_total INTEGER DEFAULT 0,
+    yad2_new INTEGER DEFAULT 0,
+    yad2_failed BOOLEAN DEFAULT FALSE,
+    status TEXT DEFAULT 'running', -- 'completed', 'failed', 'running'
+    error_message TEXT
 );
 
 -- Indexes for performance
@@ -279,6 +303,13 @@ class DatabaseManager:
         # Safe migration: Add 'last_scraped_count' column to facebook_groups if it doesn't exist
         try:
             await self._connection.execute("ALTER TABLE facebook_groups ADD COLUMN last_scraped_count INTEGER DEFAULT 0")
+            await self._connection.commit()
+        except aiosqlite.OperationalError:
+            pass
+
+        # Safe migration: Add 'name' column to facebook_groups if it doesn't exist
+        try:
+            await self._connection.execute("ALTER TABLE facebook_groups ADD COLUMN name TEXT DEFAULT NULL")
             await self._connection.commit()
         except aiosqlite.OperationalError:
             pass

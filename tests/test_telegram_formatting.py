@@ -207,6 +207,7 @@ async def test_admin_callbacks_html():
     # Mock database
     mock_db = MagicMock()
     mock_db.fetch_all = AsyncMock()
+    mock_db.fetch_one = AsyncMock(return_value=None)
     
     # Setup context
     mock_context = MagicMock()
