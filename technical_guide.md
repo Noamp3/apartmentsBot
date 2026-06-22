@@ -113,6 +113,7 @@ graph TB
     - [rejection_repository.py](file:///c:/Users/noamp/Downloads/apartmentsBot/database/repositories/rejection_repository.py) - Rejections logs table driver.
     - [notification_repository.py](file:///c:/Users/noamp/Downloads/apartmentsBot/database/repositories/notification_repository.py) - Sent notifications tracking.
     - [cache_repository.py](file:///c:/Users/noamp/Downloads/apartmentsBot/database/repositories/cache_repository.py) - Persisted welcome/sass line generator cache.
+    - [system_repository.py](file:///c:/Users/noamp/Downloads/apartmentsBot/database/repositories/system_repository.py) - Bot configuration persistence and scraping run telemetry database operations.
 * **`utils/`**
   - [logger.py](file:///c:/Users/noamp/Downloads/apartmentsBot/utils/logger.py) - Rotating file JSON logging with Hebrew console formatting.
   - [telemetry.py](file:///c:/Users/noamp/Downloads/apartmentsBot/utils/telemetry.py) - Live metrics counters tracking scraping duration, AI limits, and errors.
@@ -623,6 +624,29 @@ CREATE TABLE IF NOT EXISTS listing_fingerprints (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (listing_id) REFERENCES seen_listings(listing_id) ON DELETE CASCADE
 );
+
+-- System settings table
+CREATE TABLE IF NOT EXISTS system_settings (
+    key TEXT PRIMARY KEY,
+    value TEXT,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Scraping runs table
+CREATE TABLE IF NOT EXISTS scraping_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    start_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    end_time TIMESTAMP,
+    duration_seconds REAL,
+    fb_total INTEGER DEFAULT 0,
+    fb_new INTEGER DEFAULT 0,
+    fb_failed BOOLEAN DEFAULT FALSE,
+    yad2_total INTEGER DEFAULT 0,
+    yad2_new INTEGER DEFAULT 0,
+    yad2_failed BOOLEAN DEFAULT FALSE,
+    status TEXT DEFAULT 'running', -- 'completed', 'failed', 'running'
+    error_message TEXT
+);
 ```
 
 ### Data Access Repositories
@@ -634,6 +658,7 @@ The database operations are encapsulated in individual repository classes initia
 * **`RejectionRepository`**: Logs match failures in batches (`log_many_rejections`) and supports cleaning historical entries.
 * **`NotificationRepository`**: Audits sent alerts to prevent duplicate Telegram notifications.
 * **`CacheRepository`**: Pops and pushes pre-generated welcome sentences and sass one-liners.
+* **`SystemRepository`**: Handles persistence of system-wide configurations (e.g., custom scraping interval) and scraping run performance metrics.
 
 ---
 

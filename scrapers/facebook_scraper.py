@@ -29,11 +29,13 @@ from config import settings
 log = Loggers.scraper()
 
 
-def _get_group_label(group_url: str) -> str:
-    """Extract a short human-readable label from a Facebook group URL.
+def _get_group_label(group_url: str, name: Optional[str] = None) -> str:
+    """Extract a short human-readable label from a Facebook group URL or use the name override.
     
     e.g. 'https://www.facebook.com/groups/apartments.tlv/' -> 'apartments.tlv'
     """
+    if name:
+        return name
     try:
         url = group_url.rstrip('/')
         parts = url.split('/groups/')
@@ -378,15 +380,24 @@ class FacebookScraper(BaseScraper):
             try:
                 log.info(f"📋 [{label}] Starting group scrape (slot #{index})")
                 is_first = (index == 0)
-                group_listings = await self._scrape_group(
+                group_listings, group_name = await self._scrape_group(
                     group_url,
                     on_listing_scraped=on_listing_scraped,
                     is_first_group=is_first
                 )
                 
+                # Update label if name was dynamically extracted
+                if group_name:
+                    label = _get_group_label(group_url, group_name)
+                
                 if on_group_completed:
                     try:
-                        await on_group_completed(group_url, group_listings)
+                        await on_group_completed(group_url, group_listings, group_name=group_name)
+                    except TypeError:
+                        try:
+                            await on_group_completed(group_url, group_listings)
+                        except Exception as cb_err:
+                            log.error(f"[{label}] Error in on_group_completed callback: {cb_err}", exc_info=True)
                     except Exception as cb_err:
                         log.error(f"[{label}] Error in on_group_completed callback: {cb_err}", exc_info=True)
                 
@@ -417,6 +428,7 @@ class FacebookScraper(BaseScraper):
         listings = []
         skipped_old = 0
         skipped_invalid = 0
+        group_name = None
         page = await self._context.new_page()
         
         # Use desktop URL
@@ -464,6 +476,22 @@ class FacebookScraper(BaseScraper):
                 await self.anti_detection.human_like_delay(3, 5)
                 await self._dismiss_overlays(page)
             
+            # Extract group name
+            try:
+                h1s = await page.locator("h1").all()
+                for h1 in h1s:
+                    if await h1.is_visible():
+                        name_text = (await h1.text_content() or "").strip()
+                        if name_text and name_text.lower() != "facebook":
+                            group_name = name_text
+                            break
+            except Exception as name_err:
+                log.warning(f"[{label}] Failed to extract group name: {name_err}")
+
+            if group_name:
+                label = _get_group_label(group_url, group_name)
+                log.info(f"[{label}] Dynamically updated group label and name")
+
             log.info(f"[{label}] 🔍 Starting scroll & collect (scroll_count=10)")
             post_data_list = await self._scroll_and_collect_posts(page, scroll_count=10, group_label=label)
             
@@ -471,7 +499,7 @@ class FacebookScraper(BaseScraper):
                 duration = _time.perf_counter() - group_start
                 log.warning(f"[{label}] No posts found ({duration:.1f}s)", url=group_url)
                 await self._save_debug_info(page, "no_posts")
-                return []
+                return [], group_name
             
             log.info(f"[{label}] Collected {len(post_data_list)} raw posts, parsing...")
             
@@ -510,7 +538,7 @@ class FacebookScraper(BaseScraper):
             skipped_old=skipped_old,
             skipped_invalid=skipped_invalid
         )
-        return listings
+        return listings, group_name
 
     async def _scrape_main_feed(self, on_listing_scraped: Optional[callable] = None) -> List[Listing]:
         """Scrape the Facebook main feed."""

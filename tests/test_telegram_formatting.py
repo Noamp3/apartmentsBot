@@ -256,6 +256,9 @@ async def test_admin_callbacks_html():
         validate_html(sent_messages[0][0])
         
         # 3. Test _show_admin_fb_menu
+        mock_db.fetch_all.return_value = [
+            {"id": 1, "url": "https://facebook.com/groups/test", "added_at": "2026-06-01T10:00:00", "last_scraped_count": 5, "name": "Test Group"}
+        ]
         sent_messages.clear()
         print("DEBUG: about to call _show_admin_fb_menu", flush=True, file=sys.stderr)
         with patch('bot.handlers.callback_handler.os.path.exists', return_value=True), \

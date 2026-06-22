@@ -18,10 +18,10 @@ class FacebookGroupRepository:
         """Add a new Facebook group to the database."""
         group_id = await self.db.execute(
             """
-            INSERT OR IGNORE INTO facebook_groups (url, added_at)
-            VALUES (?, ?)
+            INSERT OR IGNORE INTO facebook_groups (url, added_at, name)
+            VALUES (?, ?, ?)
             """,
-            (group.url, group.added_at.isoformat())
+            (group.url, group.added_at.isoformat(), group.name)
         )
         if group_id:
             group.id = group_id
@@ -61,16 +61,29 @@ class FacebookGroupRepository:
             (count, url.strip())
         )
 
+    async def update_name(self, url: str, name: str):
+        """Update the name for a group."""
+        await self.db.execute(
+            "UPDATE facebook_groups SET name = ? WHERE url = ?",
+            (name, url.strip())
+        )
+
     def _row_to_group(self, row) -> FacebookGroup:
         """Convert database row to FacebookGroup object."""
         try:
             last_scraped_count = row["last_scraped_count"]
-        except (KeyError, IndexError):
+        except (KeyError, IndexError, TypeError):
             last_scraped_count = 0
+            
+        try:
+            name = row["name"]
+        except (KeyError, IndexError, TypeError):
+            name = None
             
         return FacebookGroup(
             id=row["id"],
             url=row["url"],
             added_at=row["added_at"],
-            last_scraped_count=last_scraped_count
+            last_scraped_count=last_scraped_count,
+            name=name
         )

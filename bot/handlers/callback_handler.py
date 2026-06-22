@@ -829,6 +829,20 @@ class CallbackHandler:
         else:
             status_msg += "• לא נמצאו ריצות קודמות\n\n"
             
+        # Get all facebook groups to display their scraping stats
+        from database.repositories.facebook_group_repository import FacebookGroupRepository
+        fb_group_repo = FacebookGroupRepository(db)
+        groups = await fb_group_repo.get_all_groups()
+        
+        status_msg += "📋 <b>סטטיסטיקת קבוצות פייסבוק:</b>\n"
+        if groups:
+            for g in groups:
+                g_label = g.name if g.name else g.label
+                status_msg += f"• {html.escape(g_label)}: <code>{g.last_scraped_count}</code>\n"
+        else:
+            status_msg += "• אין קבוצות מוגדרות\n"
+        status_msg += "\n"
+            
         status_msg += "🔑 <b>חיבור פייסבוק:</b>\n"
         if os.path.exists(storage_state_path):
             mtime = os.path.getmtime(storage_state_path)
@@ -1006,7 +1020,10 @@ class CallbackHandler:
         if groups:
             msg += "<b>הקבוצות הפעילות כעת במערכת:</b>\n"
             for idx, g in enumerate(groups, 1):
-                msg += f"{idx}. <code>{html.escape(g.url)}</code>\n"
+                if g.name:
+                    msg += f"{idx}. <b>{html.escape(g.name)}</b>\n   <code>{html.escape(g.url)}</code>\n"
+                else:
+                    msg += f"{idx}. <code>{html.escape(g.url)}</code>\n"
         else:
             msg += "❌ אין קבוצות פייסבוק מוגדרות במערכת.\n"
             
@@ -1053,10 +1070,10 @@ class CallbackHandler:
         keyboard = []
         if groups:
             for g in groups:
-                # Display first part of URL or group ID to keep button text reasonable
-                display_name = g.url.split("/groups/")[-1].strip("/")
-                if len(display_name) > 25:
-                    display_name = display_name[:22] + "..."
+                # Use name if available, else first part of URL or group ID to keep button text reasonable
+                display_name = g.name if g.name else g.url.split("/groups/")[-1].strip("/")
+                if len(display_name) > 30:
+                    display_name = display_name[:27] + "..."
                 keyboard.append([InlineKeyboardButton(f"🗑️ {display_name}", callback_data=f"admin_menu_fb_group_remove:{g.id}")])
                 
         keyboard.append([InlineKeyboardButton("↩️ חזרה", callback_data="admin_menu_fb_groups")])
