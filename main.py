@@ -12,7 +12,7 @@ if sys.platform == "win32":
 
 import asyncio
 import signal
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from config import settings
 from utils.logger import LoggerFactory, Loggers
@@ -544,16 +544,20 @@ class ApartmentBotApplication:
                     )
                     start_background_batch(batch_to_process)
                         
-            async def on_group_completed(group_url: str, group_listings: List[Listing]):
-                # 1. Update database with count of scraped listings
+            async def on_group_completed(group_url: str, group_listings: List[Listing], group_name: Optional[str] = None):
+                # 1. Update database with count of scraped listings and group name if available
                 try:
                     db_manager = await get_db()
                     from database.repositories.facebook_group_repository import FacebookGroupRepository
                     fb_group_repo = FacebookGroupRepository(db_manager)
                     await fb_group_repo.update_scraped_count(group_url, len(group_listings))
-                    log.info(f"Updated database: group {group_url} scraped count = {len(group_listings)}")
+                    if group_name:
+                        await fb_group_repo.update_name(group_url, group_name)
+                    
+                    display_name = group_name or group_url
+                    log.info(f"Updated database: group {display_name} scraped count = {len(group_listings)}")
                 except Exception as e:
-                    log.error(f"Failed to update group scraped count in DB: {e}", exc_info=True)
+                    log.error(f"Failed to update group scraped count/name in DB: {e}", exc_info=True)
                     
                 # 2. Immediately flush and process any new listings from this group
                 nonlocal accumulating_listings
@@ -566,9 +570,10 @@ class ApartmentBotApplication:
                 if batch_to_process:
                     nonlocal batch_count
                     batch_count += 1
+                    display_name = group_name or group_url
                     log.info(
                         f"🧠 Batch #{batch_count}: flushing {len(batch_to_process)} remaining listings after group complete",
-                        group_url=group_url
+                        group=display_name
                     )
                     start_background_batch(batch_to_process)
             
