@@ -135,8 +135,55 @@ async def test_filter_sponsored_posts():
     result_eng = await parser.extract_post_data_immediate(MagicMock(), post_element_eng)
     assert result_eng is None
 
+@pytest.mark.asyncio
+async def test_early_termination_on_successive_seen():
+    """Verify that early termination occurs when 10 consecutive posts are already seen in DB."""
+    import re
+    # 1. Initialize FacebookScraper with a mock is_seen_callback
+    is_seen_mock = AsyncMock(return_value=True)
+    scraper = FacebookScraper(group_urls=["https://facebook.com/groups/test"], is_seen_callback=is_seen_mock)
+    
+    # 2. Mock page
+    page = AsyncMock()
+    page.url = "https://facebook.com/groups/test"
+    
+    # 3. Create 13 mock posts
+    mock_posts = []
+    for idx in range(13):
+        p = AsyncMock()
+        p.bounding_box.return_value = {"x": 0, "y": 0, "width": 100, "height": 150}
+        p.inner_text.return_value = f"דירת {idx} חדרים מדהימה להשכרה"
+        mock_posts.append(p)
+        
+    # 4. Mock find_posts to return our posts
+    scraper._find_posts = AsyncMock(return_value=mock_posts)
+    
+    # 5. Mock _process_and_extract_post to return processed dicts
+    # posts 0 and 1 are NEW (_is_seen = False)
+    # posts 2 to 11 are SEEN (_is_seen = True) - which is exactly 10 consecutive seen posts
+    # post 12 is never evaluated because we return on post 11
+    async def mock_process_and_extract_post(page, post_element):
+        text = await post_element.inner_text()
+        idx = int(re.search(r'\d+', text).group())
+        is_seen = (idx >= 2)
+        return {
+            "text": text,
+            "url": f"https://facebook.com/{idx}",
+            "_is_seen": is_seen
+        }
+        
+    scraper._process_and_extract_post = mock_process_and_extract_post
+    
+    # Run the scroll loop (scroll_count=1)
+    results = await scraper._scroll_and_collect_posts(page, scroll_count=1, group_label="test")
+    
+    # Verify that we collected 12 posts (posts 0 to 11)
+    assert len(results) == 12
+    assert "11 חדרים" in results[-1]["text"]
+
 if __name__ == "__main__":
     import asyncio
     asyncio.run(test_filter_exchange_listings())
     asyncio.run(test_filter_sponsored_posts())
+    asyncio.run(test_early_termination_on_successive_seen())
     print("SUCCESS")
