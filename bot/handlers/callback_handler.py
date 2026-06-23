@@ -649,7 +649,7 @@ class CallbackHandler:
         """Show the last 10 enriched listings."""
         db = await get_db()
         rows = await db.fetch_all(
-            "SELECT title, source, url, extracted_price, extracted_bedrooms, extracted_neighborhood, enriched_at "
+            "SELECT title, source, url, extracted_price, extracted_bedrooms, extracted_size, extracted_neighborhood, enriched_at "
             "FROM enriched_listings ORDER BY enriched_at DESC LIMIT 10"
         )
         import html
@@ -664,6 +664,7 @@ class CallbackHandler:
                 url = html.escape(row["url"] or "")
                 price = row["extracted_price"]
                 beds = row["extracted_bedrooms"]
+                size = row["extracted_size"] if "extracted_size" in row.keys() else None
                 neighborhood = html.escape(row["extracted_neighborhood"] or "לא ידוע")
                 source = html.escape(row["source"] or "לא ידוע")
                 
@@ -676,9 +677,10 @@ class CallbackHandler:
                     
                 price_str = f"{price:,} ₪" if price else "לא צוין מחיר"
                 beds_str = f"{beds} חדרים" if beds else "לא צוין חדרים"
+                size_str = f"{size} מ\"ר" if size else "לא צוין גודל"
                 
                 msg += f"{i+1}. <b><a href=\"{url}\">{title[:40]}</a></b>\n"
-                msg += f"   💰 {price_str} | 🛏️ {beds_str} | 📍 {neighborhood}\n"
+                msg += f"   💰 {price_str} | 🛏️ {beds_str} | 📏 {size_str} | 📍 {neighborhood}\n"
                 msg += f"   📱 מקור: {source} | ⏱️ נסרק ב: {time_str}\n\n"
                 
         keyboard = [[InlineKeyboardButton("↩️ חזרה לתפריט ראשי", callback_data="admin_menu_main")]]
@@ -1366,7 +1368,7 @@ class CallbackHandler:
         
         rows = await db.fetch_all(
             """
-            SELECT el.title, el.url, el.extracted_price, el.extracted_bedrooms, el.extracted_neighborhood, el.source, sn.sent_at
+            SELECT el.title, el.url, el.extracted_price, el.extracted_bedrooms, el.extracted_size, el.extracted_neighborhood, el.source, sn.sent_at
             FROM enriched_listings el
             JOIN sent_notifications sn ON el.listing_id = sn.listing_id
             WHERE sn.user_id = ?
@@ -1390,6 +1392,7 @@ class CallbackHandler:
                 url = html.escape(row["url"] or "")
                 price = row["extracted_price"]
                 beds = row["extracted_bedrooms"]
+                size = row["extracted_size"] if "extracted_size" in row.keys() else None
                 neighborhood = html.escape(row["extracted_neighborhood"] or "לא ידוע")
                 source = html.escape(row["source"] or "לא ידוע")
                 sent_at = row["sent_at"]
@@ -1402,10 +1405,11 @@ class CallbackHandler:
                     
                 price_str = f"{price:,} ₪" if price else "לא צוין מחיר"
                 beds_str = f"{beds} חדרים" if beds else "לא צוין חדרים"
+                size_str = f"{size} מ\"ר" if size else "לא צוין גודל"
                 source_name = "פייסבוק" if source == "facebook" else "Yad2"
                 
                 msg += f"{i+1}. <b><a href=\"{url}\">{title[:40]}</a></b>\n"
-                msg += f"   💰 {price_str} | 🛏️ {beds_str} | 📍 {neighborhood}\n"
+                msg += f"   💰 {price_str} | 🛏️ {beds_str} | 📏 {size_str} | 📍 {neighborhood}\n"
                 msg += f"   📱 מקור: {source_name} | ⏱️ נשלח ב: {time_str}\n\n"
                 
         keyboard = [

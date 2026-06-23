@@ -1134,7 +1134,7 @@ class ListingEnricher:
         listings_data = parsed.get("listings", [])
         
         # Import for fallback extraction
-        from utils.hebrew_utils import extract_price, extract_bedrooms
+        from utils.hebrew_utils import extract_price, extract_bedrooms, extract_contact_info
         
         for i, listing in enumerate(listings):
             if i < len(listings_data):
@@ -1204,6 +1204,13 @@ class ListingEnricher:
             else:
                 final_sublet = bool(ai_sublet or regex_sublet)
                 
+            # Same for phone: combine AI-extracted phone with scraped listing phone and regex fallback
+            ai_phone = data.get("phone")
+            scraped_phone = listing.phone
+            regex_phone = extract_contact_info(listing.raw_text)["phone"] if listing.raw_text else None
+            final_phone = ai_phone or scraped_phone or regex_phone
+            listing.phone = final_phone
+            
             attrs = data.get("attributes", {})
             if not isinstance(attrs, dict):
                 attrs = {}
@@ -1234,8 +1241,11 @@ class ListingEnricher:
     def _basic_enrich(self, listing: Listing) -> EnrichedListing:
         """Basic enrichment without AI (fallback)."""
         log.debug(f"Using basic enrichment fallback for {listing.title}")
-        from utils.hebrew_utils import extract_price, extract_bedrooms, is_looking_for_roomie, is_sublet_text, extract_size
+        from utils.hebrew_utils import extract_price, extract_bedrooms, is_looking_for_roomie, is_sublet_text, extract_size, extract_contact_info
         
+        if not listing.phone and listing.raw_text:
+            listing.phone = extract_contact_info(listing.raw_text)["phone"]
+            
         final_roomies = is_looking_for_roomie(listing.raw_text or listing.description or listing.title)
         final_sublet = is_sublet_text(listing.raw_text or listing.description or listing.title)
         
