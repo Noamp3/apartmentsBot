@@ -357,6 +357,9 @@ class ApartmentBotApplication:
                 
             # Include all parsed mentioned areas (excluding generic city names)
             city_names = {"תל אביב", "תל אביב יפו", "תל אביב-יפו", "tel aviv"}
+            if loc_db and hasattr(loc_db, "city_lookup"):
+                city_names.update(loc_db.city_lookup.keys())
+                
             if enriched.area_matches:
                 for area in enriched.area_matches.keys():
                     if area.strip() and area.strip().lower() not in city_names:

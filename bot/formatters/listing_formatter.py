@@ -67,7 +67,12 @@ class ListingFormatter:
             loc_str = f"📍 *מיקום:* {loc_val}"
             
             # Show specific landmarks/streets in parentheses if available
+            from utils.israeli_locations import get_location_db
+            loc_db = get_location_db()
             city_names = {"תל אביב", "תל אביב יפו", "תל אביב-יפו", "tel aviv"}
+            if loc_db and hasattr(loc_db, "city_lookup"):
+                city_names.update(loc_db.city_lookup.keys())
+            
             additional_areas = []
             if enriched.area_matches:
                 for area in enriched.area_matches.keys():
@@ -194,7 +199,12 @@ class ListingFormatter:
             loc_val = ListingFormatter._escape_markdown(location)
             loc_str = f"📍 *מיקום:* {loc_val}"
             
+            from utils.israeli_locations import get_location_db
+            loc_db = get_location_db()
             city_names = {"תל אביב", "תל אביב יפו", "תל אביב-יפו", "tel aviv"}
+            if loc_db and hasattr(loc_db, "city_lookup"):
+                city_names.update(loc_db.city_lookup.keys())
+            
             additional_areas = []
             if enriched.area_matches:
                 for area in enriched.area_matches.keys():
