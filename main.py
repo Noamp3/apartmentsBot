@@ -360,25 +360,25 @@ class ApartmentBotApplication:
         for enriched in valid_price_listings:
             norm = None
             
-            # 1. Try to normalize explicitly extracted neighborhood directly first (prevents conflicts with group names)
-            if enriched.extracted_neighborhood:
-                norm_nb = loc_db.normalize_location(enriched.extracted_neighborhood)
-                if norm_nb["neighborhood"]:
-                    norm = norm_nb
-            
-            # 2. Try to normalize explicitly extracted street directly next
-            if not norm and enriched.extracted_street:
+            # 1. Try to normalize explicitly extracted street directly first
+            if enriched.extracted_street:
                 norm_st = loc_db.normalize_location(enriched.extracted_street)
                 if norm_st["neighborhood"]:
                     norm = norm_st
+            
+            # 2. Try to normalize explicitly extracted neighborhood directly next (prevents conflicts with group names)
+            if not norm and enriched.extracted_neighborhood:
+                norm_nb = loc_db.normalize_location(enriched.extracted_neighborhood)
+                if norm_nb["neighborhood"]:
+                    norm = norm_nb
                     
             # 3. Fall back to combined location signals
             if not norm:
                 location_signals = []
-                if enriched.extracted_neighborhood:
-                    location_signals.append(enriched.extracted_neighborhood)
                 if enriched.extracted_street:
                     location_signals.append(enriched.extracted_street)
+                if enriched.extracted_neighborhood:
+                    location_signals.append(enriched.extracted_neighborhood)
                     
                 # Include all parsed mentioned areas (excluding generic city names)
                 city_names = {"תל אביב", "תל אביב יפו", "תל אביב-יפו", "tel aviv"}
@@ -395,7 +395,7 @@ class ApartmentBotApplication:
                 listing_loc = ", ".join(location_signals)
                 norm = loc_db.normalize_location(listing_loc)
             else:
-                listing_loc = enriched.extracted_neighborhood or enriched.extracted_street
+                listing_loc = enriched.extracted_street or enriched.extracted_neighborhood
             
             if norm["neighborhood"]:
                 # Successfully resolved via database schema lookup (including custom schema)
