@@ -19,7 +19,12 @@ def temp_locations_schema(tmp_path):
                 "longitude": 34.7818
             },
             "ירושלים": {
-                "aliases": ["י-ם", "jerusalem"]
+                "aliases": ["י-ם", "jerusalem"],
+                "latitude": 31.7683,
+                "longitude": 35.2137
+            },
+            "חיפה": {
+                "aliases": ["haifa"]
             }
         },
         "neighborhoods": [
@@ -62,8 +67,8 @@ def temp_locations_schema(tmp_path):
         json.dump(schema, f, indent=2, ensure_ascii=False)
         
     return str(schema_file)
-
-
+ 
+ 
 def test_schema_loading(temp_locations_schema):
     """Test that the database loads correctly from the JSON schema file."""
     db = IsraeliLocationDatabase(schema_path=temp_locations_schema)
@@ -81,9 +86,9 @@ def test_schema_loading(temp_locations_schema):
     
     assert "דרום תל אביב" in db.area_groups
     
-    # Check Tel Aviv coordinates are loaded, Jerusalem has none
+    # Check Tel Aviv coordinates are loaded, Haifa has none
     assert db.city_coords["תל אביב"] == (32.0853, 34.7818)
-    assert "ירושלים" not in db.city_coords
+    assert "חיפה" not in db.city_coords
 
 
 def test_street_normalization(temp_locations_schema):
@@ -172,14 +177,14 @@ async def test_location_self_healing_missing_city_coordinates(temp_locations_sch
     # Mock AI Engine
     mock_ai = AsyncMock()
     
-    # ירושלים exists but has no coordinates configured
+    # חיפה exists but has no coordinates configured
     with pytest.raises(ValueError) as excinfo:
         await db.async_resolve_unknown_location(
-            raw_location="ירושלים",
-            listing_details="דירה בירושלים",
+            raw_location="חיפה",
+            listing_details="דירה בחיפה",
             ai_engine=mock_ai
         )
-    assert "Grounding coordinates for city 'ירושלים' not found in locations.json" in str(excinfo.value)
+    assert "Grounding coordinates for city 'חיפה' not found in locations.json" in str(excinfo.value)
 
 
 @pytest.mark.asyncio
@@ -245,3 +250,24 @@ async def test_location_self_healing_new_neighborhood_discovered(temp_locations_
     assert new_entry is not None
     assert "רחוב חדש" in new_entry["streets"]
     assert new_entry["area_type"] == "unknown"
+
+
+@pytest.mark.asyncio
+async def test_location_self_healing_conflicting_cities(temp_locations_schema):
+    """Test that self-healing returns matched neighborhood successfully even if raw_location has conflicting cities (e.g. 'פלורנטין, ירושלים')."""
+    db = IsraeliLocationDatabase(schema_path=temp_locations_schema)
+    
+    mock_ai = AsyncMock()
+    mock_ai.generate_content.return_value = '{"matched_neighborhood": "פלורנטין", "name_to_add": "רחוב העליה", "type": "street"}'
+    mock_ai._parse_json_response = lambda text: json.loads(text)
+    
+    healed_norm = await db.async_resolve_unknown_location(
+        raw_location="פלורנטין, ירושלים",
+        listing_details="דירה ברחוב העליה בירושלים ותל אביב",
+        ai_engine=mock_ai
+    )
+    
+    # It should directly return the AI's resolved neighborhood and city
+    assert healed_norm["neighborhood"] == "פלורנטין"
+    assert healed_norm["city"] == "תל אביב"
+

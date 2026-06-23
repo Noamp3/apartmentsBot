@@ -355,27 +355,44 @@ class ApartmentBotApplication:
         heal_targets = []
         
         for enriched in valid_price_listings:
-            location_signals = []
+            norm = None
+            
+            # 1. Try to normalize explicitly extracted neighborhood directly first (prevents conflicts with group names)
             if enriched.extracted_neighborhood:
-                location_signals.append(enriched.extracted_neighborhood)
-            if enriched.extracted_street:
-                location_signals.append(enriched.extracted_street)
-                
-            # Include all parsed mentioned areas (excluding generic city names)
-            city_names = {"תל אביב", "תל אביב יפו", "תל אביב-יפו", "tel aviv"}
-            if loc_db and hasattr(loc_db, "city_lookup"):
-                city_names.update(loc_db.city_lookup.keys())
-                
-            if enriched.area_matches:
-                for area in enriched.area_matches.keys():
-                    if area.strip() and area.strip().lower() not in city_names:
-                        location_signals.append(area.strip())
-                        
-            location_signals.append(enriched.extracted_location or enriched.listing.location)
+                norm_nb = loc_db.normalize_location(enriched.extracted_neighborhood)
+                if norm_nb["neighborhood"]:
+                    norm = norm_nb
             
-            listing_loc = ", ".join(location_signals)
-            
-            norm = loc_db.normalize_location(listing_loc)
+            # 2. Try to normalize explicitly extracted street directly next
+            if not norm and enriched.extracted_street:
+                norm_st = loc_db.normalize_location(enriched.extracted_street)
+                if norm_st["neighborhood"]:
+                    norm = norm_st
+                    
+            # 3. Fall back to combined location signals
+            if not norm:
+                location_signals = []
+                if enriched.extracted_neighborhood:
+                    location_signals.append(enriched.extracted_neighborhood)
+                if enriched.extracted_street:
+                    location_signals.append(enriched.extracted_street)
+                    
+                # Include all parsed mentioned areas (excluding generic city names)
+                city_names = {"תל אביב", "תל אביב יפו", "תל אביב-יפו", "tel aviv"}
+                if loc_db and hasattr(loc_db, "city_lookup"):
+                    city_names.update(loc_db.city_lookup.keys())
+                    
+                if enriched.area_matches:
+                    for area in enriched.area_matches.keys():
+                        if area.strip() and area.strip().lower() not in city_names:
+                            location_signals.append(area.strip())
+                            
+                location_signals.append(enriched.extracted_location or enriched.listing.location)
+                
+                listing_loc = ", ".join(location_signals)
+                norm = loc_db.normalize_location(listing_loc)
+            else:
+                listing_loc = enriched.extracted_neighborhood or enriched.extracted_street
             
             if norm["neighborhood"]:
                 # Successfully resolved via database schema lookup (including custom schema)

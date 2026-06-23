@@ -641,7 +641,15 @@ CRITICAL: Return ONLY a valid, raw JSON block. Your entire response must start w
                         log.info(
                             f"Self-healed location schema: added '{name_to_add}' as {name_type} for neighborhood '{matched_nb}' to custom schema"
                         )
-                        return self.normalize_location(raw_location)
+            
+            if matched_nb:
+                n_obj = self.neighborhood_lookup.get(matched_nb.lower())
+                resolved_city = n_obj.city if n_obj else city
+                return {
+                    "city": resolved_city,
+                    "neighborhood": matched_nb,
+                    "normalized": f"{matched_nb}, {resolved_city}".strip(", ")
+                }
         except Exception as e:
             log.error(f"Error during AI location resolution: {e}")
             
