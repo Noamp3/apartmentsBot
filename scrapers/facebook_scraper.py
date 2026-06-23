@@ -35,7 +35,7 @@ def _get_group_label(group_url: str, name: Optional[str] = None) -> str:
     e.g. 'https://www.facebook.com/groups/apartments.tlv/' -> 'apartments.tlv'
     """
     if name:
-        return name
+        return f"\u200e{name}\u200e"
     try:
         url = group_url.rstrip('/')
         parts = url.split('/groups/')

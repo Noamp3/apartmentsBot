@@ -57,7 +57,13 @@ class HebrewConsoleFormatter(logging.Formatter):
         message = f"{color}{timestamp} [{record.levelname:>7}] {logger_short} | {record.getMessage()}{self.RESET}"
         
         if hasattr(record, "extra_data"):
-            message += f"\n    [DATA] {record.extra_data}"
+            import json
+            try:
+                data_str = json.dumps(record.extra_data, ensure_ascii=False, indent=2, default=str)
+                indented_data = "\n".join(f"    {line}" for line in data_str.splitlines())
+                message += f"\n{indented_data}"
+            except Exception:
+                message += f"\n    [DATA] {record.extra_data}"
             
         if record.exc_info:
             if not record.exc_text:
@@ -119,6 +125,18 @@ class LoggerFactory:
         """Initialize logging system. Call once at startup."""
         if cls._initialized:
             return
+        
+        # Force stdout/stderr to UTF-8 on Windows and systems where they aren't already UTF-8
+        if hasattr(sys.stdout, "reconfigure"):
+            try:
+                sys.stdout.reconfigure(encoding="utf-8")
+            except Exception:
+                pass
+        if hasattr(sys.stderr, "reconfigure"):
+            try:
+                sys.stderr.reconfigure(encoding="utf-8")
+            except Exception:
+                pass
         
         cls._log_dir = Path(log_dir)
         cls._log_dir.mkdir(exist_ok=True)
