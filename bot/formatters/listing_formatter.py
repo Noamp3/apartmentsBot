@@ -1,6 +1,8 @@
 # bot/formatters/listing_formatter.py
 """Telegram message formatting for apartment listings."""
 
+from urllib.parse import quote
+
 from typing import List, Optional
 from models.listing import EnrichedListing
 from models.rejection_log import RejectionLog
@@ -68,8 +70,12 @@ class ListingFormatter:
         street = enriched.extracted_street
         
         if location:
+            maps_url = ListingFormatter.format_google_maps_url(enriched)
             loc_val = ListingFormatter._escape_markdown(location)
-            loc_str = f"📍 *מיקום:* {loc_val}"
+            if maps_url:
+                loc_str = f"📍 *מיקום:* [{loc_val}]({maps_url})"
+            else:
+                loc_str = f"📍 *מיקום:* {loc_val}"
             
             # Show specific landmarks/streets in parentheses if available
             from utils.israeli_locations import get_location_db
@@ -212,8 +218,12 @@ class ListingFormatter:
         street = enriched.extracted_street
         
         if location:
+            maps_url = ListingFormatter.format_google_maps_url(enriched)
             loc_val = ListingFormatter._escape_markdown(location)
-            loc_str = f"📍 *מיקום:* {loc_val}"
+            if maps_url:
+                loc_str = f"📍 *מיקום:* [{loc_val}]({maps_url})"
+            else:
+                loc_str = f"📍 *מיקום:* {loc_val}"
             
             from utils.israeli_locations import get_location_db
             loc_db = get_location_db()
@@ -440,6 +450,29 @@ class ListingFormatter:
         elif digits.startswith("972") and len(digits) == 12:
             pass
         return f"https://wa.me/{digits}"
+    
+    @staticmethod
+    def format_google_maps_url(enriched: 'EnrichedListing') -> str:
+        """Build a Google Maps search URL from the listing's location parts.
+        
+        Constructs the most specific query possible from street, neighborhood,
+        and city. Returns empty string if no location data is available.
+        """
+        parts = []
+        if enriched.extracted_street:
+            parts.append(enriched.extracted_street)
+        if enriched.extracted_neighborhood:
+            parts.append(enriched.extracted_neighborhood)
+        # Add city from extracted_location (often "תל אביב" etc.)
+        city = enriched.extracted_location or ""
+        if city and city not in parts:
+            parts.append(city)
+        
+        if not parts:
+            return ""
+        
+        query = ", ".join(parts)
+        return f"https://www.google.com/maps/search/?api=1&query={quote(query)}"
         
     @staticmethod
     def _escape_markdown(text: str) -> str:

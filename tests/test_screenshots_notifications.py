@@ -42,7 +42,7 @@ def test_format_listing_caption():
     # Assert total length is within Telegram caption limits
     assert len(caption) <= 1024
     assert "💰 *מחיר:* 4,500₪" in caption
-    assert "📍 *מיקום:* פלורנטין" in caption
+    assert "📍 *מיקום:* [פלורנטין](" in caption
     assert "לצפייה בדירה" in caption
     assert "מקור: פייסבוק" in caption
 

@@ -343,8 +343,8 @@ def test_listing_formatter_location_variations():
         area_matches={}
     )
     msg = ListingFormatter.format_listing(enriched)
-    assert "📍 *מיקום:* הצפון הישן" in msg
-    assert "(" not in msg.split("מיקום:")[1].split("\n")[0]
+    assert "📍 *מיקום:* [הצפון הישן](" in msg
+    assert "google.com/maps" in msg
     
     # Case 2: Neighborhood + area match (landmark)
     enriched = EnrichedListing(
@@ -356,7 +356,8 @@ def test_listing_formatter_location_variations():
         area_matches={"כיכר רבין": True}
     )
     msg = ListingFormatter.format_listing(enriched)
-    assert "📍 *מיקום:* הצפון הישן \\(כיכר רבין\\)" in msg
+    assert "[הצפון הישן](" in msg
+    assert "\\(כיכר רבין\\)" in msg
 
     # Case 3: Neighborhood + street + landmark
     enriched = EnrichedListing(
@@ -369,8 +370,10 @@ def test_listing_formatter_location_variations():
         area_matches={"כיכר דיזנגוף": True}
     )
     msg = ListingFormatter.format_listing(enriched)
-    # The formatted string should contain "הצפון הישן \(כיכר דיזנגוף\), ריינס"
-    assert "📍 *מיקום:* הצפון הישן \\(כיכר דיזנגוף\\), ריינס" in msg
+    # The formatted string should contain the neighborhood as a Maps link, landmark in parens, and street appended
+    assert "[הצפון הישן](" in msg
+    assert "\\(כיכר דיזנגוף\\)" in msg
+    assert "ריינס" in msg
 
 
 def test_static_telegram_calls_formatting_escaping():
