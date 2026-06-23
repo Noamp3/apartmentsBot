@@ -380,17 +380,12 @@ def is_looking_for_roomie(text: str) -> bool:
         # Find all occurrences of "suitability for roommates"
         # E.g., מתאים לשותפים, מתאימה לשותפים, מעולה לשותפים, סבבה לשותפים, מתאימים לשותפים, מתאימות לשותפים
         suitability_patterns = [
-            r"מתאים\s*(?:גם\s*)?לשות[פף]",
-            r"מתאימה\s*(?:גם\s*)?לשות[פף]",
-            r"מתאימים\s*(?:גם\s*)?לשות[פף]",
-            r"מתאימות\s*(?:גם\s*)?לשות[פף]",
-            r"סבבה\s*לשות[פף]",
-            r"מעולה\s*לשות[פף]",
-            r"טוב\s*לשות[פף]",
-            r"מושלם\s*לשות[פף]",
-            r"מושלמת\s*לשות[פף]",
-            r"פחות\s*מתאים\s*לשות[פף]",
-            r"לא\s*מתאים\s*לשות[פף]",
+            r"(?:לא\s+|פחות\s+)?[מנ]תאימ[היםות]*\s*(?:גם\s*)?לשות[פף][א-ת]*/?[א-ת]*",
+            r"סבבה\s*לשות[פף][א-ת]*/?[א-ת]*",
+            r"מעולה\s*לשות[פף][א-ת]*/?[א-ת]*",
+            r"טוב\s*לשות[פף][א-ת]*/?[א-ת]*",
+            r"מושלם\s*לשות[פף][א-ת]*/?[א-ת]*",
+            r"מושלמת\s*לשות[פף][א-ת]*/?[א-ת]*",
         ]
         
         suitability_matches = []
@@ -499,4 +494,39 @@ def is_sublet_text(text: str) -> bool:
         r"sub-let",
     ]
     return any(re.search(p, text_normalized) for p in patterns)
+
+
+def extract_size(text: str) -> Optional[int]:
+    """Extract size in square meters (מ"ר) from Hebrew text.
+    
+    Handles formats like:
+    - 80 מ"ר
+    - 80 מטר
+    - 80 sqm
+    - 80 מטר רבוע
+    - בגודל 80
+    """
+    if not text:
+        return None
+    
+    # Remove commas
+    text_normalized = text.replace(",", "")
+    
+    # Try patterns like "80 מ"ר", "80 מטר", "80 מטר רבוע", "80 sqm"
+    patterns = [
+        r"(\d+(?:\.\d+)?)\s*(?:מ\"ר|מטר רבוע|מטרים רבועים|מטרים|מטר|sqm|sq\.?m)\b",
+        r"(?:שטח|גודל|בגודל)[:\s]+(\d+(?:\.\d+)?)\b",
+    ]
+    
+    for pattern in patterns:
+        match = re.search(pattern, text_normalized)
+        if match:
+            try:
+                num = float(match.group(1))
+                return int(num)
+            except (ValueError, TypeError):
+                continue
+    
+    return None
+
 

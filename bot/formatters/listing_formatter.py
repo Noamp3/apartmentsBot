@@ -52,6 +52,11 @@ class ListingFormatter:
             rooms_val = ListingFormatter._escape_markdown(str(enriched.extracted_bedrooms))
             lines.append(f"🛏️ *חדרים:* {rooms_val}")
             
+        # Size
+        if enriched.extracted_size:
+            size_val = ListingFormatter._escape_markdown(str(enriched.extracted_size))
+            lines.append(f"📏 *גודל:* {size_val} מ\"ר")
+            
         # Sublet Info
         if enriched.is_sublet:
             duration_val = ListingFormatter._escape_markdown(enriched.sublet_duration or "לא צוין")
@@ -184,6 +189,11 @@ class ListingFormatter:
         if enriched.extracted_bedrooms:
             rooms_val = ListingFormatter._escape_markdown(str(enriched.extracted_bedrooms))
             lines.append(f"🛏️ *חדרים:* {rooms_val}")
+            
+        # Size
+        if enriched.extracted_size:
+            size_val = ListingFormatter._escape_markdown(str(enriched.extracted_size))
+            lines.append(f"📏 *גודל:* {size_val} מ\"ר")
             
         # Sublet Info
         if enriched.is_sublet:
@@ -372,6 +382,7 @@ class ListingFormatter:
                 "price_min": "💰",
                 "bedrooms_min": "🛏️",
                 "bedrooms_max": "🛏️",
+                "size_min": "📏",
                 "area": "📍",
                 "border_area": "📍",
                 "custom": "✨",

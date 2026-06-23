@@ -177,7 +177,7 @@ class OnboardingHandler:
                         # Overwrite conflicting rule types with the new values
                         for r_new in rules_list:
                             r_new_type = r_new["type"]
-                            is_hard = r_new_type in ["price_max", "price_min", "bedrooms_min", "bedrooms_max"]
+                            is_hard = r_new_type in ["price_max", "price_min", "bedrooms_min", "bedrooms_max", "size_min"]
                             if is_hard:
                                 all_rules_data = [r for r in all_rules_data if r["type"] != r_new_type]
                             all_rules_data.append(r_new)
@@ -251,6 +251,7 @@ class OnboardingHandler:
                             RuleType.PRICE_MIN: "💰 מחיר מינימלי",
                             RuleType.BEDROOMS_MIN: "🛏️ מינימום חדרים",
                             RuleType.BEDROOMS_MAX: "🛏️ מקסימום חדרים",
+                            RuleType.SIZE_MIN: "📏 מינימום גודל",
                             RuleType.AREA: "📍 מיקום",
                             RuleType.BORDER_AREA: "🗺️ אזור לפי גבולות",
                             RuleType.CUSTOM: "✨ דרישה מותאמת",
@@ -501,6 +502,7 @@ class OnboardingHandler:
                 RuleType.PRICE_MIN: "💰 מחיר מינימלי",
                 RuleType.BEDROOMS_MIN: "🛏️ מינימום חדרים",
                 RuleType.BEDROOMS_MAX: "🛏️ מקסימום חדרים",
+                RuleType.SIZE_MIN: "📏 מינימום גודל",
                 RuleType.AREA: "📍 מיקום",
                 RuleType.BORDER_AREA: "🗺️ אזור לפי גבולות",
                 RuleType.CUSTOM: "✨ דרישה מותאמת",

@@ -28,6 +28,11 @@ async def test_system_repository_settings(db):
     await repo.set_auto_adjust_interval(True)
     assert await repo.get_auto_adjust_interval() is True
 
+    # Save & retrieve AI retries
+    assert await repo.get_ai_retries() is None
+    await repo.set_ai_retries(25)
+    assert await repo.get_ai_retries() == 25
+
 
 @pytest.mark.asyncio
 async def test_system_repository_scraping_runs(db):

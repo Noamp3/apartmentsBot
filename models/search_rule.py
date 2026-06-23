@@ -11,7 +11,7 @@ class RuleType(Enum):
     """Types of search rules.
     
     Hard rules (can be evaluated without AI):
-    - PRICE_MAX, PRICE_MIN, BEDROOMS_MIN, BEDROOMS_MAX
+    - PRICE_MAX, PRICE_MIN, BEDROOMS_MIN, BEDROOMS_MAX, SIZE_MIN
     
     Soft rules (require AI judgment):
     - AREA, BORDER_AREA, CUSTOM
@@ -21,6 +21,7 @@ class RuleType(Enum):
     PRICE_MIN = "price_min"
     BEDROOMS_MIN = "bedrooms_min"
     BEDROOMS_MAX = "bedrooms_max"
+    SIZE_MIN = "size_min"
     
     # Soft rules
     AREA = "area"
@@ -55,6 +56,7 @@ class SearchRule:
             RuleType.PRICE_MIN,
             RuleType.BEDROOMS_MIN,
             RuleType.BEDROOMS_MAX,
+            RuleType.SIZE_MIN,
         }
     
     @property

@@ -17,7 +17,6 @@ class PersonaDefinition:
     welcome_batch_prompt: str
     sass_batch_prompt: str
     parse_rules_prompt: str
-    custom_rules_prompt: str
     fallback_welcome: str
     switch_confirmation: str
     help_template: str  # Added template for /help command

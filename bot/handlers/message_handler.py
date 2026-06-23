@@ -166,6 +166,58 @@ class MessageHandler:
             await update.message.reply_text(msg, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="HTML")
             return
 
+        # Intercept changing AI retries limit from admin
+        if context.user_data.get("admin_waiting_for_ai_retries"):
+            # Clear state first
+            context.user_data.pop("admin_waiting_for_ai_retries", None)
+
+            if text.lower() in ("cancel", "ביטול"):
+                await update.message.reply_text("❌ שינוי הגדרת הניסיונות החוזרים בוטל.")
+                admin_command_handler = context.bot_data.get("admin_command_handler")
+                if admin_command_handler:
+                    dashboard, reply_markup = await admin_command_handler.get_admin_dashboard_data()
+                    await update.message.reply_text(
+                        dashboard,
+                        reply_markup=reply_markup,
+                        parse_mode="HTML"
+                    )
+                return
+
+            try:
+                val = int(text.strip())
+                if not (1 <= val <= 50):
+                    raise ValueError("Range error")
+            except ValueError:
+                # Put admin back in waiting state
+                context.user_data["admin_waiting_for_ai_retries"] = True
+                await update.message.reply_text(
+                    "⚠️ <b>ערך לא תקין!</b>\n\n"
+                    "יש להזין מספר שלם חיובי בין 1 ל-50.\n"
+                    "אנא שלח שוב או שלח <code>ביטול</code>.",
+                    parse_mode="HTML"
+                )
+                return
+
+            # Save to DB
+            from database.repositories.system_repository import SystemRepository
+            from config import settings
+            system_repo = SystemRepository(db)
+            await system_repo.set_ai_retries(val)
+
+            # Update settings
+            settings.GEMINI_503_RETRIES = val
+            await update.message.reply_text(f"✅ כמות הניסיונות החוזרים של AI עודכנה ל-{val} בהצלחה!")
+
+            admin_command_handler = context.bot_data.get("admin_command_handler")
+            if admin_command_handler:
+                dashboard, reply_markup = await admin_command_handler.get_admin_dashboard_data()
+                await update.message.reply_text(
+                    dashboard,
+                    reply_markup=reply_markup,
+                    parse_mode="HTML"
+                )
+            return
+
         # Intercept system broadcast from admin
         if context.user_data.get("admin_waiting_for_broadcast"):
             # Clear state first
@@ -679,6 +731,7 @@ class MessageHandler:
             RuleType.PRICE_MIN: "💰 מחיר מינימלי",
             RuleType.BEDROOMS_MIN: "🛏️ מינימום חדרים",
             RuleType.BEDROOMS_MAX: "🛏️ מקסימום חדרים",
+            RuleType.SIZE_MIN: "📏 מינימום גודל",
             RuleType.AREA: "📍 מיקום",
             RuleType.BORDER_AREA: "🗺️ אזור לפי גבולות",
             RuleType.CUSTOM: "✨ דרישה מותאמת",
@@ -727,6 +780,7 @@ class MessageHandler:
             RuleType.PRICE_MIN: "💰",
             RuleType.BEDROOMS_MIN: "🛏️",
             RuleType.BEDROOMS_MAX: "🛏️",
+            RuleType.SIZE_MIN: "📏",
             RuleType.AREA: "📍",
             RuleType.BORDER_AREA: "🗺️",
             RuleType.CUSTOM: "✨",

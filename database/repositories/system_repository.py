@@ -48,6 +48,15 @@ class SystemRepository:
         """Enable or disable automatic interval adjustment."""
         await self.set_setting("auto_adjust_interval", str(enable))
 
+    async def get_ai_retries(self) -> Optional[int]:
+        """Get the custom AI retries limit."""
+        val = await self.get_setting("ai_retries")
+        return int(val) if val is not None else None
+
+    async def set_ai_retries(self, retries: int):
+        """Set the custom AI retries limit."""
+        await self.set_setting("ai_retries", str(retries))
+
     async def start_scraping_run(self) -> int:
         """Start a new scraping run record in the database. Returns the run's ID."""
         run_id = await self.db.execute(

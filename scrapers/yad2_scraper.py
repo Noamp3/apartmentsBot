@@ -346,6 +346,12 @@ class Yad2Scraper(BaseScraper):
             
             # Extract square meters
             sqm = additional.get("squareMeter")
+            parsed_size = None
+            if sqm:
+                try:
+                    parsed_size = int(float(sqm))
+                except (ValueError, TypeError):
+                    pass
             
             # Extract images
             metadata = item.get("metaData", {})
@@ -432,6 +438,7 @@ class Yad2Scraper(BaseScraper):
                 raw_text=raw_text,
                 price=price,
                 bedrooms=bedrooms,
+                size=parsed_size,
                 images=images[:5],
                 posted_at=posted_at,  # Set the extracted date
                 scraped_at=datetime.now(),

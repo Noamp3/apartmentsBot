@@ -396,7 +396,12 @@ class BaseAIEngine(ABC):
     async def parse_user_rules(self, hebrew_text: str, persona: str = "barakush") -> Tuple[List[Dict], str]:
         """Parse natural Hebrew text into structured rules."""
         persona_def = get_persona(persona)
-        prompt = persona_def.parse_rules_prompt.format(hebrew_text=hebrew_text)
+        from core.prompt_manager import render_prompt
+        prompt = render_prompt(
+            "parse_rules",
+            persona_instruction=persona_def.parse_rules_prompt,
+            hebrew_text=hebrew_text
+        )
         
         response = await self.generate_content(prompt)
         result = self._parse_json_response(response)
@@ -1175,6 +1180,13 @@ class ListingEnricher:
             # Same for bedrooms
             final_bedrooms = data.get("bedrooms") or listing.bedrooms or extract_bedrooms(listing.raw_text)
             
+            # Same for size
+            ai_size = data.get("size_sqm")
+            scraped_size = listing.size
+            from utils.hebrew_utils import extract_size
+            regex_size = extract_size(listing.raw_text) if listing.raw_text else None
+            final_size = ai_size or scraped_size or regex_size
+            
             # Same for roomies: combine AI-extracted roomies with regex lookup
             ai_roomies = data.get("roomies")
             from utils.hebrew_utils import is_looking_for_roomie, is_sublet_text
@@ -1202,6 +1214,7 @@ class ListingEnricher:
                 listing=listing,
                 extracted_price=final_price,
                 extracted_bedrooms=final_bedrooms,
+                extracted_size=final_size,
                 extracted_location=data.get("location", "") or listing.location,
                 extracted_neighborhood=data.get("neighborhood", ""),
                 extracted_street=data.get("street", ""),
@@ -1221,7 +1234,7 @@ class ListingEnricher:
     def _basic_enrich(self, listing: Listing) -> EnrichedListing:
         """Basic enrichment without AI (fallback)."""
         log.debug(f"Using basic enrichment fallback for {listing.title}")
-        from utils.hebrew_utils import extract_price, extract_bedrooms, is_looking_for_roomie, is_sublet_text
+        from utils.hebrew_utils import extract_price, extract_bedrooms, is_looking_for_roomie, is_sublet_text, extract_size
         
         final_roomies = is_looking_for_roomie(listing.raw_text or listing.description or listing.title)
         final_sublet = is_sublet_text(listing.raw_text or listing.description or listing.title)
@@ -1230,6 +1243,7 @@ class ListingEnricher:
             listing=listing,
             extracted_price=listing.price or extract_price(listing.raw_text),
             extracted_bedrooms=listing.bedrooms or extract_bedrooms(listing.raw_text),
+            extracted_size=listing.size or extract_size(listing.raw_text),
             extracted_location=listing.location,
             extracted_neighborhood="",
             extracted_street="",

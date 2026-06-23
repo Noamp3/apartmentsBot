@@ -91,6 +91,12 @@ class RulePreFilter:
                 if bedrooms is not None and bedrooms > _parse_int_rule_value(rule.value):
                     reasons.append(f"חדרים {bedrooms} > מקסימום {_parse_int_rule_value(rule.value)}")
                     failed_rules_names.append(f"מקסימום חדרים: {rule.value}")
+            
+            elif rule.rule_type == RuleType.SIZE_MIN:
+                size = enriched.extracted_size
+                if size is not None and size < _parse_int_rule_value(rule.value):
+                    reasons.append(f"גודל דירה {size} מ\"ר < מינימום {_parse_int_rule_value(rule.value)} מ\"ר")
+                    failed_rules_names.append(f"מינימום גודל: {rule.value}")
         
         if reasons:
             log.debug(f"Hard rules failed for {enriched.listing.title[:30]}...: {reasons}")

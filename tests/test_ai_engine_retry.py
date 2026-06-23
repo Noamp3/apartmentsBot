@@ -232,3 +232,9 @@ async def test_gemini_engine_uses_configurable_retries():
                 assert kwargs_passed.get("max_retries") == 42
 
 
+def test_gemini_default_retries_is_20():
+    """Verify that config.settings.GEMINI_503_RETRIES defaults to 20."""
+    from config import Settings
+    assert Settings.model_fields['GEMINI_503_RETRIES'].default == 20
+
+

@@ -263,6 +263,11 @@ class ApartmentBotApplication:
             db_auto_adjust = await system_repo.get_auto_adjust_interval()
             self.scheduler.auto_adjust = db_auto_adjust
             log.info(f"Loaded auto_adjust_interval setting: {db_auto_adjust}")
+            
+            db_ai_retries = await system_repo.get_ai_retries()
+            if db_ai_retries is not None:
+                settings.GEMINI_503_RETRIES = db_ai_retries
+                log.info(f"Loaded custom AI retries limit: {db_ai_retries}")
         except Exception as e:
             log.error(f"Failed to load system settings from DB on startup: {e}")
             

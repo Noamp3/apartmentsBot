@@ -251,9 +251,14 @@ async def test_conversational_rule_modification(db, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_area_rule_modification_and_cleaning():
+async def test_area_rule_modification_and_cleaning(db, monkeypatch):
     """Test that standard AREA rules can be modified and original text is cleaned."""
     print("\n=== Testing Standard AREA Rule Modification and Text Cleaning ===\n")
+    
+    async def mock_get_db():
+        return db
+    monkeypatch.setattr("database.get_db", mock_get_db)
+    monkeypatch.setattr("bot.handlers.message_handler.get_db", mock_get_db)
     
     from bot.handlers.message_handler import clean_hebrew_location_text
     

@@ -20,6 +20,7 @@ class Listing:
     
     price: Optional[int] = None
     bedrooms: Optional[int] = None
+    size: Optional[int] = None
     phone: Optional[str] = None  # Contact phone number
     author: Optional[str] = None  # Name of person posting
     images: List[str] = field(default_factory=list)
@@ -51,6 +52,7 @@ class EnrichedListing:
     # AI-extracted structured data (extracted ONCE)
     extracted_price: Optional[int] = None
     extracted_bedrooms: Optional[int] = None
+    extracted_size: Optional[int] = None
     extracted_location: str = ""
     extracted_neighborhood: str = ""
     extracted_street: str = ""
@@ -86,6 +88,12 @@ class EnrichedListing:
                 self.extracted_bedrooms = int(float(self.extracted_bedrooms))
             except (ValueError, TypeError):
                 self.extracted_bedrooms = None
+
+        if self.extracted_size is not None:
+            try:
+                self.extracted_size = int(float(self.extracted_size))
+            except (ValueError, TypeError):
+                self.extracted_size = None
     
     @property
     def effective_monthly_price(self) -> Optional[int]:

@@ -97,6 +97,8 @@ class CallbackHandler:
                 await self._show_admin_server_stats(query, context)
             elif data == "admin_menu_gemini":
                 await self._show_admin_gemini_test(query, context)
+            elif data == "admin_menu_change_retries_prompt":
+                await self._show_change_retries_prompt(update, context)
             elif data == "admin_broadcast_prompt":
                 await self._prompt_admin_broadcast(query, context)
             elif data.startswith("admin_clear_table:"):
@@ -1184,7 +1186,8 @@ class CallbackHandler:
         ai_engine = context.bot_data.get("ai_engine")
         
         if not ai_engine:
-            msg = "❌ מנוע AI (ai_engine) אינו מוגדר ב-bot_data!"
+            msg = f"""❌ מנוע AI (ai_engine) אינו מוגדר ב-bot_data!
+🔁 <b>ניסיונות חוזרים (AI Retries):</b> <code>{settings.GEMINI_503_RETRIES}</code>"""
         else:
             await query.answer("בודק חיבור למנוע ה-AI... אנא המתן", show_alert=False)
             try:
@@ -1200,16 +1203,38 @@ class CallbackHandler:
 
 ✅ <b>סטטוס:</b> מחובר ותקין!
 🤖 <b>מודל פעיל:</b> <code>{html.escape(model_name)}</code>
+🔁 <b>ניסיונות חוזרים (AI Retries):</b> <code>{settings.GEMINI_503_RETRIES}</code>
 ⏱️ <b>זמן תגובה:</b> <code>{duration:.2f} שניות</code>
 💬 <b>תשובה מהספק:</b> <code>{html.escape(test_response.strip())}</code>"""
             except Exception as e:
                 msg = f"""🧪 <b>תוצאת בדיקת Gemini AI:</b>
 
 ❌ <b>שגיאה:</b> החיבור נכשל!
+🔁 <b>ניסיונות חוזרים (AI Retries):</b> <code>{settings.GEMINI_503_RETRIES}</code>
 ⚠️ <b>פירוט:</b>
 <code>{html.escape(str(e))}</code>"""
                 
-        keyboard = [[InlineKeyboardButton("↩️ חזרה לתפריט ראשי", callback_data="admin_menu_main")]]
+        keyboard = [
+            [InlineKeyboardButton("⚙️ הגדר כמות ניסיונות", callback_data="admin_menu_change_retries_prompt")],
+            [InlineKeyboardButton("↩️ חזרה לתפריט ראשי", callback_data="admin_menu_main")]
+        ]
+        await self._safe_edit_message_text(query, msg, parse_mode="HTML")
+        await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup(keyboard))
+
+    async def _show_change_retries_prompt(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Prompt admin to enter the new number of AI retries."""
+        query = update.callback_query
+        context.user_data["admin_waiting_for_ai_retries"] = True
+        
+        msg = (
+            "🔁 <b>הגדרת כמות ניסיונות חוזרים של AI (AI Retries)</b>\n\n"
+            f"כמות הניסיונות הנוכחית: <code>{settings.GEMINI_503_RETRIES}</code>\n\n"
+            "נא שלח כעת את כמות הניסיונות החוזרים הרצויה (מספר שלם חיובי בין 1 ל-50).\n"
+            "אם ברצונך לבטל, שלח את המילה <code>cancel</code> או <code>ביטול</code>."
+        )
+        
+        keyboard = [[InlineKeyboardButton("❌ ביטול", callback_data="admin_menu_main")]]
+        
         await self._safe_edit_message_text(query, msg, parse_mode="HTML")
         await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup(keyboard))
 

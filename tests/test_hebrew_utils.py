@@ -10,7 +10,8 @@ from utils.hebrew_utils import (
     is_direct_from_owner,
     is_looking_for_roomie,
     parse_relative_date,
-    extract_yad2_posted_date
+    extract_yad2_posted_date,
+    extract_size
 )
 
 
@@ -142,6 +143,12 @@ class TestRoomiesExtraction:
         """'Suitable for roommates' should NOT be detected as looking for roomies."""
         assert not is_looking_for_roomie("דירת 3 חדרים מהממת מתאימה לשותפים")
         assert not is_looking_for_roomie("דירה מעולה לשותפים, 3 חדרים גדולים")
+        assert not is_looking_for_roomie("דירת 3 חדרים, לא מתאימה לשותפים")
+        assert not is_looking_for_roomie("דירת 3 חדרים, לא נתאימה לשותפים")
+        assert not is_looking_for_roomie("דירה גדולה, מתאימה לשותפים/ות")
+        assert not is_looking_for_roomie("דירה מהממת, לא מתאימה לשותפים/ות")
+        assert not is_looking_for_roomie("דירה יפה, לא נתאימה לשותפים/ות")
+        assert not is_looking_for_roomie("להשכרה דירה 3 חדרים, לא מתאימה לשותפים")
         
     def test_mixed_suitability_and_search(self):
         """Should be True if looking for roomie, even if suitability is also mentioned."""
@@ -190,3 +197,14 @@ class TestDateParsing:
             "https://img.yad2.co.il/Pic/202606/08/some_image.jpg"
         ]
         assert extract_yad2_posted_date(images) == datetime(2026, 6, 8)
+
+    def test_extract_size(self):
+        assert extract_size("דירה בגודל 80 מ\"ר מהממת") == 80
+        assert extract_size("דירה בגודל 80 מטר") == 80
+        assert extract_size("80 מטר רבוע של יופי") == 80
+        assert extract_size("דירה של 85 sqm") == 85
+        assert extract_size("גודל: 120 מטר רבוע") == 120
+        assert extract_size("שטח: 90") == 90
+        assert extract_size("מחיר 5000 ש\"ח") is None
+        assert extract_size("") is None
+

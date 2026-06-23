@@ -376,9 +376,9 @@ class ListingRepository:
             """
             INSERT OR REPLACE INTO enriched_listings 
             (listing_id, source, url, title, description, location, raw_text, images, screenshots,
-             extracted_price, extracted_bedrooms, extracted_location, extracted_neighborhood, extracted_street,
+             extracted_price, extracted_bedrooms, extracted_size, extracted_location, extracted_neighborhood, extracted_street,
              has_broker_fee, roomies, is_sublet, sublet_duration, sublet_dates, attributes, area_matches, bordering_areas, posted_at, scraped_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 enriched.listing.id,
@@ -392,6 +392,7 @@ class ListingRepository:
                 json.dumps(enriched.listing.screenshots, ensure_ascii=False),
                 enriched.extracted_price,
                 enriched.extracted_bedrooms,
+                enriched.extracted_size,
                 enriched.extracted_location,
                 enriched.extracted_neighborhood,
                 enriched.extracted_street,
@@ -489,12 +490,14 @@ class ListingRepository:
             screenshots=screenshots,
             posted_at=row["posted_at"],
             scraped_at=row["scraped_at"],
+            size=row["extracted_size"] if "extracted_size" in row.keys() else None,
         )
         
         return EnrichedListing(
             listing=listing,
             extracted_price=row["extracted_price"],
             extracted_bedrooms=row["extracted_bedrooms"],
+            extracted_size=row["extracted_size"] if "extracted_size" in row.keys() else None,
             extracted_location=row["extracted_location"] or "",
             extracted_neighborhood=row["extracted_neighborhood"] or "",
             extracted_street=row["extracted_street"] or "" if "extracted_street" in row.keys() else "",
