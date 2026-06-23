@@ -57,6 +57,7 @@ class ScrapingScheduler:
         self.scheduler.start()
         self._running = True
         log.info(f"Scheduler started", interval_minutes=self.interval, next_run_time=next_run_time.isoformat())
+        self._persist_next_run_time()
     
     def stop(self):
         """Stop the scheduler."""
@@ -65,6 +66,23 @@ class ScrapingScheduler:
             self._running = False
             log.info("Scheduler stopped")
     
+    def _persist_next_run_time(self):
+        """Asynchronously persist the next scheduled run time to the database."""
+        job = self.scheduler.get_job('main_cycle')
+        if job and job.next_run_time:
+            next_run_time = job.next_run_time
+            async def save():
+                try:
+                    from database import get_db
+                    from database.repositories.system_repository import SystemRepository
+                    db = await get_db()
+                    system_repo = SystemRepository(db)
+                    await system_repo.set_next_scheduled_run_time(next_run_time)
+                    log.info(f"Persisted next scheduled run time: {next_run_time.isoformat()}")
+                except Exception as e:
+                    log.error(f"Failed to persist next scheduled run time: {e}")
+            asyncio.create_task(save())
+
     async def _run_cycle(self):
         """Run a single processing cycle."""
         if self._is_blackout_period():
@@ -85,6 +103,7 @@ class ScrapingScheduler:
             telemetry.track_cycle(duration, failed=failed)
             if not failed:
                 log.info("Scraping cycle complete", duration_seconds=round(duration, 1))
+            self._persist_next_run_time()
     
     def get_next_run_time(self) -> Optional[datetime]:
         """Get the next scheduled run time."""
@@ -95,7 +114,7 @@ class ScrapingScheduler:
         """Trigger an immediate run."""
         asyncio.create_task(self._run_cycle())
         log.info("Manual cycle triggered")
-
+ 
     def update_interval(self, interval_minutes: int):
         """Update scheduler interval and reschedule the job in APScheduler."""
         self.interval = interval_minutes
@@ -109,6 +128,7 @@ class ScrapingScheduler:
                     )
                 )
                 log.info(f"Rescheduled main cycle to interval: {interval_minutes} minutes")
+                self._persist_next_run_time()
 
     def _is_blackout_period(self) -> bool:
         """Check if current time is within the blackout period."""
