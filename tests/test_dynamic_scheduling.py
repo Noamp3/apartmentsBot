@@ -1,6 +1,6 @@
 import pytest
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch, AsyncMock
 
 from database.repositories.system_repository import SystemRepository
@@ -155,7 +155,7 @@ async def test_scheduler_restart_persistence():
     
     # Mock database and SystemRepository
     mock_db = MagicMock()
-    expected_next_run = datetime.now() + timedelta(minutes=10)
+    expected_next_run = datetime.now(timezone(timedelta(hours=3))) + timedelta(minutes=10)
     
     # Patch get_db to return our mock db
     with patch("main.get_db", return_value=mock_db), \
@@ -193,7 +193,7 @@ async def test_scheduler_restart_persistence_overdue():
     
     mock_db = MagicMock()
     # Next run was scheduled for 5 minutes ago (overdue)
-    past_run_time = datetime.now() - timedelta(minutes=5)
+    past_run_time = datetime.now(timezone(timedelta(hours=3))) - timedelta(minutes=5)
     
     with patch("main.get_db", return_value=mock_db), \
          patch("database.repositories.system_repository.SystemRepository.get_next_scheduled_run_time", return_value=past_run_time):
@@ -291,3 +291,68 @@ async def test_scheduler_persists_run_time():
         mock_db.execute.assert_called()
         args, kwargs = mock_db.execute.call_args
         assert "next_scheduled_run_time" in args[1]
+
+
+@pytest.mark.asyncio
+async def test_scraper_concurrency_lock():
+    """Test that concurrent calls to run_processing_cycle are locked and only one executes."""
+    from main import ApartmentBotApplication
+    app = ApartmentBotApplication()
+    app._cycle_lock = asyncio.Lock()
+    
+    # Mock the internal implementation to simulate a slow execution
+    async def mock_impl():
+        await asyncio.sleep(0.2)
+        return 10, 0
+        
+    app._run_processing_cycle_impl = mock_impl
+    
+    # Start two tasks concurrently
+    task1 = asyncio.create_task(app.run_processing_cycle())
+    # Wait a tiny bit to let task1 acquire the lock
+    await asyncio.sleep(0.05)
+    
+    task2 = asyncio.create_task(app.run_processing_cycle())
+    
+    res1 = await task1
+    res2 = await task2
+    
+    # Task 1 should have executed and returned the yield (10, 0)
+    assert res1 == (10, 0)
+    # Task 2 should have skipped and returned (0, 0) because the lock was held
+    assert res2 == (0, 0)
+
+
+@pytest.mark.asyncio
+async def test_adaptive_yield_scheduling():
+    """Test that QuotaAwareScheduler adapts its interval based on listings yield."""
+    callback = MagicMock()
+    rate_limiter = MagicMock()
+    rate_limiter.get_remaining_quota.return_value = {"daily_remaining": 500}
+    rate_limiter.daily_reset = datetime.now() + timedelta(hours=10)
+    
+    scheduler = QuotaAwareScheduler(process_callback=callback, rate_limiter=rate_limiter)
+    
+    # Set base settings
+    settings.SCRAPE_INTERVAL_MINUTES = 30
+    scheduler.interval = 30
+    
+    # Case 1: yield >= 4 -> should decrease interval by 5
+    new_interval = scheduler.calculate_optimal_interval(new_listings_found=5)
+    assert new_interval == 25
+    
+    # Case 2: yield < 4 -> should increase interval by 5
+    scheduler.interval = 30
+    new_interval = scheduler.calculate_optimal_interval(new_listings_found=2)
+    assert new_interval == 35
+    
+    # Case 3: yield < 4 -> should increase interval up to max cap (120)
+    scheduler.interval = 120
+    new_interval = scheduler.calculate_optimal_interval(new_listings_found=0)
+    assert new_interval == 120
+    
+    # Case 4: yield >= 4 -> should decrease interval down to min cap (10)
+    settings.SCRAPE_INTERVAL_MINUTES = 16
+    scheduler.interval = 10
+    new_interval = scheduler.calculate_optimal_interval(new_listings_found=6)
+    assert new_interval == 10
