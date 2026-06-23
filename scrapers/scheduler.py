@@ -92,8 +92,9 @@ class ScrapingScheduler:
         start_time = datetime.now()
         
         failed = False
+        res = None
         try:
-            await self.process_callback()
+            res = await self.process_callback()
         except Exception as e:
             failed = True
             log.exception("Scraping cycle failed", error=str(e))
@@ -104,6 +105,7 @@ class ScrapingScheduler:
             if not failed:
                 log.info("Scraping cycle complete", duration_seconds=round(duration, 1))
             self._persist_next_run_time()
+        return res
     
     def get_next_run_time(self) -> Optional[datetime]:
         """Get the next scheduled run time."""
@@ -199,8 +201,8 @@ class QuotaAwareScheduler(ScrapingScheduler):
         self.target_cycles_per_day = target_cycles_per_day
         self.auto_adjust = True
     
-    def calculate_optimal_interval(self) -> int:
-        """Calculate optimal minutes between cycles based on quota."""
+    def calculate_optimal_interval(self, new_listings_found: Optional[int] = None) -> int:
+        """Calculate optimal minutes between cycles based on quota and listings yield."""
         quota = self.rate_limiter.get_remaining_quota()
         daily_remaining = quota["daily_remaining"]
         
@@ -212,21 +214,30 @@ class QuotaAwareScheduler(ScrapingScheduler):
         
         if hours_remaining <= 0:
             return self.DEFAULT_UNLIMITED_INTERVAL
+            
+        # 1. Update the base interval adaptively based on listings yield
+        if new_listings_found is not None:
+            min_interval = max(10, settings.SCRAPE_INTERVAL_MINUTES // 2)
+            max_interval = max(settings.SCRAPE_INTERVAL_MINUTES, 120)
+            
+            if new_listings_found >= 4:
+                # Active market: scale up frequency (decrease interval)
+                self.interval = max(min_interval, self.interval - 5)
+            else:
+                # Slow market: back off frequency (increase interval)
+                self.interval = min(max_interval, self.interval + 5)
         
-        # Calculate how many cycles we can do
+        # 2. Calculate the quota constraint boundary (minimum interval required to stay within daily limit)
         remaining_cycles = daily_remaining / self.ESTIMATED_CALLS_PER_CYCLE
         
         if remaining_cycles < self.LOW_QUOTA_THRESHOLD:
-            log.warning("Low quota - extending intervals",
-                       remaining_cycles=remaining_cycles)
-            return self.LOW_QUOTA_INTERVAL
-        
-        # Distribute remaining cycles across remaining hours
-        cycles_per_hour = remaining_cycles / hours_remaining
-        
-        minutes_between_cycles = max(self.MIN_INTERVAL, int(60 / cycles_per_hour))
-        
-        return min(minutes_between_cycles, self.MAX_INTERVAL)
+            quota_min_interval = self.LOW_QUOTA_INTERVAL
+        else:
+            cycles_per_hour = remaining_cycles / hours_remaining
+            quota_min_interval = int(60 / cycles_per_hour) if cycles_per_hour > 0 else 240
+            
+        # 3. Enforce that our adaptive interval does not violate the quota constraint
+        return max(self.interval, quota_min_interval)
     
     async def _run_cycle(self):
         """Run cycle with quota awareness."""
@@ -238,13 +249,16 @@ class QuotaAwareScheduler(ScrapingScheduler):
         if isinstance(daily_remaining, (int, float)) and daily_remaining < self.MIN_DAILY_REMAINING_QUOTA:
             log.warning("Quota too low, skipping cycle",
                        daily_remaining=daily_remaining)
-            return
+            return None
         
-        await super()._run_cycle()
+        res = await super()._run_cycle()
         
-        # Adjust next interval based on remaining quota
+        new_listings_found = sum(res) if isinstance(res, tuple) and len(res) == 2 else 0
+        
+        # Adjust next interval based on remaining quota and listings yield
         if getattr(self, "auto_adjust", True):
-            new_interval = self.calculate_optimal_interval()
+            new_interval = self.calculate_optimal_interval(new_listings_found=new_listings_found)
             if new_interval != self.interval:
                 self.update_interval(new_interval)
                 log.info(f"Adjusted interval to {new_interval} minutes")
+        return res
