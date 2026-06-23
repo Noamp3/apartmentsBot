@@ -11,6 +11,7 @@ if sys.platform == "win32":
         pass
 
 import asyncio
+from datetime import datetime, timedelta
 import signal
 from typing import Dict, List, Optional
 
@@ -567,7 +568,10 @@ class ApartmentBotApplication:
                         await fb_group_repo.update_name(group_url, group_name)
                     
                     display_name = group_name or group_url
-                    log.info(f"Updated database: group {display_name} new count = {new_count} (total collected = {len(group_listings)})")
+                    log.info(
+                        f"Updated database: group new count = {new_count} (total collected = {len(group_listings)})",
+                        group=display_name
+                    )
                 except Exception as e:
                     log.error(f"Failed to update group scraped count/name in DB: {e}", exc_info=True)
                     
@@ -706,8 +710,27 @@ class ApartmentBotApplication:
         # Start bot
         await self.bot.run()
         
+        # Calculate next run time based on persisted schedule
+        next_run = None
+        try:
+            db = await get_db()
+            from database.repositories.system_repository import SystemRepository
+            system_repo = SystemRepository(db)
+            next_run = await system_repo.get_next_scheduled_run_time()
+            if next_run:
+                log.info(f"Loaded next scheduled run time: {next_run.isoformat()}")
+                if next_run <= datetime.now():
+                    log.info("Next scheduled run time has already passed. Scheduling immediate run.")
+                    next_run = datetime.now() + timedelta(seconds=10)
+                else:
+                    log.info(f"Scheduling next run at: {next_run.isoformat()}")
+            else:
+                log.info("No next scheduled run time found in DB. Scheduling immediate run.")
+        except Exception as e:
+            log.error(f"Failed to load next scheduled run time from DB: {e}")
+
         # Start scheduler
-        self.scheduler.start()
+        self.scheduler.start(next_run_time=next_run)
         
         # Schedule daily cleanup
         from apscheduler.triggers.interval import IntervalTrigger

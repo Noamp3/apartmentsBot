@@ -369,16 +369,15 @@ class ListingRepository:
     
     def __init__(self, db: DatabaseManager):
         self.db = db
-    
     async def save_enriched(self, enriched: EnrichedListing):
         """Save an enriched listing to cache."""
         await self.db.execute(
             """
             INSERT OR REPLACE INTO enriched_listings 
-            (listing_id, source, url, title, description, location, raw_text, images, screenshots,
+            (listing_id, source, url, title, description, location, raw_text, images, screenshots, phone,
              extracted_price, extracted_bedrooms, extracted_size, extracted_location, extracted_neighborhood, extracted_street,
              has_broker_fee, roomies, is_sublet, sublet_duration, sublet_dates, attributes, area_matches, bordering_areas, posted_at, scraped_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 enriched.listing.id,
@@ -390,6 +389,7 @@ class ListingRepository:
                 enriched.listing.raw_text,
                 json.dumps(enriched.listing.images, ensure_ascii=False),
                 json.dumps(enriched.listing.screenshots, ensure_ascii=False),
+                enriched.listing.phone,
                 enriched.extracted_price,
                 enriched.extracted_bedrooms,
                 enriched.extracted_size,
@@ -491,6 +491,7 @@ class ListingRepository:
             posted_at=row["posted_at"],
             scraped_at=row["scraped_at"],
             size=row["extracted_size"] if "extracted_size" in row.keys() else None,
+            phone=row["phone"] if "phone" in row.keys() else None,
         )
         
         return EnrichedListing(

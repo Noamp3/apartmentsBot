@@ -1,7 +1,7 @@
 import pytest
 import asyncio
 from datetime import datetime, timedelta
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, patch, AsyncMock
 
 from database.repositories.system_repository import SystemRepository
 from scrapers.scheduler import ScrapingScheduler, QuotaAwareScheduler
@@ -135,3 +135,159 @@ async def test_quota_aware_scheduler_auto_adjust():
         await scheduler._run_cycle()
         mock_calc.assert_not_called()
         scheduler.update_interval.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_scheduler_restart_persistence():
+    """Test that application start schedules next run based on persisted schedule."""
+    from main import ApartmentBotApplication
+    
+    app = ApartmentBotApplication()
+    
+    # Mock bot to avoid connecting/running
+    app.bot = MagicMock()
+    app.bot.run = AsyncMock()
+    
+    # Mock scheduler
+    app.scheduler = MagicMock()
+    app.scheduler.interval = 15
+    app.scheduler.start = MagicMock()
+    
+    # Mock database and SystemRepository
+    mock_db = MagicMock()
+    expected_next_run = datetime.now() + timedelta(minutes=10)
+    
+    # Patch get_db to return our mock db
+    with patch("main.get_db", return_value=mock_db), \
+         patch("database.repositories.system_repository.SystemRepository.get_next_scheduled_run_time", return_value=expected_next_run):
+         
+         # Mock bot.run to set app._running = False so start() loop exits immediately
+         async def mock_bot_run():
+             app._running = False
+         app.bot.run = mock_bot_run
+         
+         await app.start()
+         
+         app.scheduler.start.assert_called_once()
+         args, kwargs = app.scheduler.start.call_args
+         actual_next_run = kwargs.get("next_run_time")
+         assert actual_next_run is not None
+         assert abs((actual_next_run - expected_next_run).total_seconds()) < 1.0
+
+
+@pytest.mark.asyncio
+async def test_scheduler_restart_persistence_overdue():
+    """Test that when the next run time has passed, scheduler is started with immediate run (now + 10s)."""
+    from main import ApartmentBotApplication
+    
+    app = ApartmentBotApplication()
+    app.bot = MagicMock()
+    
+    async def mock_bot_run():
+        app._running = False
+    app.bot.run = mock_bot_run
+    
+    app.scheduler = MagicMock()
+    app.scheduler.interval = 15
+    app.scheduler.start = MagicMock()
+    
+    mock_db = MagicMock()
+    # Next run was scheduled for 5 minutes ago (overdue)
+    past_run_time = datetime.now() - timedelta(minutes=5)
+    
+    with patch("main.get_db", return_value=mock_db), \
+         patch("database.repositories.system_repository.SystemRepository.get_next_scheduled_run_time", return_value=past_run_time):
+         
+         await app.start()
+         
+         app.scheduler.start.assert_called_once()
+         args, kwargs = app.scheduler.start.call_args
+         actual_next_run = kwargs.get("next_run_time")
+         assert actual_next_run is not None
+         # Should be scheduled to run soon (now + 10s)
+         expected_next_run = datetime.now() + timedelta(seconds=10)
+         assert abs((actual_next_run - expected_next_run).total_seconds()) < 2.0
+
+
+@pytest.mark.asyncio
+async def test_scheduler_restart_persistence_no_previous_runs():
+    """Test that if there are no previous runs, scheduler starts with None next_run_time."""
+    from main import ApartmentBotApplication
+    
+    app = ApartmentBotApplication()
+    app.bot = MagicMock()
+    
+    async def mock_bot_run():
+        app._running = False
+    app.bot.run = mock_bot_run
+    
+    app.scheduler = MagicMock()
+    app.scheduler.interval = 15
+    app.scheduler.start = MagicMock()
+    
+    mock_db = MagicMock()
+    
+    with patch("main.get_db", return_value=mock_db), \
+         patch("database.repositories.system_repository.SystemRepository.get_next_scheduled_run_time", return_value=None):
+         
+         await app.start()
+         
+         app.scheduler.start.assert_called_once_with(next_run_time=None)
+
+
+@pytest.mark.asyncio
+async def test_scheduler_persists_run_time():
+    """Test that scheduler persists next_run_time to DB on start, update, and cycle."""
+    mock_callback = AsyncMock()
+    scheduler = ScrapingScheduler(process_callback=mock_callback)
+    
+    # Mock APScheduler job with next_run_time
+    mock_job = MagicMock()
+    run_time = datetime.now() + timedelta(minutes=15)
+    mock_job.next_run_time = run_time
+    scheduler.scheduler.get_job = MagicMock(return_value=mock_job)
+    scheduler.scheduler.start = MagicMock()
+    
+    # Mock DB
+    mock_db = MagicMock()
+    mock_db.execute = AsyncMock()
+    
+    with patch("database.get_db", return_value=mock_db):
+        # 1. Test starting the scheduler persists the run time
+        scheduler.start(next_run_time=run_time)
+        
+        # Give asyncio tasks a moment to run
+        await asyncio.sleep(0.1)
+        
+        # Verify set_setting was called with next_scheduled_run_time
+        mock_db.execute.assert_called()
+        args, kwargs = mock_db.execute.call_args
+        sql = args[0]
+        params = args[1]
+        assert "system_settings" in sql
+        assert "next_scheduled_run_time" in params
+        assert run_time.isoformat() in params
+        
+        # Reset mock
+        mock_db.execute.reset_mock()
+        
+        # 2. Test updating interval persists the run time
+        scheduler.update_interval(10)
+        await asyncio.sleep(0.1)
+        
+        mock_db.execute.assert_called()
+        args, kwargs = mock_db.execute.call_args
+        assert "next_scheduled_run_time" in args[1]
+        
+        # Reset mock
+        mock_db.execute.reset_mock()
+        
+        # 3. Test running cycle persists the run time
+        # We need to temporarily set _is_blackout_period to return False
+        scheduler._is_blackout_period = MagicMock(return_value=False)
+        await scheduler._run_cycle()
+        await asyncio.sleep(0.1)
+        
+        mock_db.execute.assert_called()
+        args, kwargs = mock_db.execute.call_args
+        assert "next_scheduled_run_time" in args[1]

@@ -43,8 +43,8 @@ async def test_admin_user_inspection(db, monkeypatch):
     rule = SearchRule(user_id=user_id, rule_type=RuleType.AREA, value="פלורנטין", original_text="פלורנטין")
     await rule_repo.create(rule)
     
-    listing = Listing(id="listing_test_1", source="facebook", url="http://facebook.com/1", title="דירת 2 חדרים בפלורנטין", description="משהו טוב", location="פלורנטין", raw_text="דירת 2 חדרים בפלורנטין")
-    enriched = EnrichedListing(listing=listing, extracted_price=4500, extracted_bedrooms=2, extracted_location="פלורנטין", extracted_neighborhood="פלורנטין")
+    listing = Listing(id="listing_test_1", source="facebook", url="http://facebook.com/1", title="דירת 2 חדרים בפלורנטין", description="משהו טוב", location="פלורנטין", raw_text="דירת 2 חדרים בפלורנטין", size=75)
+    enriched = EnrichedListing(listing=listing, extracted_price=4500, extracted_bedrooms=2, extracted_size=75, extracted_location="פלורנטין", extracted_neighborhood="פלורנטין")
     await listing_repo.save_enriched(enriched)
     await notification_repo.mark_sent(user_id, "listing_test_1")
     
@@ -139,6 +139,7 @@ async def test_admin_user_inspection(db, monkeypatch):
     assert "הדירות האחרונות שהתאימו" in msg_text
     assert "דירת 2 חדרים בפלורנטין" in msg_text
     assert "4,500 ₪" in msg_text
+    assert "📏 75 מ\"ר" in msg_text
     
     # Cleanup
     await user_repo.delete_user(admin_id)

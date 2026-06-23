@@ -126,3 +126,12 @@ class SystemRepository:
             (limit,)
         )
         return [dict(row) for row in rows]
+
+    async def get_next_scheduled_run_time(self) -> Optional[datetime]:
+        """Get the next scheduled scraping run time."""
+        val = await self.get_setting("next_scheduled_run_time")
+        return datetime.fromisoformat(val) if val is not None else None
+
+    async def set_next_scheduled_run_time(self, dt: datetime):
+        """Set the next scheduled scraping run time."""
+        await self.set_setting("next_scheduled_run_time", dt.isoformat())
