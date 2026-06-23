@@ -9,6 +9,7 @@ import asyncio
 import hashlib
 import os
 import re
+from collections import deque
 from datetime import datetime
 from typing import List, Optional
 
@@ -658,7 +659,11 @@ class FacebookScraper(BaseScraper):
         seen_post_ids = set()
         
         post_selector = self.healer.get_selector("post_container")
-        successive_seen_streak = 0
+        # Sliding window for early termination: if >= 12 of last 15 posts are
+        # already known (seen in DB or cross-source duplicate), stop scrolling.
+        EARLY_TERM_WINDOW = 15
+        EARLY_TERM_THRESHOLD = 12
+        known_window = deque(maxlen=EARLY_TERM_WINDOW)
         
         for i in range(scroll_count):
             try:
@@ -684,14 +689,17 @@ class FacebookScraper(BaseScraper):
                                 all_post_data.append(raw_data)
                                 log.debug(f"Extracted post: {raw_data.get('text', '')[:50]}...")
                                 
-                                if self.is_seen_callback:
-                                    if raw_data.get('_is_seen'):
-                                        successive_seen_streak += 1
-                                        if successive_seen_streak >= 10:
-                                            log.info(f"{tag} Early termination: encountered 10 successive posts already seen in DB")
-                                            return all_post_data
-                                    else:
-                                        successive_seen_streak = 0
+                                is_known = raw_data.get('_is_seen') or raw_data.get('_is_duplicate')
+                                known_window.append(bool(is_known))
+                                
+                                if len(known_window) >= EARLY_TERM_WINDOW:
+                                    known_count = sum(known_window)
+                                    if known_count >= EARLY_TERM_THRESHOLD:
+                                        log.info(
+                                            f"{tag} Early termination: {known_count}/{EARLY_TERM_WINDOW} "
+                                            f"of last posts already known (total collected: {len(all_post_data)})"
+                                        )
+                                        return all_post_data
 
                     except Exception as e:
                         log.debug(f"Error extracting post: {e}")
