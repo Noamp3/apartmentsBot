@@ -132,7 +132,8 @@ async def test_on_group_completed_updates_db_and_flushes_listings():
             bedrooms=2,
             phone="12345",
             posted_at=None,
-            scraped_at=None
+            scraped_at=None,
+            group_url="https://facebook.com/groups/xyz"
         )
         
         await on_listing_scraped_cb(mock_listing)

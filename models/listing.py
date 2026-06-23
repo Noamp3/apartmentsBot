@@ -27,6 +27,7 @@ class Listing:
     posted_at: Optional[datetime] = None
     scraped_at: datetime = field(default_factory=datetime.now)
     is_sublet: bool = False
+    group_url: Optional[str] = None
     
     def __post_init__(self):
         """Handle type conversions."""

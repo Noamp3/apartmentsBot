@@ -470,6 +470,7 @@ class ApartmentBotApplication:
         fb_new_count = 0
         yad2_new_count = 0
         batch_count = 0
+        new_listings_by_group = {}
         
         try:
             # Phase 1: Scrape all sources concurrently
@@ -530,6 +531,8 @@ class ApartmentBotApplication:
                     # It is a fresh unique listing!
                     if listing.source == "facebook":
                         fb_new_count += 1
+                        if listing.group_url:
+                            new_listings_by_group[listing.group_url] = new_listings_by_group.get(listing.group_url, 0) + 1
                     elif listing.source == "yad2":
                         yad2_new_count += 1
                     
@@ -553,12 +556,13 @@ class ApartmentBotApplication:
                     db_manager = await get_db()
                     from database.repositories.facebook_group_repository import FacebookGroupRepository
                     fb_group_repo = FacebookGroupRepository(db_manager)
-                    await fb_group_repo.update_scraped_count(group_url, len(group_listings))
+                    new_count = new_listings_by_group.get(group_url, 0)
+                    await fb_group_repo.update_scraped_count(group_url, new_count)
                     if group_name:
                         await fb_group_repo.update_name(group_url, group_name)
                     
                     display_name = group_name or group_url
-                    log.info(f"Updated database: group {display_name} scraped count = {len(group_listings)}")
+                    log.info(f"Updated database: group {display_name} new count = {new_count} (total collected = {len(group_listings)})")
                 except Exception as e:
                     log.error(f"Failed to update group scraped count/name in DB: {e}", exc_info=True)
                     
