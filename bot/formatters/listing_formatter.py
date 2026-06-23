@@ -96,6 +96,12 @@ class ListingFormatter:
                 loc_str += f", {street_val}"
                 
             lines.append(loc_str)
+            
+        # Phone
+        if enriched.listing.phone:
+            phone_val = ListingFormatter._escape_markdown(enriched.listing.phone)
+            wa_url = ListingFormatter.format_whatsapp_url(enriched.listing.phone)
+            lines.append(f"📞 *טלפון:* [{phone_val}]({wa_url})")
         
         # Bordering neighborhood note
         if bordering_note:
@@ -233,6 +239,12 @@ class ListingFormatter:
                 loc_str += f", {street_val}"
                 
             lines.append(loc_str)
+            
+        # Phone
+        if enriched.listing.phone:
+            phone_val = ListingFormatter._escape_markdown(enriched.listing.phone)
+            wa_url = ListingFormatter.format_whatsapp_url(enriched.listing.phone)
+            lines.append(f"📞 *טלפון:* [{phone_val}]({wa_url})")
         
         # Bordering neighborhood note
         if bordering_note:
@@ -416,6 +428,19 @@ class ListingFormatter:
         
         return "\n".join(lines)
     
+    @staticmethod
+    def format_whatsapp_url(phone: str) -> str:
+        """Format phone number into a wa.me URL."""
+        if not phone:
+            return ""
+        # Remove any non-digits
+        digits = "".join(c for c in phone if c.isdigit())
+        if digits.startswith("0") and len(digits) == 10:
+            digits = "972" + digits[1:]
+        elif digits.startswith("972") and len(digits) == 12:
+            pass
+        return f"https://wa.me/{digits}"
+        
     @staticmethod
     def _escape_markdown(text: str) -> str:
         """Escape special Markdown V2 characters (using central helper)."""

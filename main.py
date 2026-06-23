@@ -568,7 +568,10 @@ class ApartmentBotApplication:
                         await fb_group_repo.update_name(group_url, group_name)
                     
                     display_name = group_name or group_url
-                    log.info(f"Updated database: group {display_name} new count = {new_count} (total collected = {len(group_listings)})")
+                    log.info(
+                        f"Updated database: group new count = {new_count} (total collected = {len(group_listings)})",
+                        group=display_name
+                    )
                 except Exception as e:
                     log.error(f"Failed to update group scraped count/name in DB: {e}", exc_info=True)
                     
