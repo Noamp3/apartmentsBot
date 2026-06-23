@@ -33,11 +33,14 @@ class ScrapingScheduler:
         self._blackout_jitter_end = 0
         self._jitter_day = None
     
-    def start(self):
+    def start(self, next_run_time: Optional[datetime] = None):
         """Start the scheduler."""
         if self._running:
             log.warning("Scheduler already running")
             return
+        
+        if next_run_time is None:
+            next_run_time = datetime.now() + timedelta(seconds=10)
         
         # Add main processing job
         self.scheduler.add_job(
@@ -48,12 +51,12 @@ class ScrapingScheduler:
             ),
             id='main_cycle',
             name='Main scraping cycle',
-            next_run_time=datetime.now() + timedelta(seconds=10)  # Start soon
+            next_run_time=next_run_time
         )
         
         self.scheduler.start()
         self._running = True
-        log.info(f"Scheduler started", interval_minutes=self.interval)
+        log.info(f"Scheduler started", interval_minutes=self.interval, next_run_time=next_run_time.isoformat())
     
     def stop(self):
         """Stop the scheduler."""

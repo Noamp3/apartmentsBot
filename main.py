@@ -11,6 +11,7 @@ if sys.platform == "win32":
         pass
 
 import asyncio
+from datetime import datetime, timedelta
 import signal
 from typing import Dict, List, Optional
 
@@ -706,8 +707,29 @@ class ApartmentBotApplication:
         # Start bot
         await self.bot.run()
         
+        # Calculate next run time based on last run
+        next_run = None
+        try:
+            db = await get_db()
+            from database.repositories.system_repository import SystemRepository
+            system_repo = SystemRepository(db)
+            last_run = await system_repo.get_last_run()
+            if last_run and last_run.get("start_time"):
+                last_start = datetime.fromisoformat(last_run["start_time"])
+                next_run = last_start + timedelta(minutes=self.scheduler.interval)
+                log.info(f"Last scraping run started at: {last_start.isoformat()}")
+                if next_run <= datetime.now():
+                    log.info("Next scheduled run time has already passed. Scheduling immediate run.")
+                    next_run = datetime.now() + timedelta(seconds=10)
+                else:
+                    log.info(f"Next scheduled run is in the future. Scheduling at: {next_run.isoformat()}")
+            else:
+                log.info("No previous scraping runs found in DB. Scheduling immediate run.")
+        except Exception as e:
+            log.error(f"Failed to calculate next run time from DB: {e}")
+
         # Start scheduler
-        self.scheduler.start()
+        self.scheduler.start(next_run_time=next_run)
         
         # Schedule daily cleanup
         from apscheduler.triggers.interval import IntervalTrigger
