@@ -182,15 +182,21 @@ class IsraeliLocationDatabase:
         neighborhood = None
         for name in self.neighborhood_lookup:
             if name in location:
-                neighborhood = self.neighborhood_lookup[name]
-                break
+                # Fast check passed, now verify word boundaries to prevent substring matching bugs (e.g. matching 'שיר' in 'לשירותכם')
+                pattern = rf"(?<![a-zA-Z0-9\u05d0-\u05ea\u05f3\u05f4'])[בהולכמש]{{0,2}}{re.escape(name)}(?![a-zA-Z0-9\u05d0-\u05ea\u05f3\u05f4'])"
+                if re.search(pattern, location):
+                    neighborhood = self.neighborhood_lookup[name]
+                    break
         
         # Try to find city
         city = None
         for name, c in self.city_lookup.items():
             if name in location:
-                city = c
-                break
+                # Fast check passed, now verify word boundaries to prevent substring matching bugs
+                pattern = rf"(?<![a-zA-Z0-9\u05d0-\u05ea\u05f3\u05f4'])[בהולכמש]{{0,2}}{re.escape(name)}(?![a-zA-Z0-9\u05d0-\u05ea\u05f3\u05f4'])"
+                if re.search(pattern, location):
+                    city = c
+                    break
         
         # If neighborhood found, check if a different city was explicitly mentioned in the location.
         # If a different city was found, then the neighborhood is a false positive (since our neighborhood list is for Tel Aviv/specific cities).

@@ -281,5 +281,25 @@ class TestIsraeliLocationDatabase:
         assert not is_match_area
         assert any("לא תואם" in r for r in reasons_area)
 
+    def test_normalize_location_word_boundaries(self):
+        """Test that normalize_location respects word boundaries to prevent substring matching bugs."""
+        # Setup custom test keys in lookup to simulate 'שיר' being a registered street/alias
+        from utils.israeli_locations import Neighborhood
+        self.db.neighborhood_lookup["שיר"] = Neighborhood(
+            name="הצפון הישן", city="תל אביב", aliases=[], bordering=[], area_type="central"
+        )
+        
+        # Test substring inside another word should NOT match
+        res_false = self.db.normalize_location("להשכרה, תפנו אליי לשירותכם")
+        assert res_false["neighborhood"] is None
+        
+        # Test whole word should match
+        res_true_1 = self.db.normalize_location("להשכרה ברחוב שיר בתל אביב")
+        assert res_true_1["neighborhood"] == "הצפון הישן"
+        
+        # Clean up lookup
+        if "שיר" in self.db.neighborhood_lookup:
+            del self.db.neighborhood_lookup["שיר"]
+
 
 
