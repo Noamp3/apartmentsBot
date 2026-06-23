@@ -62,6 +62,9 @@ class ApartmentBotApplication:
         
         # Running flag
         self._running = False
+        
+        # Concurrency lock for scraping cycles
+        self._cycle_lock = asyncio.Lock()
     
     async def initialize(self):
         """Initialize all components."""
@@ -449,6 +452,15 @@ class ApartmentBotApplication:
 
     async def run_processing_cycle(self):
         """Run a complete processing cycle: scrape -> enrich -> match -> notify."""
+        if self._cycle_lock.locked():
+            log.warning("Scraping cycle is already running. Skipping this trigger.")
+            return 0, 0
+            
+        async with self._cycle_lock:
+            return await self._run_processing_cycle_impl()
+
+    async def _run_processing_cycle_impl(self):
+        """Internal implementation of the processing cycle."""
         log.info("═══ Starting processing cycle ═══")
         
         # Reload Facebook groups to ensure correct dynamic order
@@ -681,6 +693,8 @@ class ApartmentBotApplication:
                 except Exception as e:
                     log.error(f"Failed to complete scraping run in DB: {e}")
                     
+            return fb_new_count, yad2_new_count
+                    
         except Exception as e:
             log.exception(f"Unhandled exception in run_processing_cycle: {e}")
             total_duration = time.perf_counter() - start_time
@@ -719,7 +733,8 @@ class ApartmentBotApplication:
             next_run = await system_repo.get_next_scheduled_run_time()
             if next_run:
                 log.info(f"Loaded next scheduled run time: {next_run.isoformat()}")
-                if next_run <= datetime.now():
+                now = datetime.now(next_run.tzinfo) if next_run.tzinfo else datetime.now()
+                if next_run <= now:
                     log.info("Next scheduled run time has already passed. Scheduling immediate run.")
                     next_run = datetime.now() + timedelta(seconds=10)
                 else:
