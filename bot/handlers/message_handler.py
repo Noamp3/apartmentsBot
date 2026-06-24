@@ -114,13 +114,14 @@ class MessageHandler:
                 return
                 
             # Validate URL
-            url = text.strip()
-            if not ("facebook.com" in url or "fb.com" in url):
+            from utils.validators import normalize_facebook_group_url
+            is_valid, normalized_url, canonical_id, err_msg = normalize_facebook_group_url(text)
+            if not is_valid:
                 # Put user back in waiting state
                 context.user_data["admin_waiting_for_fb_group"] = True
                 await update.message.reply_text(
-                    "⚠️ <b>כתובת URL לא תקינה!</b>\n\n"
-                    "הכתובת חייבת להיות קישור לקבוצת פייסבוק (למשל: <code>https://www.facebook.com/groups/123456</code>).\n"
+                    f"⚠️ <b>כתובת URL לא תקינה!</b>\n\n"
+                    f"{err_msg}.\n"
                     "אנא שלח שוב או שלח <code>ביטול</code>.",
                     parse_mode="HTML"
                 )
@@ -131,12 +132,26 @@ class MessageHandler:
             from models.facebook_group import FacebookGroup
             fb_group_repo = FacebookGroupRepository(db)
             
-            # Check if group already exists
-            existing = await fb_group_repo.get_by_url(url)
-            if existing:
-                await update.message.reply_text("ℹ️ קבוצה זו כבר קיימת במערכת.")
+            # Check if group already exists (by canonical identifier)
+            existing_groups = await fb_group_repo.get_all_groups()
+            is_duplicate = False
+            duplicate_url = None
+            for g in existing_groups:
+                _, _, db_canonical_id, _ = normalize_facebook_group_url(g.url)
+                if db_canonical_id == canonical_id:
+                    is_duplicate = True
+                    duplicate_url = g.url
+                    break
+            
+            if is_duplicate:
+                import html
+                await update.message.reply_text(
+                    f"ℹ️ קבוצה זו כבר קיימת במערכת.\n"
+                    f"קישור קיים: <code>{html.escape(duplicate_url)}</code>",
+                    parse_mode="HTML"
+                )
             else:
-                await fb_group_repo.create(FacebookGroup(url=url))
+                await fb_group_repo.create(FacebookGroup(url=normalized_url))
                 await update.message.reply_text("✅ קבוצת הפייסבוק נוספה בהצלחה!")
                 
                 # Reload scraper group URLs

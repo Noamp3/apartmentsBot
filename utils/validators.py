@@ -158,3 +158,75 @@ def parse_rule_input(text: str) -> Tuple[Optional[RuleType], Optional[str], str]
 def is_valid_telegram_id(telegram_id: int) -> bool:
     """Check if a Telegram ID is valid."""
     return isinstance(telegram_id, int) and telegram_id > 0
+
+
+def normalize_facebook_group_url(url: str) -> Tuple[bool, Optional[str], Optional[str], str]:
+    """Validate and normalize a Facebook group URL.
+    
+    Returns:
+        (is_valid, normalized_url, canonical_identifier, error_message)
+    """
+    clean = url.strip()
+    if not clean:
+        return False, None, None, "כתובת ה-URL ריקה"
+        
+    # Basic check for facebook domain
+    if not any(domain in clean.lower() for domain in ["facebook.com", "fb.com"]):
+        return False, None, None, "הקישור חייב להיות לקבוצת פייסבוק"
+        
+    # Check if it's a post instead of a group
+    if any(p in clean.lower() for p in ["/posts/", "/permalink/", "story_fbid", "fbid="]):
+        return False, None, None, "זה נראה כמו קישור לפוסט, ולא לקבוצה"
+        
+    # Remove query parameters and hash
+    if "?" in clean:
+        clean = clean.split("?")[0]
+    if "#" in clean:
+        clean = clean.split("#")[0]
+        
+    # Ensure protocol is present for urlparse
+    if not clean.lower().startswith("http://") and not clean.lower().startswith("https://"):
+        clean = "https://" + clean
+        
+    try:
+        from urllib.parse import urlparse
+        parsed = urlparse(clean)
+    except Exception:
+        return False, None, None, "כתובת URL לא תקינה"
+        
+    # Normalize domain to www.facebook.com
+    netloc = parsed.netloc.lower()
+    if "m.facebook.com" in netloc:
+        netloc = netloc.replace("m.facebook.com", "www.facebook.com")
+    elif "fb.com" in netloc:
+        netloc = netloc.replace("fb.com", "www.facebook.com")
+    elif "facebook.com" in netloc and "www.facebook.com" not in netloc:
+        netloc = "www." + netloc
+        
+    path = parsed.path
+    
+    # Extract canonical group identifier
+    # Matches /groups/<identifier>
+    group_match = re.search(r'/groups/([^/]+)', path)
+    # Matches /share/g/<identifier>
+    share_match = re.search(r'/share/g/([^/]+)', path)
+    
+    if group_match:
+        identifier = group_match.group(1).strip()
+        if not identifier:
+            return False, None, None, "מזהה הקבוצה ריק"
+        canonical_identifier = identifier.lower()
+        # Build normalized URL in canonical form: https://www.facebook.com/groups/<identifier>/
+        normalized_url = f"https://{netloc}/groups/{identifier}/"
+        return True, normalized_url, canonical_identifier, ""
+    elif share_match:
+        identifier = share_match.group(1).strip()
+        if not identifier:
+            return False, None, None, "מזהה קבוצת השיתוף ריק"
+        # Prefix share identifier to avoid collision with standard group slugs/IDs
+        canonical_identifier = f"share-g-{identifier.lower()}"
+        normalized_url = f"https://{netloc}/share/g/{identifier}/"
+        return True, normalized_url, canonical_identifier, ""
+    else:
+        return False, None, None, "לא נמצא מזהה קבוצה תקין בקישור (חייב להכיל /groups/ או /share/g/)"
+

@@ -203,8 +203,18 @@ class ApartmentBotApplication:
         db_groups = await fb_group_repo.get_all_groups()
         if not db_groups:
             log.info("Facebook groups table is empty. Seeding from settings.facebook_groups...")
+            from utils.validators import normalize_facebook_group_url
+            seen_identifiers = set()
             for url in settings.facebook_groups:
-                await fb_group_repo.create(FacebookGroup(url=url))
+                is_valid, normalized_url, canonical_id, _ = normalize_facebook_group_url(url)
+                if is_valid:
+                    if canonical_id in seen_identifiers:
+                        log.warning(f"Duplicate group URL found in settings: {url}, skipping")
+                        continue
+                    seen_identifiers.add(canonical_id)
+                    await fb_group_repo.create(FacebookGroup(url=normalized_url))
+                else:
+                    await fb_group_repo.create(FacebookGroup(url=url))
             db_groups = await fb_group_repo.get_all_groups()
             
         group_urls = [g.url for g in db_groups]
