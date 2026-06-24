@@ -24,12 +24,23 @@ REMOTE_PATH = "/home/ubuntu/apartmentsBot/"
 
 
 async def main():
+    # Detect if we are running on the remote server
+    is_remote = "/home/ubuntu/" in str(Path(__file__).resolve())
+
     print("====================================================")
     print("     Yad2 Manual CAPTCHA Solver for apartmentsBot   ")
     print("====================================================")
-    print("This script will open a HEADED browser on your local machine.")
-    print("It uses the exact same anti-detection, locale, viewport,")
-    print("and device fingerprinting configs that the Yad2 scraper uses.")
+    if is_remote:
+        print("Running DIRECTLY on the remote cloud server.")
+        print("Headed browser will display on your screen via MobaXterm X11 forwarding.")
+        if "DISPLAY" not in os.environ:
+            print("\nError: DISPLAY environment variable is not set.")
+            print("Please ensure X11 forwarding is enabled in your SSH client (MobaXterm).")
+            return
+    else:
+        print("This script will open a HEADED browser on your local machine.")
+        print("It uses the exact same anti-detection, locale, viewport,")
+        print("and device fingerprinting configs that the Yad2 scraper uses.")
     print("Please solve the Cloudflare/Yad2 CAPTCHA, navigate to the site,")
     print("and wait until the page loads successfully.")
     print("====================================================\n")
@@ -195,6 +206,12 @@ async def main():
 
         print("\nSuccess! Closing the browser.")
         await browser.close()
+
+        if is_remote:
+            print(f"\n====================================================")
+            print(f"Yad2 session state saved directly on the remote server: {storage_state_path}")
+            print(f"====================================================")
+            return
 
         # SCP Automatic Transfer Command
         scp_cmd = [
