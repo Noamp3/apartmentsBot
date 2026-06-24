@@ -307,6 +307,25 @@ class FacebookPostParser:
                     log.info("Skipping sponsored post/advertisement")
                     return None
             
+            # Skip non-post feed elements (like suggestion cards) immediately
+            non_post_indicators = {
+                "הצעות לקבוצות", "קבוצות מוצעות", "suggested groups",
+                "הצעות בשבילך", "מוצע עבורך", "מוצע בשבילך", "suggested for you",
+                "אנשים שאתה עשוי להכיר", "אנשים שאת עשויה להכיר", "אנשים שאתם עשויים להכיר", "people you may know",
+                "חברים מוצעים", "suggested friends",
+                "reels", "רילס",
+                "פוסטים פופולריים", "popular posts",
+                "קבוצות מומלצות", "recommended groups",
+                "פוסטים מוצעים", "suggested posts",
+                "דפים מוצעים", "suggested pages",
+                "קבוצות שאתה עשוי לאהוב", "קבוצות שאת עשויה לאהוב", "groups you might like"
+            }
+            normalized_lines = [re.sub(r'^[\u200e\u200f\u202a-\u202e\u2066-\u2069\ufeff\s•*#-]+|[\u200e\u200f\u202a-\u202e\u2066-\u2069\ufeff\s•*#-]+$', '', line).strip() for line in lines[:5]]
+            for line in normalized_lines:
+                if line.lower() in non_post_indicators:
+                    log.info(f"Skipping non-post feed element: {line}")
+                    return None
+            
             html = await post_element.inner_html()
             soup = BeautifulSoup(html, 'html.parser')
             

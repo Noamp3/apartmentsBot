@@ -189,7 +189,7 @@ class SelfHealingManager:
             current_time_str = datetime.now().strftime("%A, %B %d, %Y, %I:%M %p")
 
             failed_selectors = []
-            max_attempts = 10
+            max_attempts = getattr(settings, 'SELF_HEALING_MAX_ATTEMPTS', 3)
 
             for attempt in range(1, max_attempts + 1):
                 log.info(f"Attempt {attempt}/{max_attempts} to heal post_container selector...")
@@ -292,7 +292,7 @@ class SelfHealingManager:
             current_time_str = datetime.now().strftime("%A, %B %d, %Y, %I:%M %p")
 
             failed_selectors = []
-            max_attempts = 10
+            max_attempts = getattr(settings, 'SELF_HEALING_MAX_ATTEMPTS', 3)
 
             for attempt in range(1, max_attempts + 1):
                 log.info(f"Attempt {attempt}/{max_attempts} to heal attribute '{attribute_name}' selector...")

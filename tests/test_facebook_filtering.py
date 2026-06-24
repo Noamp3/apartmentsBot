@@ -265,10 +265,36 @@ async def test_no_early_termination_with_many_new_posts():
     assert len(results) == 15
 
 
+@pytest.mark.asyncio
+async def test_filter_non_post_suggestions():
+    from scrapers.facebook.parser import FacebookPostParser
+    
+    # Initialize parser
+    parser = FacebookPostParser(healer=MagicMock(), anti_detection=MagicMock())
+    parser.expand_post = AsyncMock()
+    
+    # Test case 1: Group Suggestions
+    post_element_suggestions = AsyncMock()
+    post_element_suggestions.inner_text.return_value = "\u200eהצעות לקבוצות\nדירות להשכרה ומכירה בתל אביב\n33K חברים"
+    post_element_suggestions.inner_html.return_value = "<div>...</div>"
+    
+    result = await parser.extract_post_data_immediate(MagicMock(), post_element_suggestions)
+    assert result is None
+    
+    # Test case 2: Suggested for you (English/Hebrew variations)
+    post_element_suggested = AsyncMock()
+    post_element_suggested.inner_text.return_value = "Suggested for you\nSome group name\nSome description"
+    post_element_suggested.inner_html.return_value = "<div>...</div>"
+    
+    result_suggested = await parser.extract_post_data_immediate(MagicMock(), post_element_suggested)
+    assert result_suggested is None
+
+
 if __name__ == "__main__":
     import asyncio
     asyncio.run(test_filter_exchange_listings())
     asyncio.run(test_filter_sponsored_posts())
+    asyncio.run(test_filter_non_post_suggestions())
     asyncio.run(test_early_termination_on_successive_seen())
     asyncio.run(test_early_termination_counts_duplicates_as_known())
     asyncio.run(test_no_early_termination_with_many_new_posts())

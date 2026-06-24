@@ -113,7 +113,7 @@ class Yad2PlaywrightScraper(BaseScraper):
             listings = await self._scrape_with_browser(on_listing_scraped=on_listing_scraped)
             
         except Exception as e:
-            log.error(f"Yad2 Playwright scrape failed: {e}", exc_info=True)
+            log.error(f"[Yad2] Playwright scrape failed: {e}", exc_info=True)
         finally:
             await self._close_browser()
         
@@ -207,7 +207,7 @@ class Yad2PlaywrightScraper(BaseScraper):
             await self._context.add_init_script(self.anti_detection.add_stealth_scripts())
             
         except ImportError as e:
-            log.error("Playwright or playwright-stealth not installed. Run: pip install playwright playwright-stealth && playwright install chromium")
+            log.error("[Yad2] Playwright or playwright-stealth not installed. Run: pip install playwright playwright-stealth && playwright install chromium")
             raise
     
     async def _close_browser(self):
@@ -254,7 +254,7 @@ class Yad2PlaywrightScraper(BaseScraper):
                         
                         # Check if still on CAPTCHA page
                         if await self._detect_captcha(page):
-                            log.error("CAPTCHA still present after 30s. Stopping scrape.")
+                            log.error("[Yad2] CAPTCHA still present after 30s. Stopping Yad2 scrape.")
                             break
                         else:
                             log.info("CAPTCHA appears to be solved, continuing...")

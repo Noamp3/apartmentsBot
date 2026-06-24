@@ -117,7 +117,7 @@ class Yad2Scraper(BaseScraper):
             log.info("Scraping Yad2 via HTTP (Next.js __NEXT_DATA__)")
             listings = await self._scrape_html_pages(on_listing_scraped=on_listing_scraped)
         except Exception as e:
-            log.error(f"Yad2 scrape failed: {e}", exc_info=True)
+            log.error(f"[Yad2] scrape failed: {e}", exc_info=True)
         
         log.info(f"Yad2 scrape complete", total_listings=len(listings))
         return listings
@@ -160,7 +160,7 @@ class Yad2Scraper(BaseScraper):
                     
                     # Check for CAPTCHA/challenge page
                     if self._detect_captcha(response.text, response.status_code):
-                        log.error("CAPTCHA detected on Yad2! Consider using YAD2_USE_PLAYWRIGHT=True in config.")
+                        log.error("[Yad2] CAPTCHA detected on Yad2! Consider using YAD2_USE_PLAYWRIGHT=True in config.")
                         break
                     
                     if response.status_code != 200:

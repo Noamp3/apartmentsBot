@@ -125,6 +125,7 @@ class Settings(BaseSettings):
     SELF_HEALING_PERSIST_PATH: str = "data/healed_selectors.json"
     SELF_HEALING_AI_PROVIDER: Optional[AIProvider] = AIProvider.GEMINI
     SELF_HEALING_MODEL: Optional[str] = "gemma-4-31b-it"
+    SELF_HEALING_MAX_ATTEMPTS: int = 3
     
     # Debug Mode
     DEBUG: bool = True
