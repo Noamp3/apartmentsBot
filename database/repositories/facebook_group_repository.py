@@ -18,10 +18,10 @@ class FacebookGroupRepository:
         """Add a new Facebook group to the database."""
         group_id = await self.db.execute(
             """
-            INSERT OR IGNORE INTO facebook_groups (url, added_at, name)
-            VALUES (?, ?, ?)
+            INSERT OR IGNORE INTO facebook_groups (url, added_at, name, skip_next)
+            VALUES (?, ?, ?, ?)
             """,
-            (group.url, group.added_at.isoformat(), group.name)
+            (group.url, group.added_at.isoformat(), group.name, group.skip_next)
         )
         if group_id:
             group.id = group_id
@@ -55,10 +55,18 @@ class FacebookGroupRepository:
         await self.db.execute("DELETE FROM facebook_groups WHERE url = ?", (url.strip(),))
         
     async def update_scraped_count(self, url: str, count: int):
-        """Update the last scraped count for a group."""
+        """Update the last scraped count for a group and set skip_next based on it."""
+        skip_next = 1 if count == 0 else 0
         await self.db.execute(
-            "UPDATE facebook_groups SET last_scraped_count = ? WHERE url = ?",
-            (count, url.strip())
+            "UPDATE facebook_groups SET last_scraped_count = ?, skip_next = ? WHERE url = ?",
+            (count, skip_next, url.strip())
+        )
+
+    async def update_skip_next(self, url: str, skip_next: int):
+        """Update skip_next flag for a group."""
+        await self.db.execute(
+            "UPDATE facebook_groups SET skip_next = ? WHERE url = ?",
+            (skip_next, url.strip())
         )
 
     async def update_name(self, url: str, name: str):
@@ -79,11 +87,17 @@ class FacebookGroupRepository:
             name = row["name"]
         except (KeyError, IndexError, TypeError):
             name = None
+
+        try:
+            skip_next = row["skip_next"]
+        except (KeyError, IndexError, TypeError):
+            skip_next = 0
             
         return FacebookGroup(
             id=row["id"],
             url=row["url"],
             added_at=row["added_at"],
             last_scraped_count=last_scraped_count,
-            name=name
+            name=name,
+            skip_next=skip_next
         )

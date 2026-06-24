@@ -119,9 +119,10 @@ class MessageHandler:
             if not is_valid:
                 # Put user back in waiting state
                 context.user_data["admin_waiting_for_fb_group"] = True
+                import html
                 await update.message.reply_text(
                     f"⚠️ <b>כתובת URL לא תקינה!</b>\n\n"
-                    f"{err_msg}.\n"
+                    f"{html.escape(err_msg)}.\n"
                     "אנא שלח שוב או שלח <code>ביטול</code>.",
                     parse_mode="HTML"
                 )

@@ -108,7 +108,8 @@ CREATE TABLE IF NOT EXISTS facebook_groups (
     url TEXT UNIQUE NOT NULL,
     added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     last_scraped_count INTEGER DEFAULT 0,
-    name TEXT DEFAULT NULL
+    name TEXT DEFAULT NULL,
+    skip_next INTEGER DEFAULT 0
 );
 
 -- Sent notifications (for preventing duplicates)
@@ -326,6 +327,13 @@ class DatabaseManager:
         # Safe migration: Add 'name' column to facebook_groups if it doesn't exist
         try:
             await self._connection.execute("ALTER TABLE facebook_groups ADD COLUMN name TEXT DEFAULT NULL")
+            await self._connection.commit()
+        except aiosqlite.OperationalError:
+            pass
+
+        # Safe migration: Add 'skip_next' column to facebook_groups if it doesn't exist
+        try:
+            await self._connection.execute("ALTER TABLE facebook_groups ADD COLUMN skip_next INTEGER DEFAULT 0")
             await self._connection.commit()
         except aiosqlite.OperationalError:
             pass

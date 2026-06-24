@@ -493,6 +493,35 @@ class ApartmentBotApplication:
         # Reload Facebook groups to ensure correct dynamic order
         await self.reload_facebook_groups()
         
+        # Apply skip logic for inactive Facebook groups (skip if no new posts in the last run)
+        if self.facebook_scraper:
+            try:
+                db_manager = await get_db()
+                from database.repositories.facebook_group_repository import FacebookGroupRepository
+                fb_group_repo = FacebookGroupRepository(db_manager)
+                db_groups = await fb_group_repo.get_all_groups()
+                
+                groups_to_scrape = []
+                groups_to_skip = []
+                for g in db_groups:
+                    if g.skip_next == 1:
+                        groups_to_skip.append(g)
+                    else:
+                        groups_to_scrape.append(g)
+                
+                if groups_to_skip:
+                    log.info(
+                        f"Skipping {len(groups_to_skip)} Facebook group(s) this session (no new posts last time)",
+                        skipped_labels=[g.label for g in groups_to_skip]
+                    )
+                    for g in groups_to_skip:
+                        await fb_group_repo.update_skip_next(g.url, 0)
+                
+                # Update scraper's target URLs for this run
+                self.facebook_scraper.group_urls = [g.url for g in groups_to_scrape]
+            except Exception as e:
+                log.error(f"Failed to apply Facebook group skip logic: {e}", exc_info=True)
+        
         db = await get_db()
         seen_repo = SeenListingsRepository(db)
         from database.repositories.system_repository import SystemRepository

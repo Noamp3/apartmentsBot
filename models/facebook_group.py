@@ -15,6 +15,7 @@ class FacebookGroup:
     added_at: datetime = field(default_factory=datetime.now)
     last_scraped_count: int = 0
     name: Optional[str] = None
+    skip_next: int = 0
 
     def __post_init__(self):
         """Ensure added_at is a datetime object."""
