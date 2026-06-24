@@ -504,18 +504,18 @@ class ApartmentBotApplication:
                 groups_to_scrape = []
                 groups_to_skip = []
                 for g in db_groups:
-                    if g.skip_next == 1:
+                    if g.skip_next > 0:
                         groups_to_skip.append(g)
                     else:
                         groups_to_scrape.append(g)
                 
                 if groups_to_skip:
                     log.info(
-                        f"Skipping {len(groups_to_skip)} Facebook group(s) this session (no new posts last time)",
-                        skipped_labels=[g.label for g in groups_to_skip]
+                        f"Skipping {len(groups_to_skip)} Facebook group(s) this session",
+                        skipped_labels=[f"{g.label} (remaining={g.skip_next})" for g in groups_to_skip]
                     )
                     for g in groups_to_skip:
-                        await fb_group_repo.update_skip_next(g.url, 0)
+                        await fb_group_repo.update_skip_next(g.url, g.skip_next - 1)
                 
                 # Update scraper's target URLs for this run
                 self.facebook_scraper.group_urls = [g.url for g in groups_to_scrape]

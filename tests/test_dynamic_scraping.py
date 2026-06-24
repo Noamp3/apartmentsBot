@@ -166,7 +166,7 @@ async def test_on_group_completed_updates_db_and_flushes_listings():
 
 @pytest.mark.asyncio
 async def test_facebook_group_skip_next_db_updates(db):
-    """Test that FacebookGroupRepository.update_scraped_count sets skip_next = 1 when count is 0, and 0 otherwise."""
+    """Test that FacebookGroupRepository.update_scraped_count sets skip_next = 1 on first zero-scrape, and skip_next = 3 on second consecutive zero-scrape."""
     fb_group_repo = FacebookGroupRepository(db)
     
     group_a = FacebookGroup(url="https://facebook.com/groups/skipa")
@@ -175,32 +175,36 @@ async def test_facebook_group_skip_next_db_updates(db):
     await fb_group_repo.create(group_a)
     await fb_group_repo.create(group_b)
     
-    # Update group A with 0 new posts -> should set skip_next to 1
+    # 1. Update group A with 0 new posts (first time) -> should set skip_next=1, consecutive_zeroes=1
     await fb_group_repo.update_scraped_count("https://facebook.com/groups/skipa", 0)
-    # Update group B with 3 new posts -> should set skip_next to 0
+    # 2. Update group B with 3 new posts -> should set skip_next=0, consecutive_zeroes=0
     await fb_group_repo.update_scraped_count("https://facebook.com/groups/skipb", 3)
     
-    # Retrieve and assert
     retrieved_a = await fb_group_repo.get_by_url("https://facebook.com/groups/skipa")
     retrieved_b = await fb_group_repo.get_by_url("https://facebook.com/groups/skipb")
     
     assert retrieved_a.skip_next == 1
+    assert retrieved_a.consecutive_zeroes == 1
     assert retrieved_b.skip_next == 0
+    assert retrieved_b.consecutive_zeroes == 0
     
-    # Update A with 5 new posts -> should reset skip_next to 0
+    # 3. Update group A with 0 new posts again (consecutive) -> should set skip_next=3, consecutive_zeroes=2
+    await fb_group_repo.update_scraped_count("https://facebook.com/groups/skipa", 0)
+    retrieved_a_second = await fb_group_repo.get_by_url("https://facebook.com/groups/skipa")
+    
+    assert retrieved_a_second.skip_next == 3
+    assert retrieved_a_second.consecutive_zeroes == 2
+    
+    # 4. Update A with 5 new posts -> should reset skip_next=0, consecutive_zeroes=0
     await fb_group_repo.update_scraped_count("https://facebook.com/groups/skipa", 5)
     retrieved_a_after = await fb_group_repo.get_by_url("https://facebook.com/groups/skipa")
     assert retrieved_a_after.skip_next == 0
-    
-    # Update skip_next directly
-    await fb_group_repo.update_skip_next("https://facebook.com/groups/skipb", 1)
-    retrieved_b_after = await fb_group_repo.get_by_url("https://facebook.com/groups/skipb")
-    assert retrieved_b_after.skip_next == 1
+    assert retrieved_a_after.consecutive_zeroes == 0
 
 
 @pytest.mark.asyncio
 async def test_facebook_group_skipping_logic_in_cycle():
-    """Test that ApartmentBotApplication's cycle skips groups with skip_next=1 and resets them to 0."""
+    """Test that ApartmentBotApplication's cycle skips groups with skip_next > 0 and decrements skip_next by 1."""
     from main import ApartmentBotApplication
     
     app = ApartmentBotApplication()
@@ -209,9 +213,9 @@ async def test_facebook_group_skipping_logic_in_cycle():
     mock_db = MagicMock()
     mock_fb_group_repo = MagicMock(spec=FacebookGroupRepository)
     
-    # Set up some mock groups: Group A (skip_next=0), Group B (skip_next=1)
+    # Set up some mock groups: Group A (skip_next=0), Group B (skip_next=3)
     group_a = FacebookGroup(url="https://facebook.com/groups/a", skip_next=0, name="Group A")
-    group_b = FacebookGroup(url="https://facebook.com/groups/b", skip_next=1, name="Group B")
+    group_b = FacebookGroup(url="https://facebook.com/groups/b", skip_next=3, name="Group B")
     
     mock_fb_group_repo.get_all_groups = AsyncMock(return_value=[group_a, group_b])
     mock_fb_group_repo.update_skip_next = AsyncMock()
@@ -240,11 +244,11 @@ async def test_facebook_group_skipping_logic_in_cycle():
         cycle_task = asyncio.create_task(app.run_processing_cycle())
         await asyncio.sleep(0.01)
         
-        # We assert that facebook_scraper's group_urls was set to ONLY group_a (excluding group_b because skip_next=1)
+        # We assert that facebook_scraper's group_urls was set to ONLY group_a (excluding group_b because skip_next=3)
         assert app.facebook_scraper.group_urls == ["https://facebook.com/groups/a"]
         
-        # We assert that update_skip_next was called for the skipped group to reset it to 0
-        mock_fb_group_repo.update_skip_next.assert_called_once_with("https://facebook.com/groups/b", 0)
+        # We assert that update_skip_next was called for the skipped group to decrement it to 2 (3 - 1)
+        mock_fb_group_repo.update_skip_next.assert_called_once_with("https://facebook.com/groups/b", 2)
         
         # Clean up task
         cycle_task.cancel()

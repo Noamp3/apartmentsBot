@@ -18,10 +18,10 @@ class FacebookGroupRepository:
         """Add a new Facebook group to the database."""
         group_id = await self.db.execute(
             """
-            INSERT OR IGNORE INTO facebook_groups (url, added_at, name, skip_next)
-            VALUES (?, ?, ?, ?)
+            INSERT OR IGNORE INTO facebook_groups (url, added_at, name, skip_next, consecutive_zeroes)
+            VALUES (?, ?, ?, ?, ?)
             """,
-            (group.url, group.added_at.isoformat(), group.name, group.skip_next)
+            (group.url, group.added_at.isoformat(), group.name, group.skip_next, group.consecutive_zeroes)
         )
         if group_id:
             group.id = group_id
@@ -55,11 +55,16 @@ class FacebookGroupRepository:
         await self.db.execute("DELETE FROM facebook_groups WHERE url = ?", (url.strip(),))
         
     async def update_scraped_count(self, url: str, count: int):
-        """Update the last scraped count for a group and set skip_next based on it."""
-        skip_next = 1 if count == 0 else 0
+        """Update the last scraped count, consecutive_zeroes, and skip_next based on active/inactive states."""
         await self.db.execute(
-            "UPDATE facebook_groups SET last_scraped_count = ?, skip_next = ? WHERE url = ?",
-            (count, skip_next, url.strip())
+            """
+            UPDATE facebook_groups 
+            SET last_scraped_count = ?, 
+                consecutive_zeroes = CASE WHEN ? = 0 THEN consecutive_zeroes + 1 ELSE 0 END,
+                skip_next = CASE WHEN ? = 0 THEN (CASE WHEN consecutive_zeroes + 1 > 1 THEN 3 ELSE 1 END) ELSE 0 END
+            WHERE url = ?
+            """,
+            (count, count, count, url.strip())
         )
 
     async def update_skip_next(self, url: str, skip_next: int):
@@ -92,6 +97,11 @@ class FacebookGroupRepository:
             skip_next = row["skip_next"]
         except (KeyError, IndexError, TypeError):
             skip_next = 0
+
+        try:
+            consecutive_zeroes = row["consecutive_zeroes"]
+        except (KeyError, IndexError, TypeError):
+            consecutive_zeroes = 0
             
         return FacebookGroup(
             id=row["id"],
@@ -99,5 +109,6 @@ class FacebookGroupRepository:
             added_at=row["added_at"],
             last_scraped_count=last_scraped_count,
             name=name,
-            skip_next=skip_next
+            skip_next=skip_next,
+            consecutive_zeroes=consecutive_zeroes
         )
