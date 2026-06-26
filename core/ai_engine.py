@@ -558,13 +558,16 @@ class GeminiAIEngine(BaseAIEngine):
         super().__init__(RateLimiter(), cache_repo) 
         
         from google import genai
+        from google.genai import types
         
         self.api_key = api_key or settings.GEMINI_API_KEY
         # If model passed explicitly, use it as primary, otherwise use first from settings
         explicit_model = model
         self.primary_model = explicit_model or (settings.gemini_models[0] if settings.gemini_models else "gemini-3.1-flash-lite")
         
-        self.client = genai.Client(api_key=self.api_key)
+        # Set a 60 second timeout for all API requests to prevent hanging
+        http_options = types.HttpOptions(timeout=60000)
+        self.client = genai.Client(api_key=self.api_key, http_options=http_options)
         
         # Build list of all available models for rotation
         self.models = []
@@ -654,16 +657,19 @@ class GeminiAIEngine(BaseAIEngine):
 
                 if enable_grounding:
                     log.info(f"Using Google Maps Grounding via Interactions API for model: {model_name}")
-                    response = await retry_with_backoff(
-                        self.client.interactions.create,
-                        model=model_name,
-                        input=prompt,
-                        tools=[{
-                            "type": "google_maps",
-                            "latitude": latitude or 32.0853,
-                            "longitude": longitude or 34.7818
-                        }],
-                        max_retries=max_retries
+                    response = await asyncio.wait_for(
+                        retry_with_backoff(
+                            self.client.interactions.create,
+                            model=model_name,
+                            input=prompt,
+                            tools=[{
+                                "type": "google_maps",
+                                "latitude": latitude or 32.0853,
+                                "longitude": longitude or 34.7818
+                            }],
+                            max_retries=max_retries
+                        ),
+                        timeout=90.0
                     )
                     text_blocks = []
                     if hasattr(response, "outputs") and response.outputs:
@@ -679,11 +685,14 @@ class GeminiAIEngine(BaseAIEngine):
                     resp_text = "\n".join(text_blocks)
                 else:
                     # 2. Call API (retrying transient errors safely)
-                    response = await retry_with_backoff(
-                        self.client.models.generate_content,
-                        model=model_name,
-                        contents=contents,
-                        max_retries=max_retries
+                    response = await asyncio.wait_for(
+                        retry_with_backoff(
+                            self.client.models.generate_content,
+                            model=model_name,
+                            contents=contents,
+                            max_retries=max_retries
+                        ),
+                        timeout=90.0
                     )
                     resp_text = response.text or ""
                 
