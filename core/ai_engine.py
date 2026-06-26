@@ -565,8 +565,8 @@ class GeminiAIEngine(BaseAIEngine):
         explicit_model = model
         self.primary_model = explicit_model or (settings.gemini_models[0] if settings.gemini_models else "gemini-3.1-flash-lite")
         
-        # Set a 60 second timeout for all API requests to prevent hanging
-        http_options = types.HttpOptions(timeout=60000)
+        # Set a 10 minute timeout for all API requests to prevent hanging
+        http_options = types.HttpOptions(timeout=600000)
         self.client = genai.Client(api_key=self.api_key, http_options=http_options)
         
         # Build list of all available models for rotation
@@ -669,7 +669,7 @@ class GeminiAIEngine(BaseAIEngine):
                             }],
                             max_retries=max_retries
                         ),
-                        timeout=90.0
+                        timeout=600.0
                     )
                     text_blocks = []
                     if hasattr(response, "outputs") and response.outputs:
@@ -692,7 +692,7 @@ class GeminiAIEngine(BaseAIEngine):
                             contents=contents,
                             max_retries=max_retries
                         ),
-                        timeout=90.0
+                        timeout=600.0
                     )
                     resp_text = response.text or ""
                 
