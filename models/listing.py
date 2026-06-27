@@ -56,6 +56,7 @@ class EnrichedListing:
     extracted_location: str = ""
     extracted_neighborhood: str = ""
     extracted_street: str = ""
+    extracted_city: str = ""
     
     # Broker fee handling
     has_broker_fee: bool = False  # True if listing mentions תיווך

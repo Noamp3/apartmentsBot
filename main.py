@@ -364,6 +364,17 @@ class ApartmentBotApplication:
         from utils.israeli_locations import get_location_db
         loc_db = get_location_db()
         
+        # Normalize extracted city using city lookup
+        for enriched in valid_price_listings:
+            if enriched.extracted_city:
+                norm_city = loc_db.city_lookup.get(enriched.extracted_city.strip().lower())
+                if norm_city:
+                    enriched.extracted_city = norm_city
+            elif enriched.listing.location:
+                norm_city = loc_db.city_lookup.get(enriched.listing.location.strip().lower())
+                if norm_city:
+                    enriched.extracted_city = norm_city
+        
         healing_tasks = []
         heal_targets = []
         
@@ -400,7 +411,7 @@ class ApartmentBotApplication:
                         if area.strip() and area.strip().lower() not in city_names:
                             location_signals.append(area.strip())
                             
-                location_signals.append(enriched.extracted_location or enriched.listing.location)
+                location_signals.append(enriched.extracted_city or enriched.extracted_location or enriched.listing.location)
                 
                 listing_loc = ", ".join(location_signals)
                 norm = loc_db.normalize_location(listing_loc)
@@ -411,6 +422,7 @@ class ApartmentBotApplication:
                 # Successfully resolved via database schema lookup (including custom schema)
                 enriched.extracted_neighborhood = norm["neighborhood"]
                 if norm["city"]:
+                    enriched.extracted_city = norm["city"]
                     enriched.extracted_location = norm["city"]
             elif self.geo_grounding_ai_engine:
                 log.info(
@@ -436,6 +448,7 @@ class ApartmentBotApplication:
                     )
                     enriched.extracted_neighborhood = result["neighborhood"]
                     if result.get("city"):
+                        enriched.extracted_city = result["city"]
                         enriched.extracted_location = result["city"]
                         
         valid_enriched_listings = []

@@ -1,0 +1,582 @@
+2026-06-23T07:01:20.138950Z | [דירות בתל אביב ללא תיווך] Dynamically updated group label and name
+2026-06-23T07:01:20.139071Z | [דירות בתל אביב ללא תיווך] 🔍 Starting scroll & collect (scroll_count=10)
+2026-06-23T07:01:22.607754Z | [דירות בתל אביב ללא תיווך] Scroll 1/10: 3 posts collected
+2026-06-23T07:01:35.978052Z | [דירות בתל אביב ללא תיווך] Scroll 2/10: 7 posts collected
+2026-06-23T07:01:43.808133Z | [דירות בתל אביב ללא תיווך] Early termination: encountered 10 successive posts already seen in DB
+2026-06-23T07:01:43.808225Z | [דירות בתל אביב ללא תיווך] Collected 11 raw posts, parsing...
+2026-06-23T07:01:43.835654Z | [דירות בתל אביב ללא תיווך] ✅ Group scrape complete in 32.8s
+2026-06-23T07:01:43.836433Z | Updated database: group דירות בתל אביב ללא תיווך new count = 1 (total collected = 11)
+2026-06-23T07:01:43.836546Z | 🧠 Batch #4: flushing 1 remaining listings after group complete
+2026-06-23T07:01:45.409570Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Dynamically updated group label and name
+2026-06-23T07:01:45.409720Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] 🔍 Starting scroll & collect (scroll_count=10)
+2026-06-23T07:01:56.402915Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Scroll 1/10: 4 posts collected
+2026-06-23T07:02:14.436045Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Scroll 2/10: 9 posts collected
+2026-06-23T07:02:26.709746Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Early termination: encountered 10 successive posts already seen in DB
+2026-06-23T07:02:26.709823Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Collected 12 raw posts, parsing...
+2026-06-23T07:02:26.710835Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Skipping old listing (age: 5d): Sagiv Bar: Sagiv Bar...
+2026-06-23T07:02:26.713446Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Skipping old listing (age: 5d): Sagiv Bar: Sagiv Bar...
+2026-06-23T07:02:26.713924Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Skipping old listing (age: 4d): Izack Tuaf: Izack Tuaf...
+2026-06-23T07:02:26.745134Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] ✅ Group scrape complete in 50.5s
+2026-06-23T07:02:26.746089Z | Updated database: group דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו. new count = 1 (total collected = 9)
+2026-06-23T07:02:26.746507Z | 🧠 Batch #5: flushing 1 remaining listings after group complete
+2026-06-23T07:06:25.045777Z | Extracted post: דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.
+Noa...
+2026-06-23T07:09:02.559813Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Dynamically updated group label and name
+2026-06-23T07:09:02.559936Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] 🔍 Starting scroll & collect (scroll_count=10)
+2026-06-23T07:09:10.195781Z | [דירות בתל אביב ללא תיווך] Dynamically updated group label and name
+2026-06-23T07:09:10.195904Z | [דירות בתל אביב ללא תיווך] 🔍 Starting scroll & collect (scroll_count=10)
+2026-06-23T07:09:12.294140Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Scroll 1/10: 4 posts collected
+2026-06-23T07:09:12.517861Z | [דירות בתל אביב ללא תיווך] Scroll 1/10: 2 posts collected
+2026-06-23T07:09:21.078957Z | [דירות בתל אביב ללא תיווך] Scroll 2/10: 7 posts collected
+2026-06-23T07:09:22.692914Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Scroll 2/10: 9 posts collected
+2026-06-23T07:09:25.837821Z | [דירות בתל אביב ללא תיווך] Early termination: encountered 10 successive posts already seen in DB
+2026-06-23T07:09:25.837898Z | [דירות בתל אביב ללא תיווך] Collected 10 raw posts, parsing...
+2026-06-23T07:09:25.867400Z | [דירות בתל אביב ללא תיווך] ✅ Group scrape complete in 26.6s
+2026-06-23T07:09:25.870181Z | Updated database: group דירות בתל אביב ללא תיווך new count = 0 (total collected = 10)
+2026-06-23T07:09:30.034571Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Early termination: encountered 10 successive posts already seen in DB
+2026-06-23T07:09:30.034696Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Collected 10 raw posts, parsing...
+2026-06-23T07:09:30.035711Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Skipping old listing (age: 5d): Sagiv Bar: Sagiv Bar...
+2026-06-23T07:09:30.038222Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Skipping old listing (age: 5d): Sagiv Bar: Sagiv Bar...
+2026-06-23T07:09:30.038709Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Skipping old listing (age: 4d): Izack Tuaf: Izack Tuaf...
+2026-06-23T07:09:30.064503Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] ✅ Group scrape complete in 37.3s
+2026-06-23T07:09:30.065266Z | Updated database: group דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו. new count = 0 (total collected = 7)
+2026-06-23T07:21:55.684127Z | [דירות בתל אביב ללא תיווך] Dynamically updated group label and name
+2026-06-23T07:21:55.684242Z | [דירות בתל אביב ללא תיווך] 🔍 Starting scroll & collect (scroll_count=10)
+2026-06-23T07:21:58.527546Z | [דירות בתל אביב ללא תיווך] Scroll 1/10: 2 posts collected
+2026-06-23T07:22:09.001581Z | [דירות בתל אביב ללא תיווך] Scroll 2/10: 5 posts collected
+2026-06-23T07:22:22.174427Z | [דירות בתל אביב ללא תיווך] Scroll 3/10: 8 posts collected
+2026-06-23T07:22:33.048736Z | [דירות בתל אביב ללא תיווך] Early termination: encountered 10 successive posts already seen in DB
+2026-06-23T07:22:33.048818Z | [דירות בתל אביב ללא תיווך] Collected 10 raw posts, parsing...
+2026-06-23T07:22:33.073755Z | [דירות בתל אביב ללא תיווך] ✅ Group scrape complete in 45.9s
+2026-06-23T07:22:33.074518Z | Updated database: group דירות בתל אביב ללא תיווך new count = 0 (total collected = 10)
+2026-06-23T07:22:42.731069Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Dynamically updated group label and name
+2026-06-23T07:22:42.731193Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] 🔍 Starting scroll & collect (scroll_count=10)
+2026-06-23T07:23:01.150519Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Scroll 1/10: 4 posts collected
+2026-06-23T07:23:22.972928Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Scroll 2/10: 10 posts collected
+2026-06-23T07:23:38.579776Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Scroll 3/10: 16 posts collected
+2026-06-23T07:24:03.596685Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Scroll 4/10: 23 posts collected
+2026-06-23T07:24:09.556061Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Scroll 5/10: 23 posts collected
+2026-06-23T07:24:19.496000Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Scroll 6/10: 23 posts collected
+2026-06-23T07:24:25.856329Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Scroll 7/10: 23 posts collected
+2026-06-23T07:24:35.363026Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Scroll 8/10: 23 posts collected
+2026-06-23T07:24:49.595431Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Scroll 9/10: 25 posts collected
+2026-06-23T07:24:56.146102Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Scroll 10/10: 25 posts collected
+2026-06-23T07:25:04.380809Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Collected 25 raw posts, parsing...
+2026-06-23T07:25:04.381993Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Skipping old listing (age: 5d): Sagiv Bar: Sagiv Bar...
+2026-06-23T07:25:04.387069Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Skipping old listing (age: 5d): Sagiv Bar: Sagiv Bar...
+2026-06-23T07:25:04.387481Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Skipping old listing (age: 4d): Izack Tuaf: Izack Tuaf...
+2026-06-23T07:25:04.392638Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Skipping old listing (age: 1d): Carine-Belle Feder·מעקב: Carine-Belle Fe...
+2026-06-23T07:25:04.396425Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Skipping old listing (age: 1d): Carine-Belle Feder·מעקב: Carine-Belle Fe...
+2026-06-23T07:25:04.418098Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] ✅ Group scrape complete in 151.3s
+2026-06-23T07:25:04.418951Z | Updated database: group דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו. new count = 2 (total collected = 20)
+2026-06-23T07:25:04.419074Z | 🧠 Batch #7: flushing 2 remaining listings after group complete
+2026-06-23T07:37:54.583892Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Dynamically updated group label and name
+2026-06-23T07:37:54.584029Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] 🔍 Starting scroll & collect (scroll_count=10)
+2026-06-23T07:38:25.750125Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Scroll 1/10: 4 posts collected
+2026-06-23T07:38:51.341431Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Scroll 2/10: 11 posts collected
+2026-06-23T07:39:03.233500Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Scroll 3/10: 13 posts collected
+2026-06-23T07:39:06.509608Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Scroll 4/10: 13 posts collected
+2026-06-23T07:39:18.123964Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Scroll 5/10: 13 posts collected
+2026-06-23T07:39:26.849560Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Scroll 6/10: 13 posts collected
+2026-06-23T07:39:33.814947Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Scroll 7/10: 15 posts collected
+2026-06-23T07:39:43.857022Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Scroll 8/10: 17 posts collected
+2026-06-23T07:40:12.730175Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Scroll 9/10: 23 posts collected
+2026-06-23T07:40:19.003516Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Scroll 10/10: 25 posts collected
+2026-06-23T07:40:24.647163Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Collected 25 raw posts, parsing...
+2026-06-23T07:40:24.651434Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Skipping old listing (age: 5d): Sagiv Bar: Sagiv Bar...
+2026-06-23T07:40:24.656080Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Skipping old listing (age: 5d): Sagiv Bar: Sagiv Bar...
+2026-06-23T07:40:24.656494Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Skipping old listing (age: 4d): Izack Tuaf: Izack Tuaf...
+2026-06-23T07:40:24.686461Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] ✅ Group scrape complete in 159.2s
+2026-06-23T07:40:24.687381Z | Updated database: group דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו. new count = 3 (total collected = 22)
+2026-06-23T07:40:24.687505Z | 🧠 Batch #2: flushing 3 remaining listings after group complete
+2026-06-23T07:44:55.724306Z | [דירות בתל אביב ללא תיווך] Dynamically updated group label and name
+2026-06-23T07:44:55.724437Z | [דירות בתל אביב ללא תיווך] 🔍 Starting scroll & collect (scroll_count=10)
+2026-06-23T07:44:59.628822Z | [דירות בתל אביב ללא תיווך] Scroll 1/10: 2 posts collected
+2026-06-23T07:45:05.871837Z | [דירות בתל אביב ללא תיווך] Scroll 2/10: 4 posts collected
+2026-06-23T07:45:17.693931Z | [דירות בתל אביב ללא תיווך] Scroll 3/10: 8 posts collected
+2026-06-23T07:45:24.449386Z | [דירות בתל אביב ללא תיווך] Early termination: encountered 10 successive posts already seen in DB
+2026-06-23T07:45:24.449463Z | [דירות בתל אביב ללא תיווך] Collected 10 raw posts, parsing...
+2026-06-23T07:45:24.472455Z | [דירות בתל אביב ללא תיווך] ✅ Group scrape complete in 36.8s
+2026-06-23T07:45:24.475959Z | Updated database: group דירות בתל אביב ללא תיווך new count = 0 (total collected = 10)
+2026-06-23T07:48:17.825721Z | Extracted post: דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.
+Sha...
+2026-06-23T07:48:27.414757Z | Extracted post: דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.
+Sha...
+2026-06-23T07:48:29.858347Z | Extracted post: דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.
+Yuv...
+2026-06-23T07:48:53.701204Z | Parsed Facebook listing #3: Yuval Talmudi: דירות בתל אביב ללא תיווך....
+2026-06-23T07:58:47.955944Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Dynamically updated group label and name
+2026-06-23T07:58:47.956075Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] 🔍 Starting scroll & collect (scroll_count=10)
+2026-06-23T07:58:56.207111Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Scroll 1/10: 3 posts collected
+2026-06-23T07:59:05.966039Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Scroll 2/10: 5 posts collected
+2026-06-23T07:59:15.545146Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Scroll 3/10: 9 posts collected
+2026-06-23T07:59:21.843211Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Early termination: encountered 10 successive posts already seen in DB
+2026-06-23T07:59:21.843294Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Collected 14 raw posts, parsing...
+2026-06-23T07:59:21.851811Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Skipping old listing (age: 5d): Sagiv Bar: Sagiv Bar...
+2026-06-23T07:59:21.854983Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Skipping old listing (age: 5d): Sagiv Bar: Sagiv Bar...
+2026-06-23T07:59:21.855397Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Skipping old listing (age: 4d): Izack Tuaf: Izack Tuaf...
+2026-06-23T07:59:21.879313Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] ✅ Group scrape complete in 49.5s
+2026-06-23T07:59:21.887153Z | Updated database: group דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו. new count = 1 (total collected = 11)
+2026-06-23T07:59:21.887410Z | 🧠 Batch #1: flushing 2 remaining listings after group complete
+2026-06-23T08:05:41.326171Z | [דירות בתל אביב ללא תיווך] Dynamically updated group label and name
+2026-06-23T08:05:41.326300Z | [דירות בתל אביב ללא תיווך] 🔍 Starting scroll & collect (scroll_count=10)
+2026-06-23T08:05:54.893859Z | [דירות בתל אביב ללא תיווך] Scroll 1/10: 4 posts collected
+2026-06-23T08:06:08.505173Z | [דירות בתל אביב ללא תיווך] Scroll 2/10: 7 posts collected
+2026-06-23T08:06:16.997419Z | [דירות בתל אביב ללא תיווך] Scroll 3/10: 7 posts collected
+2026-06-23T08:06:25.694724Z | [דירות בתל אביב ללא תיווך] Scroll 4/10: 9 posts collected
+2026-06-23T08:06:32.673256Z | [דירות בתל אביב ללא תיווך] Scroll 5/10: 10 posts collected
+2026-06-23T08:06:49.082145Z | [דירות בתל אביב ללא תיווך] Scroll 6/10: 13 posts collected
+2026-06-23T08:06:57.021215Z | [דירות בתל אביב ללא תיווך] Scroll 7/10: 13 posts collected
+2026-06-23T08:07:04.185968Z | [דירות בתל אביב ללא תיווך] Scroll 8/10: 13 posts collected
+2026-06-23T08:07:23.717219Z | [דירות בתל אביב ללא תיווך] Scroll 9/10: 17 posts collected
+2026-06-23T08:07:32.847295Z | [דירות בתל אביב ללא תיווך] Early termination: encountered 10 successive posts already seen in DB
+2026-06-23T08:07:32.847390Z | [דירות בתל אביב ללא תיווך] Collected 22 raw posts, parsing...
+2026-06-23T08:07:32.896884Z | [דירות בתל אביב ללא תיווך] ✅ Group scrape complete in 128.0s
+2026-06-23T08:07:32.898788Z | Updated database: group דירות בתל אביב ללא תיווך new count = 1 (total collected = 22)
+2026-06-23T08:07:32.899425Z | 🧠 Batch #9: flushing 1 remaining listings after group complete
+2026-06-23T08:22:21.355814Z | [דירות בתל אביב ללא תיווך] Dynamically updated group label and name
+2026-06-23T08:22:21.355953Z | [דירות בתל אביב ללא תיווך] 🔍 Starting scroll & collect (scroll_count=10)
+2026-06-23T08:22:23.809043Z | [דירות בתל אביב ללא תיווך] Scroll 1/10: 1 posts collected
+2026-06-23T08:22:31.760040Z | [דירות בתל אביב ללא תיווך] Scroll 2/10: 4 posts collected
+2026-06-23T08:22:43.040546Z | [דירות בתל אביב ללא תיווך] Scroll 3/10: 9 posts collected
+2026-06-23T08:22:47.887998Z | [דירות בתל אביב ללא תיווך] Early termination: encountered 10 successive posts already seen in DB
+2026-06-23T08:22:47.888081Z | [דירות בתל אביב ללא תיווך] Collected 10 raw posts, parsing...
+2026-06-23T08:22:47.916480Z | [דירות בתל אביב ללא תיווך] ✅ Group scrape complete in 36.1s
+2026-06-23T08:22:47.917822Z | Updated database: group דירות בתל אביב ללא תיווך new count = 0 (total collected = 10)
+2026-06-23T08:22:59.367046Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Dynamically updated group label and name
+2026-06-23T08:22:59.367173Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] 🔍 Starting scroll & collect (scroll_count=10)
+2026-06-23T08:23:04.842352Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Scroll 1/10: 2 posts collected
+2026-06-23T08:23:15.658187Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Scroll 2/10: 8 posts collected
+2026-06-23T08:23:22.076746Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Early termination: encountered 10 successive posts already seen in DB
+2026-06-23T08:23:22.076866Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Collected 10 raw posts, parsing...
+2026-06-23T08:23:22.080241Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Skipping old listing (age: 5d): Sagiv Bar: Sagiv Bar...
+2026-06-23T08:23:22.084023Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Skipping old listing (age: 5d): Sagiv Bar: Sagiv Bar...
+2026-06-23T08:23:22.107439Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] ✅ Group scrape complete in 34.2s
+2026-06-23T08:23:22.111735Z | Updated database: group דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו. new count = 0 (total collected = 8)
+2026-06-23T08:29:18.581465Z | Extracted post: דירות בתל אביב ללא תיווך
+עוז קובי
+ 
+·
+‏2 דקות
+ 
+·
+...
+2026-06-23T08:29:23.447846Z | Parsed Facebook listing #7: שלום לכולם,: דירות בתל אביב ללא תיווך...
+2026-06-23T08:42:25.646426Z | [דירות בתל אביב ללא תיווך] Dynamically updated group label and name
+2026-06-23T08:42:25.646552Z | [דירות בתל אביב ללא תיווך] 🔍 Starting scroll & collect (scroll_count=10)
+2026-06-23T08:42:33.408298Z | [דירות בתל אביב ללא תיווך] Scroll 1/10: 5 posts collected
+2026-06-23T08:42:41.665866Z | [דירות בתל אביב ללא תיווך] Scroll 2/10: 9 posts collected
+2026-06-23T08:42:49.351835Z | [דירות בתל אביב ללא תיווך] Scroll 3/10: 11 posts collected
+2026-06-23T08:42:59.768976Z | [דירות בתל אביב ללא תיווך] Scroll 4/10: 15 posts collected
+2026-06-23T08:43:10.035654Z | [דירות בתל אביב ללא תיווך] Early termination: encountered 10 successive posts already seen in DB
+2026-06-23T08:43:10.035752Z | [דירות בתל אביב ללא תיווך] Collected 18 raw posts, parsing...
+2026-06-23T08:43:10.072379Z | [דירות בתל אביב ללא תיווך] ✅ Group scrape complete in 54.1s
+2026-06-23T08:43:10.073911Z | Updated database: group דירות בתל אביב ללא תיווך new count = 3 (total collected = 18)
+2026-06-23T08:43:10.074378Z | 🧠 Batch #3: flushing 3 remaining listings after group complete
+2026-06-23T08:43:53.549635Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Dynamically updated group label and name
+2026-06-23T08:43:53.549770Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] 🔍 Starting scroll & collect (scroll_count=10)
+2026-06-23T08:43:57.330287Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Scroll 1/10: 2 posts collected
+2026-06-23T08:44:03.376925Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Scroll 2/10: 3 posts collected
+2026-06-23T08:44:08.774217Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Scroll 3/10: 3 posts collected
+2026-06-23T08:44:15.168109Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Scroll 4/10: 3 posts collected
+2026-06-23T08:44:32.790657Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Scroll 5/10: 5 posts collected
+2026-06-23T08:44:57.355911Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Scroll 6/10: 10 posts collected
+2026-06-23T08:45:11.842467Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Scroll 7/10: 16 posts collected
+2026-06-23T08:45:20.806361Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Scroll 8/10: 16 posts collected
+2026-06-23T08:45:29.620217Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Scroll 9/10: 16 posts collected
+2026-06-23T08:45:37.275459Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Scroll 10/10: 16 posts collected
+2026-06-23T08:45:42.563573Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Collected 16 raw posts, parsing...
+2026-06-23T08:45:42.567328Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Skipping old listing (age: 2d): Yehuda Itzhaki: Yehuda Itzhaki...
+2026-06-23T08:45:42.570660Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Skipping old listing (age: 5d): Sagiv Bar: Sagiv Bar...
+2026-06-23T08:45:42.574728Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Skipping old listing (age: 5d): Sagiv Bar: Sagiv Bar...
+2026-06-23T08:45:42.575152Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Skipping old listing (age: 4d): Izack Tuaf: Izack Tuaf...
+2026-06-23T08:45:42.600773Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] ✅ Group scrape complete in 119.8s
+2026-06-23T08:45:42.601469Z | Updated database: group דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו. new count = 1 (total collected = 12)
+2026-06-23T08:45:42.601578Z | 🧠 Batch #5: flushing 1 remaining listings after group complete
+2026-06-23T08:47:57.772245Z | Extracted post: דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.
+Inb...
+2026-06-23T08:48:02.659674Z | Extracted post: דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.
+Inb...
+2026-06-23T08:48:19.353854Z | Parsed Facebook listing #2: Inbar Geva: דירות בתל אביב ללא תיווך. הו...
+2026-06-23T08:48:19.354807Z | Parsed Facebook listing #4: Inbar Geva: דירות בתל אביב ללא תיווך. הו...
+2026-06-23T08:58:44.621086Z | [דירות בתל אביב ללא תיווך] Dynamically updated group label and name
+2026-06-23T08:58:44.621210Z | [דירות בתל אביב ללא תיווך] 🔍 Starting scroll & collect (scroll_count=10)
+2026-06-23T08:58:47.126490Z | [דירות בתל אביב ללא תיווך] Scroll 1/10: 1 posts collected
+2026-06-23T08:59:02.932666Z | [דירות בתל אביב ללא תיווך] Scroll 2/10: 5 posts collected
+2026-06-23T08:59:26.580219Z | [דירות בתל אביב ללא תיווך] Scroll 3/10: 12 posts collected
+2026-06-23T08:59:32.674697Z | [דירות בתל אביב ללא תיווך] Early termination: encountered 10 successive posts already seen in DB
+2026-06-23T08:59:32.674799Z | [דירות בתל אביב ללא תיווך] Collected 14 raw posts, parsing...
+2026-06-23T08:59:32.678814Z | [דירות בתל אביב ללא תיווך] Skipping old listing (age: 1d): Marina Bast: Marina Bast...
+2026-06-23T08:59:32.679970Z | [דירות בתל אביב ללא תיווך] Skipping old listing (age: 1d): Marina Bast: Marina Bast...
+2026-06-23T08:59:32.702081Z | [דירות בתל אביב ללא תיווך] ✅ Group scrape complete in 61.1s
+2026-06-23T08:59:32.702869Z | Updated database: group דירות בתל אביב ללא תיווך new count = 2 (total collected = 12)
+2026-06-23T08:59:32.702990Z | 🧠 Batch #1: flushing 2 remaining listings after group complete
+2026-06-23T09:01:40.041859Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Dynamically updated group label and name
+2026-06-23T09:01:40.041986Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] 🔍 Starting scroll & collect (scroll_count=10)
+2026-06-23T09:02:03.348122Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Scroll 1/10: 4 posts collected
+2026-06-23T09:02:27.854337Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Scroll 2/10: 9 posts collected
+2026-06-23T09:02:47.881249Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Scroll 3/10: 12 posts collected
+2026-06-23T09:03:03.303350Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Scroll 4/10: 12 posts collected
+2026-06-23T09:03:15.043577Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Scroll 5/10: 13 posts collected
+2026-06-23T09:03:34.077783Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Scroll 6/10: 17 posts collected
+2026-06-23T09:03:58.762069Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Scroll 7/10: 25 posts collected
+2026-06-23T09:04:05.151962Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Scroll 8/10: 25 posts collected
+2026-06-23T09:04:09.576569Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Scroll 9/10: 25 posts collected
+2026-06-23T09:04:14.945431Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Scroll 10/10: 25 posts collected
+2026-06-23T09:04:25.452559Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Collected 25 raw posts, parsing...
+2026-06-23T09:04:25.464265Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Skipping old listing (age: 2d): Yehuda Itzhaki: Yehuda Itzhaki...
+2026-06-23T09:04:25.467686Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Skipping old listing (age: 5d): Sagiv Bar: Sagiv Bar...
+2026-06-23T09:04:25.472532Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Skipping old listing (age: 5d): Sagiv Bar: Sagiv Bar...
+2026-06-23T09:04:25.473036Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Skipping old listing (age: 4d): Izack Tuaf: Izack Tuaf...
+2026-06-23T09:04:25.501971Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] ✅ Group scrape complete in 179.5s
+2026-06-23T09:04:25.502572Z | Updated database: group דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו. new count = 2 (total collected = 21)
+2026-06-23T09:04:25.502709Z | 🧠 Batch #6: flushing 2 remaining listings after group complete
+2026-06-23T09:19:38.640671Z | [דירות בתל אביב ללא תיווך] Dynamically updated group label and name
+2026-06-23T09:19:38.640800Z | [דירות בתל אביב ללא תיווך] 🔍 Starting scroll & collect (scroll_count=10)
+2026-06-23T09:19:41.636456Z | [דירות בתל אביב ללא תיווך] Scroll 1/10: 1 posts collected
+2026-06-23T09:19:56.332974Z | [דירות בתל אביב ללא תיווך] Scroll 2/10: 7 posts collected
+2026-06-23T09:20:04.640469Z | [דירות בתל אביב ללא תיווך] Scroll 3/10: 13 posts collected
+2026-06-23T09:20:10.806851Z | [דירות בתל אביב ללא תיווך] Scroll 4/10: 13 posts collected
+2026-06-23T09:20:23.426373Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Dynamically updated group label and name
+2026-06-23T09:20:23.426501Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] 🔍 Starting scroll & collect (scroll_count=10)
+2026-06-23T09:20:27.552698Z | [דירות בתל אביב ללא תיווך] Scroll 5/10: 17 posts collected
+2026-06-23T09:20:29.865336Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Scroll 1/10: 4 posts collected
+2026-06-23T09:20:34.069993Z | [דירות בתל אביב ללא תיווך] Early termination: encountered 10 successive posts already seen in DB
+2026-06-23T09:20:34.070073Z | [דירות בתל אביב ללא תיווך] Collected 21 raw posts, parsing...
+2026-06-23T09:20:34.070978Z | [דירות בתל אביב ללא תיווך] Skipping old listing (age: 2d): Amit Boker: Amit Boker...
+2026-06-23T09:20:34.071828Z | [דירות בתל אביב ללא תיווך] Skipping old listing (age: 2d): Amit Boker: Amit Boker...
+2026-06-23T09:20:34.083705Z | [דירות בתל אביב ללא תיווך] Skipping old listing (age: 1d): Marina Bast: Marina Bast...
+2026-06-23T09:20:34.088039Z | [דירות בתל אביב ללא תיווך] Skipping old listing (age: 1d): Marina Bast: Marina Bast...
+2026-06-23T09:20:34.117369Z | [דירות בתל אביב ללא תיווך] ✅ Group scrape complete in 64.1s
+2026-06-23T09:20:34.123234Z | Updated database: group דירות בתל אביב ללא תיווך new count = 2 (total collected = 17)
+2026-06-23T09:20:34.123366Z | 🧠 Batch #4: flushing 2 remaining listings after group complete
+2026-06-23T09:20:42.475301Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Early termination: encountered 10 successive posts already seen in DB
+2026-06-23T09:20:42.475384Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Collected 10 raw posts, parsing...
+2026-06-23T09:20:42.482126Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] Skipping old listing (age: 2d): Yehuda Itzhaki: Yehuda Itzhaki...
+2026-06-23T09:20:42.500383Z | [דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.] ✅ Group scrape complete in 28.4s
+2026-06-23T09:20:42.503316Z | Updated database: group דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו. new count = 0 (total collected = 9)
+2026-06-23T09:28:55.682589Z | Extracted post: דירות בתל אביב ללא תיווך
+Omri Rubin
+ 
+·
+‏5 דקות
+ 
+...
+2026-06-23T09:29:00.361971Z | Extracted post: דירות בתל אביב ללא תיווך
+Omri Rubin
+ 
+·
+‏5 דקות
+ 
+...
+2026-06-23T09:29:02.913986Z | Extracted post: דירות בתל אביב ללא תיווך
+לידור ברכה סויסה
+ 
+·
+‏4 ד...
+2026-06-23T09:29:02.917749Z | Parsed Facebook listing #7: Omri Rubin: דירות בתל אביב ללא תיווך...
+2026-06-23T09:29:02.918482Z | Parsed Facebook listing #8: Omri Rubin: דירות בתל אביב ללא תיווך...
+2026-06-23T09:39:40.969130Z | [דירות בתל אביב ללא תיווך] Dynamically updated group label and name
+2026-06-23T09:39:40.969244Z | [דירות בתל אביב ללא תיווך] 🔍 Starting scroll & collect (scroll_count=10)
+2026-06-23T09:39:46.479758Z | [דירות בתל אביב ללא תיווך] Scroll 1/10: 4 posts collected
+2026-06-23T09:39:55.673939Z | [דירות בתל אביב ללא תיווך] Scroll 2/10: 9 posts collected
+2026-06-23T09:40:08.797323Z | [דירות בתל אביב ללא תיווך] Scroll 3/10: 15 posts collected
+2026-06-23T09:40:18.281238Z | [דירות בתל אביב ללא תיווך] Early termination: encountered 10 successive posts already seen in DB
+2026-06-23T09:40:18.281316Z | [דירות בתל אביב ללא תיווך] Collected 20 raw posts, parsing...
+2026-06-23T09:40:18.294750Z | [דירות בתל אביב ללא תיווך] Skipping old listing (age: 2d): Amit Boker: Amit Boker...
+2026-06-23T09:40:18.298006Z | [דירות בתל אביב ללא תיווך] Skipping old listing (age: 2d): Amit Boker: Amit Boker...
+2026-06-23T09:40:18.300100Z | [דירות בתל אביב ללא תיווך] Skipping old listing (age: 1d): Marina Bast: Marina Bast...
+2026-06-23T09:40:18.329702Z | [דירות בתל אביב ללא תיווך] ✅ Group scrape complete in 44.6s
+2026-06-23T09:40:18.330564Z | Updated database: group דירות בתל אביב ללא תיווך new count = 1 (total collected = 17)
+2026-06-23T09:40:18.330706Z | 🧠 Batch #2: flushing 1 remaining listings after group complete
+2026-06-23T09:45:20.807844Z | [‎דירות בתל אביב ללא תיווך‎] Dynamically updated group label and name
+2026-06-23T09:45:20.807963Z | [‎דירות בתל אביב ללא תיווך‎] 🔍 Starting scroll & collect (scroll_count=10)
+2026-06-23T09:45:28.249789Z | [‎דירות בתל אביב ללא תיווך‎] Scroll 1/10: 4 posts collected
+2026-06-23T09:45:43.026541Z | [‎דירות בתל אביב ללא תיווך‎] Scroll 2/10: 7 posts collected
+2026-06-23T09:45:54.545008Z | [‎דירות בתל אביב ללא תיווך‎] Scroll 3/10: 8 posts collected
+2026-06-23T09:46:12.756178Z | [‎דירות בתל אביב ללא תיווך‎] Scroll 4/10: 15 posts collected
+2026-06-23T09:46:20.911722Z | [‎דירות בתל אביב ללא תיווך‎] Early termination: encountered 10 successive posts already seen in DB
+2026-06-23T09:46:20.911806Z | [‎דירות בתל אביב ללא תיווך‎] Collected 16 raw posts, parsing...
+2026-06-23T09:46:20.924800Z | [‎דירות בתל אביב ללא תיווך‎] Skipping old listing (age: 2d): Amit Boker: Amit Boker...
+2026-06-23T09:46:20.953392Z | [‎דירות בתל אביב ללא תיווך‎] ✅ Group scrape complete in 70.4s
+2026-06-23T09:46:20.954716Z | Updated database: group new count = 1 (total collected = 15)
+2026-06-23T09:46:20.954867Z | 🧠 Batch #3: flushing 1 remaining listings after group complete
+2026-06-23T09:47:42.848122Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Dynamically updated group label and name
+2026-06-23T09:47:42.848251Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] 🔍 Starting scroll & collect (scroll_count=10)
+2026-06-23T09:47:49.341762Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Scroll 1/10: 4 posts collected
+2026-06-23T09:48:00.120422Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Early termination: encountered 10 successive posts already seen in DB
+2026-06-23T09:48:00.120505Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Collected 10 raw posts, parsing...
+2026-06-23T09:48:00.127355Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Skipping old listing (age: 2d): Yehuda Itzhaki: Yehuda Itzhaki...
+2026-06-23T09:48:00.152517Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] ✅ Group scrape complete in 26.6s
+2026-06-23T09:48:00.154708Z | Updated database: group new count = 0 (total collected = 9)
+2026-06-23T10:03:58.868840Z | [‎דירות בתל אביב ללא תיווך‎] Dynamically updated group label and name
+2026-06-23T10:03:58.868964Z | [‎דירות בתל אביב ללא תיווך‎] 🔍 Starting scroll & collect (scroll_count=10)
+2026-06-23T10:04:06.339680Z | [‎דירות בתל אביב ללא תיווך‎] Scroll 1/10: 6 posts collected
+2026-06-23T10:04:16.589927Z | [‎דירות בתל אביב ללא תיווך‎] Scroll 2/10: 10 posts collected
+2026-06-23T10:04:21.752530Z | [‎דירות בתל אביב ללא תיווך‎] Scroll 3/10: 11 posts collected
+2026-06-23T10:04:29.388792Z | [‎דירות בתל אביב ללא תיווך‎] Scroll 4/10: 11 posts collected
+2026-06-23T10:04:37.241963Z | [‎דירות בתל אביב ללא תיווך‎] Scroll 5/10: 14 posts collected
+2026-06-23T10:04:41.934978Z | [‎דירות בתל אביב ללא תיווך‎] Early termination: encountered 10 successive posts already seen in DB
+2026-06-23T10:04:41.935075Z | [‎דירות בתל אביב ללא תיווך‎] Collected 17 raw posts, parsing...
+2026-06-23T10:04:41.941584Z | [‎דירות בתל אביב ללא תיווך‎] Skipping old listing (age: 1d): ThoughtfulReindeer7883: ThoughtfulReinde...
+2026-06-23T10:04:41.943784Z | [‎דירות בתל אביב ללא תיווך‎] Skipping old listing (age: 1d): ThoughtfulReindeer7883: ThoughtfulReinde...
+2026-06-23T10:04:41.969816Z | [‎דירות בתל אביב ללא תיווך‎] ✅ Group scrape complete in 51.7s
+2026-06-23T10:04:41.973229Z | Updated database: group new count = 1 (total collected = 15)
+2026-06-23T10:04:41.973698Z | 🧠 Batch #4: flushing 1 remaining listings after group complete
+2026-06-23T10:06:59.504646Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Dynamically updated group label and name
+2026-06-23T10:06:59.504785Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] 🔍 Starting scroll & collect (scroll_count=10)
+2026-06-23T10:07:06.878046Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Scroll 1/10: 4 posts collected
+2026-06-23T10:07:21.054672Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Scroll 2/10: 11 posts collected
+2026-06-23T10:07:33.123270Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Early termination: encountered 10 successive posts already seen in DB
+2026-06-23T10:07:33.123356Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Collected 15 raw posts, parsing...
+2026-06-23T10:07:33.134811Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Skipping old listing (age: 2d): Yehuda Itzhaki: Yehuda Itzhaki...
+2026-06-23T10:07:33.158500Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] ✅ Group scrape complete in 43.8s
+2026-06-23T10:07:33.159793Z | Updated database: group new count = 1 (total collected = 14)
+2026-06-23T10:07:33.160078Z | 🧠 Batch #6: flushing 1 remaining listings after group complete
+2026-06-23T10:11:29.992050Z | Extracted post: דירות בתל אביב ללא תיווך
+Shmulik Leshem
+ 
+·
+‏9 דקו...
+2026-06-23T10:11:37.336577Z | Extracted post: דירות בתל אביב ללא תיווך
+Shmulik Leshem
+ 
+·
+‏9 דקו...
+2026-06-23T10:24:31.985778Z | [‎דירות בתל אביב ללא תיווך‎] Dynamically updated group label and name
+2026-06-23T10:24:31.985900Z | [‎דירות בתל אביב ללא תיווך‎] 🔍 Starting scroll & collect (scroll_count=10)
+2026-06-23T10:24:39.583320Z | [‎דירות בתל אביב ללא תיווך‎] Scroll 1/10: 4 posts collected
+2026-06-23T10:24:51.691476Z | [‎דירות בתל אביב ללא תיווך‎] Scroll 2/10: 9 posts collected
+2026-06-23T10:25:05.127966Z | [‎דירות בתל אביב ללא תיווך‎] Scroll 3/10: 14 posts collected
+2026-06-23T10:25:16.222451Z | [‎דירות בתל אביב ללא תיווך‎] Scroll 4/10: 19 posts collected
+2026-06-23T10:25:20.853047Z | [‎דירות בתל אביב ללא תיווך‎] Scroll 5/10: 19 posts collected
+2026-06-23T10:25:24.900204Z | [‎דירות בתל אביב ללא תיווך‎] Scroll 6/10: 19 posts collected
+2026-06-23T10:25:32.929844Z | [‎דירות בתל אביב ללא תיווך‎] Scroll 7/10: 24 posts collected
+2026-06-23T10:25:39.473654Z | [‎דירות בתל אביב ללא תיווך‎] Scroll 8/10: 24 posts collected
+2026-06-23T10:25:46.536007Z | [‎דירות בתל אביב ללא תיווך‎] Scroll 9/10: 24 posts collected
+2026-06-23T10:25:53.269829Z | [‎דירות בתל אביב ללא תיווך‎] Scroll 10/10: 24 posts collected
+2026-06-23T10:26:01.489070Z | [‎דירות בתל אביב ללא תיווך‎] Collected 24 raw posts, parsing...
+2026-06-23T10:26:01.496964Z | [‎דירות בתל אביב ללא תיווך‎] Skipping old listing (age: 1d): Guy Yaron: Guy Yaron...
+2026-06-23T10:26:01.500969Z | [‎דירות בתל אביב ללא תיווך‎] Skipping old listing (age: 1d): Guy Yaron: Guy Yaron...
+2026-06-23T10:26:01.506297Z | [‎דירות בתל אביב ללא תיווך‎] Skipping old listing (age: 1d): ThoughtfulReindeer7883: ThoughtfulReinde...
+2026-06-23T10:26:01.509075Z | [‎דירות בתל אביב ללא תיווך‎] Skipping old listing (age: 1d): ThoughtfulReindeer7883: ThoughtfulReinde...
+2026-06-23T10:26:01.585212Z | [‎דירות בתל אביב ללא תיווך‎] ✅ Group scrape complete in 101.1s
+2026-06-23T10:26:01.585907Z | Updated database: group new count = 2 (total collected = 20)
+2026-06-23T10:26:01.586089Z | 🧠 Batch #5: flushing 2 remaining listings after group complete
+2026-06-23T10:26:13.264782Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Dynamically updated group label and name
+2026-06-23T10:26:13.264945Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] 🔍 Starting scroll & collect (scroll_count=10)
+2026-06-23T10:26:20.678412Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Scroll 1/10: 4 posts collected
+2026-06-23T10:26:36.933712Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Scroll 2/10: 7 posts collected
+2026-06-23T10:26:44.216848Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Scroll 3/10: 7 posts collected
+2026-06-23T10:26:54.735922Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Scroll 4/10: 7 posts collected
+2026-06-23T10:27:08.730774Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Scroll 5/10: 10 posts collected
+2026-06-23T10:27:22.572379Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Scroll 6/10: 16 posts collected
+2026-06-23T10:27:26.960933Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Scroll 7/10: 16 posts collected
+2026-06-23T10:27:36.823809Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Scroll 8/10: 16 posts collected
+2026-06-23T10:27:47.207861Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Scroll 9/10: 16 posts collected
+2026-06-23T10:27:55.131947Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Scroll 10/10: 16 posts collected
+2026-06-23T10:27:59.046775Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Collected 16 raw posts, parsing...
+2026-06-23T10:27:59.077659Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] ✅ Group scrape complete in 117.5s
+2026-06-23T10:27:59.078650Z | Updated database: group new count = 1 (total collected = 16)
+2026-06-23T10:27:59.078821Z | 🧠 Batch #7: flushing 1 remaining listings after group complete
+2026-06-23T10:33:00.045736Z | Extracted post: דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.
+Tom...
+2026-06-23T10:33:11.562534Z | Extracted post: דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.
+Tom...
+2026-06-23T10:42:00.095231Z | [‎דירות בתל אביב ללא תיווך‎] Dynamically updated group label and name
+2026-06-23T10:42:00.095352Z | [‎דירות בתל אביב ללא תיווך‎] 🔍 Starting scroll & collect (scroll_count=10)
+2026-06-23T10:42:02.458476Z | [‎דירות בתל אביב ללא תיווך‎] Scroll 1/10: 2 posts collected
+2026-06-23T10:42:14.898109Z | [‎דירות בתל אביב ללא תיווך‎] Scroll 2/10: 9 posts collected
+2026-06-23T10:42:23.788074Z | [‎דירות בתל אביב ללא תיווך‎] Early termination: encountered 10 successive posts already seen in DB
+2026-06-23T10:42:23.788149Z | [‎דירות בתל אביב ללא תיווך‎] Collected 12 raw posts, parsing...
+2026-06-23T10:42:23.795400Z | [‎דירות בתל אביב ללא תיווך‎] Skipping old listing (age: 1d): Guy Yaron: Guy Yaron...
+2026-06-23T10:42:23.799348Z | [‎דירות בתל אביב ללא תיווך‎] Skipping old listing (age: 1d): Guy Yaron: Guy Yaron...
+2026-06-23T10:42:23.823005Z | [‎דירות בתל אביב ללא תיווך‎] ✅ Group scrape complete in 33.5s
+2026-06-23T10:42:23.825982Z | Updated database: group new count = 0 (total collected = 10)
+2026-06-23T10:42:31.285885Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Dynamically updated group label and name
+2026-06-23T10:42:31.286027Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] 🔍 Starting scroll & collect (scroll_count=10)
+2026-06-23T10:42:36.832057Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Scroll 1/10: 4 posts collected
+2026-06-23T10:42:42.303865Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Scroll 2/10: 7 posts collected
+2026-06-23T10:42:52.928538Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Early termination: encountered 10 successive posts already seen in DB
+2026-06-23T10:42:52.928670Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Collected 11 raw posts, parsing...
+2026-06-23T10:42:52.962435Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] ✅ Group scrape complete in 29.1s
+2026-06-23T10:42:52.963344Z | Updated database: group new count = 0 (total collected = 11)
+2026-06-23T10:49:01.085181Z | Extracted post: דירות בתל אביב ללא תיווך
+Oren BE
+ 
+·
+‏10 דקות
+ 
+·
+...
+2026-06-23T10:49:01.090577Z | Parsed Facebook listing #10: Oren BE: דירות בתל אביב ללא תיווך...
+2026-06-23T10:57:24.182221Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Dynamically updated group label and name
+2026-06-23T10:57:24.182332Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] 🔍 Starting scroll & collect (scroll_count=10)
+2026-06-23T10:57:29.767514Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Scroll 1/10: 0 posts collected
+2026-06-23T10:58:00.987758Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Scroll 2/10: 5 posts collected
+2026-06-23T10:58:19.615562Z | [‎דירות בתל אביב ללא תיווך‎] Dynamically updated group label and name
+2026-06-23T10:58:19.615704Z | [‎דירות בתל אביב ללא תיווך‎] 🔍 Starting scroll & collect (scroll_count=10)
+2026-06-23T10:58:19.921794Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Scroll 3/10: 8 posts collected
+2026-06-23T10:58:27.147251Z | [‎דירות בתל אביב ללא תיווך‎] Scroll 1/10: 5 posts collected
+2026-06-23T10:58:33.709849Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Scroll 4/10: 9 posts collected
+2026-06-23T10:58:34.368107Z | [‎דירות בתל אביב ללא תיווך‎] Scroll 2/10: 10 posts collected
+2026-06-23T10:58:41.979138Z | [‎דירות בתל אביב ללא תיווך‎] Scroll 3/10: 12 posts collected
+2026-06-23T10:58:43.906157Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Scroll 5/10: 9 posts collected
+2026-06-23T10:58:51.628281Z | [‎דירות בתל אביב ללא תיווך‎] Scroll 4/10: 16 posts collected
+2026-06-23T10:58:52.195149Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Scroll 6/10: 9 posts collected
+2026-06-23T10:59:00.045464Z | [‎דירות בתל אביב ללא תיווך‎] Early termination: encountered 10 successive posts already seen in DB
+2026-06-23T10:59:00.045544Z | [‎דירות בתל אביב ללא תיווך‎] Collected 17 raw posts, parsing...
+2026-06-23T10:59:00.055590Z | [‎דירות בתל אביב ללא תיווך‎] Skipping old listing (age: 4d): Ohad Koren·מעקב: Ohad Koren...
+2026-06-23T10:59:00.056259Z | [‎דירות בתל אביב ללא תיווך‎] Skipping old listing (age: 4d): Ohad Koren·מעקב: Ohad Koren...
+2026-06-23T10:59:00.057422Z | [‎דירות בתל אביב ללא תיווך‎] Skipping old listing (age: 1d): Guy Yaron: Guy Yaron...
+2026-06-23T10:59:00.059987Z | [‎דירות בתל אביב ללא תיווך‎] Skipping old listing (age: 1d): Guy Yaron: Guy Yaron...
+2026-06-23T10:59:00.084808Z | [‎דירות בתל אביב ללא תיווך‎] ✅ Group scrape complete in 48.2s
+2026-06-23T10:59:00.085546Z | Updated database: group new count = 1 (total collected = 13)
+2026-06-23T10:59:00.085788Z | 🧠 Batch #3: flushing 1 remaining listings after group complete
+2026-06-23T10:59:05.588695Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Scroll 7/10: 13 posts collected
+2026-06-23T10:59:15.899834Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Early termination: encountered 10 successive posts already seen in DB
+2026-06-23T10:59:15.899919Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Collected 19 raw posts, parsing...
+2026-06-23T10:59:15.923554Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Skipping old listing (age: 2d): Yehuda Itzhaki: Yehuda Itzhaki...
+2026-06-23T10:59:15.973429Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] ✅ Group scrape complete in 122.9s
+2026-06-23T10:59:15.979116Z | Updated database: group new count = 1 (total collected = 18)
+2026-06-23T10:59:15.979333Z | 🧠 Batch #4: flushing 1 remaining listings after group complete
+2026-06-23T11:11:26.087098Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Dynamically updated group label and name
+2026-06-23T11:11:26.087228Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] 🔍 Starting scroll & collect (scroll_count=10)
+2026-06-23T11:11:31.702338Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Scroll 1/10: 2 posts collected
+2026-06-23T11:11:42.057588Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Scroll 2/10: 9 posts collected
+2026-06-23T11:11:47.359241Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Early termination: encountered 10 successive posts already seen in DB
+2026-06-23T11:11:47.359325Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Collected 10 raw posts, parsing...
+2026-06-23T11:11:47.392876Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] ✅ Group scrape complete in 31.6s
+2026-06-23T11:11:47.394685Z | Updated database: group new count = 0 (total collected = 10)
+2026-06-23T11:12:26.031066Z | [‎דירות בתל אביב ללא תיווך‎] Dynamically updated group label and name
+2026-06-23T11:12:26.031209Z | [‎דירות בתל אביב ללא תיווך‎] 🔍 Starting scroll & collect (scroll_count=10)
+2026-06-23T11:12:33.260584Z | [‎דירות בתל אביב ללא תיווך‎] Scroll 1/10: 5 posts collected
+2026-06-23T11:12:41.092728Z | [‎דירות בתל אביב ללא תיווך‎] Scroll 2/10: 9 posts collected
+2026-06-23T11:12:49.329005Z | [‎דירות בתל אביב ללא תיווך‎] Scroll 3/10: 14 posts collected
+2026-06-23T11:12:56.353242Z | [‎דירות בתל אביב ללא תיווך‎] Early termination: encountered 10 successive posts already seen in DB
+2026-06-23T11:12:56.353320Z | [‎דירות בתל אביב ללא תיווך‎] Collected 18 raw posts, parsing...
+2026-06-23T11:12:56.362345Z | [‎דירות בתל אביב ללא תיווך‎] Skipping old listing (age: 4d): Ohad Koren·מעקב: Ohad Koren...
+2026-06-23T11:12:56.364653Z | [‎דירות בתל אביב ללא תיווך‎] Skipping old listing (age: 4d): Ohad Koren·מעקב: Ohad Koren...
+2026-06-23T11:12:56.365882Z | [‎דירות בתל אביב ללא תיווך‎] Skipping old listing (age: 1d): Guy Yaron: Guy Yaron...
+2026-06-23T11:12:56.390183Z | [‎דירות בתל אביב ללא תיווך‎] ✅ Group scrape complete in 38.6s
+2026-06-23T11:12:56.392526Z | Updated database: group new count = 1 (total collected = 15)
+2026-06-23T11:12:56.392696Z | 🧠 Batch #3: flushing 1 remaining listings after group complete
+2026-06-23T11:27:07.535957Z | [‎דירות בתל אביב ללא תיווך‎] Dynamically updated group label and name
+2026-06-23T11:27:07.536086Z | [‎דירות בתל אביב ללא תיווך‎] 🔍 Starting scroll & collect (scroll_count=10)
+2026-06-23T11:27:13.954233Z | [‎דירות בתל אביב ללא תיווך‎] Scroll 1/10: 4 posts collected
+2026-06-23T11:27:28.833082Z | [‎דירות בתל אביב ללא תיווך‎] Scroll 2/10: 11 posts collected
+2026-06-23T11:27:36.975213Z | [‎דירות בתל אביב ללא תיווך‎] Early termination: encountered 10 successive posts already seen in DB
+2026-06-23T11:27:36.975284Z | [‎דירות בתל אביב ללא תיווך‎] Collected 17 raw posts, parsing...
+2026-06-23T11:27:37.015890Z | [‎דירות בתל אביב ללא תיווך‎] ✅ Group scrape complete in 38.3s
+2026-06-23T11:27:37.017850Z | Updated database: group new count = 0 (total collected = 17)
+2026-06-23T11:29:29.531052Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Dynamically updated group label and name
+2026-06-23T11:29:29.531193Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] 🔍 Starting scroll & collect (scroll_count=10)
+2026-06-23T11:29:36.102243Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Scroll 1/10: 2 posts collected
+2026-06-23T11:29:47.433558Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Scroll 2/10: 8 posts collected
+2026-06-23T11:29:54.517488Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Early termination: encountered 10 successive posts already seen in DB
+2026-06-23T11:29:54.517564Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Collected 11 raw posts, parsing...
+2026-06-23T11:29:54.547215Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] ✅ Group scrape complete in 33.6s
+2026-06-23T11:29:54.548907Z | Updated database: group new count = 1 (total collected = 11)
+2026-06-23T11:29:54.549061Z | 🧠 Batch #5: flushing 1 remaining listings after group complete
+2026-06-23T11:33:17.830923Z | Extracted post: דירות בתל אביב ללא תיווך
+Ido Ratzon
+ 
+·
+‏4 דקות
+ 
+...
+2026-06-23T11:33:19.911760Z | Extracted post: דירות בתל אביב ללא תיווך
+Yael Averbuch
+ 
+·
+‏2 דקות...
+2026-06-23T11:33:27.065747Z | Extracted post: דירות בתל אביב ללא תיווך
+Ido Ratzon
+ 
+·
+‏4 דקות
+ 
+...
+2026-06-23T11:33:27.227110Z | Extracted post: דירות בתל אביב ללא תיווך
+Yael Averbuch
+ 
+·
+‏2 דקות...
+2026-06-23T11:33:38.929909Z | Parsed Facebook listing #8: Ido Ratzon: דירות בתל אביב ללא תיווך...
+2026-06-23T11:33:38.931555Z | Parsed Facebook listing #10: Yael Averbuch: דירות בתל אביב ללא תיווך...
+2026-06-23T11:33:38.932312Z | Parsed Facebook listing #11: Ido Ratzon: דירות בתל אביב ללא תיווך...
+2026-06-23T11:33:38.934052Z | Parsed Facebook listing #13: Yael Averbuch: דירות בתל אביב ללא תיווך...
+2026-06-23T11:43:04.296467Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Dynamically updated group label and name
+2026-06-23T11:43:04.296661Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] 🔍 Starting scroll & collect (scroll_count=10)
+2026-06-23T11:43:11.129827Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Scroll 1/10: 3 posts collected
+2026-06-23T11:43:17.869282Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Scroll 2/10: 5 posts collected
+2026-06-23T11:43:28.503474Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Scroll 3/10: 9 posts collected
+2026-06-23T11:43:44.007225Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Early termination: encountered 10 successive posts already seen in DB
+2026-06-23T11:43:44.007301Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Collected 15 raw posts, parsing...
+2026-06-23T11:43:44.052594Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] ✅ Group scrape complete in 48.6s
+2026-06-23T11:43:44.058107Z | Updated database: group new count = 1 (total collected = 15)
+2026-06-23T11:43:44.058253Z | 🧠 Batch #2: flushing 1 remaining listings after group complete
+2026-06-23T11:44:24.142265Z | [‎דירות בתל אביב ללא תיווך‎] Dynamically updated group label and name
+2026-06-23T11:44:24.142396Z | [‎דירות בתל אביב ללא תיווך‎] 🔍 Starting scroll & collect (scroll_count=10)
+2026-06-23T11:44:28.033774Z | [‎דירות בתל אביב ללא תיווך‎] Scroll 1/10: 2 posts collected
+2026-06-23T11:44:51.969815Z | [‎דירות בתל אביב ללא תיווך‎] Scroll 2/10: 7 posts collected
+2026-06-23T11:45:18.255971Z | [‎דירות בתל אביב ללא תיווך‎] Scroll 3/10: 14 posts collected
+2026-06-23T11:45:46.207794Z | [‎דירות בתל אביב ללא תיווך‎] Scroll 4/10: 21 posts collected
+2026-06-23T11:45:50.753309Z | [‎דירות בתל אביב ללא תיווך‎] Scroll 5/10: 21 posts collected
+2026-06-23T11:45:57.995920Z | [‎דירות בתל אביב ללא תיווך‎] Scroll 6/10: 21 posts collected
+2026-06-23T11:46:08.173351Z | [‎דירות בתל אביב ללא תיווך‎] Scroll 7/10: 24 posts collected
+2026-06-23T11:46:15.635418Z | [‎דירות בתל אביב ללא תיווך‎] Early termination: encountered 10 successive posts already seen in DB
+2026-06-23T11:46:15.635501Z | [‎דירות בתל אביב ללא תיווך‎] Collected 27 raw posts, parsing...
+2026-06-23T11:46:15.687010Z | [‎דירות בתל אביב ללא תיווך‎] ✅ Group scrape complete in 119.8s
+2026-06-23T11:46:15.688667Z | Updated database: group new count = 2 (total collected = 27)
+2026-06-23T11:46:15.688807Z | 🧠 Batch #3: flushing 2 remaining listings after group complete
+2026-06-23T11:48:59.752371Z | Extracted post: דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.
+Ann...
+2026-06-23T11:49:08.189886Z | Extracted post: דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.
+Ann...
+2026-06-23T11:49:26.860651Z | Parsed Facebook listing #1: Anna Koch: דירות בתל אביב ללא תיווך. הוד...
+2026-06-23T11:49:26.861750Z | Parsed Facebook listing #3: Anna Koch: דירות בתל אביב ללא תיווך. הוד...
+2026-06-23T11:55:53.257413Z | [‎דירות בתל אביב ללא תיווך‎] Dynamically updated group label and name
+2026-06-23T11:55:53.257525Z | [‎דירות בתל אביב ללא תיווך‎] 🔍 Starting scroll & collect (scroll_count=10)
+2026-06-23T11:56:01.737988Z | [‎דירות בתל אביב ללא תיווך‎] Scroll 1/10: 5 posts collected
+2026-06-23T11:56:09.514843Z | [‎דירות בתל אביב ללא תיווך‎] Scroll 2/10: 10 posts collected
+2026-06-23T11:56:15.499343Z | [‎דירות בתל אביב ללא תיווך‎] Scroll 3/10: 10 posts collected
+2026-06-23T11:56:22.797085Z | [‎דירות בתל אביב ללא תיווך‎] Scroll 4/10: 10 posts collected
+2026-06-23T11:56:23.325460Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Dynamically updated group label and name
+2026-06-23T11:56:23.325592Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] 🔍 Starting scroll & collect (scroll_count=10)
+2026-06-23T11:56:31.189755Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Scroll 1/10: 3 posts collected
+2026-06-23T11:56:35.029737Z | [‎דירות בתל אביב ללא תיווך‎] Scroll 5/10: 12 posts collected
+2026-06-23T11:56:40.209702Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Scroll 2/10: 6 posts collected
+2026-06-23T11:56:44.646858Z | [‎דירות בתל אביב ללא תיווך‎] Early termination: encountered 10 successive posts already seen in DB
+2026-06-23T11:56:44.646938Z | [‎דירות בתל אביב ללא תיווך‎] Collected 16 raw posts, parsing...
+2026-06-23T11:56:44.676660Z | [‎דירות בתל אביב ללא תיווך‎] ✅ Group scrape complete in 62.1s
+2026-06-23T11:56:44.677962Z | Updated database: group new count = 2 (total collected = 16)
+2026-06-23T11:56:44.678247Z | 🧠 Batch #2: flushing 2 remaining listings after group complete
+2026-06-23T11:56:45.246639Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Scroll 3/10: 6 posts collected
+2026-06-23T11:56:55.410125Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Scroll 4/10: 7 posts collected
+2026-06-23T11:57:10.627853Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Scroll 5/10: 8 posts collected
+2026-06-23T11:57:23.979136Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Scroll 6/10: 11 posts collected
+2026-06-23T11:57:44.620730Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Scroll 7/10: 17 posts collected
+2026-06-23T11:57:49.252248Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Scroll 8/10: 17 posts collected
+2026-06-23T11:57:57.172084Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Scroll 9/10: 17 posts collected
+2026-06-23T11:58:04.849221Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Scroll 10/10: 17 posts collected
+2026-06-23T11:58:10.637935Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Collected 17 raw posts, parsing...
+2026-06-23T11:58:10.682026Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] ✅ Group scrape complete in 116.8s
+2026-06-23T11:58:10.682864Z | Updated database: group new count = 1 (total collected = 17)
+2026-06-23T11:58:10.683035Z | 🧠 Batch #3: flushing 1 remaining listings after group complete
+2026-06-23T12:10:37.929365Z | [‎דירות בתל אביב ללא תיווך‎] Dynamically updated group label and name
+2026-06-23T12:10:37.929497Z | [‎דירות בתל אביב ללא תיווך‎] 🔍 Starting scroll & collect (scroll_count=10)
+2026-06-23T12:10:46.286363Z | [‎דירות בתל אביב ללא תיווך‎] Scroll 1/10: 6 posts collected
+2026-06-23T12:10:52.636901Z | [‎דירות בתל אביב ללא תיווך‎] Early termination: encountered 10 successive posts already seen in DB
+2026-06-23T12:10:52.636983Z | [‎דירות בתל אביב ללא תיווך‎] Collected 10 raw posts, parsing...
+2026-06-23T12:10:52.671182Z | [‎דירות בתל אביב ללא תיווך‎] ✅ Group scrape complete in 22.8s
+2026-06-23T12:10:52.672129Z | Updated database: group new count = 0 (total collected = 10)
+2026-06-23T12:11:47.614147Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Dynamically updated group label and name
+2026-06-23T12:11:47.614274Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] 🔍 Starting scroll & collect (scroll_count=10)
+2026-06-23T12:11:56.849786Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Scroll 1/10: 3 posts collected
+2026-06-23T12:12:07.247910Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Scroll 2/10: 8 posts collected
+2026-06-23T12:12:16.243961Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Scroll 3/10: 8 posts collected
+2026-06-23T12:12:28.741546Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Early termination: encountered 10 successive posts already seen in DB
+2026-06-23T12:12:28.741650Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Collected 10 raw posts, parsing...
+2026-06-23T12:12:28.770089Z | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] ✅ Group scrape complete in 50.1s
+2026-06-23T12:12:28.770739Z | Updated database: group new count = 0 (total collected = 10)

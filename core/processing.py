@@ -182,11 +182,11 @@ class ProcessingService:
                     if enriched.extracted_street:
                         actual_parts.append(enriched.extracted_street)
                     
-                    city_or_loc = enriched.extracted_location or enriched.listing.location
+                    city_or_loc = enriched.extracted_city or enriched.extracted_location or enriched.listing.location
                     if city_or_loc and city_or_loc not in actual_parts:
                         actual_parts.append(city_or_loc)
                     
-                    actual_loc = ", ".join(actual_parts) if actual_parts else (enriched.extracted_location or enriched.listing.location or "לא ידוע")
+                    actual_loc = ", ".join(actual_parts) if actual_parts else (enriched.extracted_city or enriched.extracted_location or enriched.listing.location or "לא ידוע")
  
                     # Determine match method
                     match_method = "attribute"

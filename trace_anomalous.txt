@@ -1,0 +1,318 @@
+2026-06-23T10:24:31.985778Z | apt_bot.scraper | [‎דירות בתל אביב ללא תיווך‎] Dynamically updated group label and name
+2026-06-23T10:24:31.985900Z | apt_bot.scraper | [‎דירות בתל אביב ללא תיווך‎] 🔍 Starting scroll & collect (scroll_count=10)
+2026-06-23T10:24:32.099065Z | apt_bot.scraper | Extracted post: Tomer Arad Ifergon
+דקה אחת
+ 
+·
+היי לכולם,
+שמי תומר...
+2026-06-23T10:24:32.274853Z | apt_bot.scraper | Skipping screenshot capturing for already seen listing (ID=258d7d6c)
+2026-06-23T10:24:32.274923Z | apt_bot.scraper | Extracted post: Ofek Arazi Israeli
+‏23 שעות
+ 
+·
+הדירה המושלמת שלנו...
+2026-06-23T10:24:34.995939Z | apt_bot.scraper | Parsed: ID=51137d2a, URL=[OK], Price=5000, Phone=052-8279003, Location=נווה אביבים, תל אביב, Posted=2026-06-23 13:24:34.995711
+2026-06-23T10:24:34.998304Z | apt_bot.scraper | Skipping screenshot capturing for cross-source duplicate listing (ID=51137d2a)
+2026-06-23T10:24:34.998361Z | apt_bot.scraper | Extracted post: הדס בר
+דקה אחת
+ 
+·
+לא מתיווך***
+להשכרה דירת 2 חדרי...
+2026-06-23T10:24:36.223859Z | apt_bot.scraper | Parsed: ID=0244f5a8, URL=[OK], Price=5000, Phone=None, Location=מעוז אביב, תל אביב, Posted=2026-06-23 13:23:36.172755
+2026-06-23T10:24:37.332279Z | apt_bot.scraper | Extracted post: Tomer Arad Ifergon
+‏1 דקות
+ 
+·
+היי לכולם,
+שמי תומר...
+2026-06-23T10:24:38.449201Z | apt_bot.scraper | Skipping screenshot capturing for already seen listing (ID=5d309220)
+2026-06-23T10:24:38.449280Z | apt_bot.scraper | Extracted post: משתתפ/ת אנונימי/ת
+‏1 שעות
+ 
+·
+תגידו מה נסגר????? 9...
+2026-06-23T10:24:39.534354Z | apt_bot.scraper | Skipping screenshot capturing for already seen listing (ID=fa44eabc)
+2026-06-23T10:24:39.534418Z | apt_bot.scraper | Extracted post: Guy Yaron
+לפני 1 ימים
+ 
+·
+מחפשים שותף שלישי בדירה ...
+2026-06-23T10:24:39.583320Z | apt_bot.scraper | [‎דירות בתל אביב ללא תיווך‎] Scroll 1/10: 4 posts collected
+2026-06-23T10:24:44.371283Z | apt_bot.scraper | Skipping screenshot capturing for already seen listing (ID=78198b53)
+2026-06-23T10:24:44.371347Z | apt_bot.scraper | Extracted post: Ziva Selda Razon
+‏1 שעות
+ 
+·
+להשכרה בלב שכונת למד ...
+2026-06-23T10:24:47.307249Z | apt_bot.scraper | Parsed: ID=92bec13d, URL=[OK], Price=8000, Phone=050-420-6019, Location=הצפון הישן, תל אביב, Posted=2026-06-23 13:11:47.257951
+2026-06-23T10:24:49.890078Z | apt_bot.scraper | Parsed: ID=51137d2a, URL=[OK], Price=5000, Phone=052-8279003, Location=נווה אביבים, תל אביב, Posted=2026-06-23 13:24:49.889851
+2026-06-23T10:24:49.893961Z | apt_bot.scraper | Skipping screenshot capturing for cross-source duplicate listing (ID=51137d2a)
+2026-06-23T10:24:49.894019Z | apt_bot.scraper | Extracted post: הדס בר
+דקה אחת
+ 
+·
+לא מתיווך***
+להשכרה דירת 2 חדרי...
+2026-06-23T10:24:50.036415Z | apt_bot.scraper | Parsed: ID=0244f5a8, URL=[OK], Price=5000, Phone=None, Location=מעוז אביב, תל אביב, Posted=2026-06-23 13:23:49.986248
+2026-06-23T10:24:51.242949Z | apt_bot.scraper | Extracted post: Tomer Arad Ifergon
+‏1 דקות
+ 
+·
+היי לכולם,
+שמי תומר...
+2026-06-23T10:24:51.406430Z | apt_bot.scraper | Skipping screenshot capturing for already seen listing (ID=5d309220)
+2026-06-23T10:24:51.406504Z | apt_bot.scraper | Extracted post: משתתף אנונימי ‏212‏
+כשחשבנו לקנות דירה גילינו פתאו...
+2026-06-23T10:24:51.521585Z | apt_bot.scraper | Skipping screenshot capturing for already seen listing (ID=5d309220)
+2026-06-23T10:24:51.521667Z | apt_bot.scraper | Extracted post: משתתף אנונימי ‏546‏
+מתווכים חזירים אני כבר חודש מפ...
+2026-06-23T10:24:51.658815Z | apt_bot.scraper | Skipping screenshot capturing for already seen listing (ID=fa44eabc)
+2026-06-23T10:24:51.658884Z | apt_bot.scraper | Extracted post: Guy Yaron
+לפני 1 ימים
+ 
+·
+מחפשים שותף שלישי בדירה ...
+2026-06-23T10:24:51.691476Z | apt_bot.scraper | [‎דירות בתל אביב ללא תיווך‎] Scroll 2/10: 9 posts collected
+2026-06-23T10:24:52.111455Z | apt_bot.scraper | Extracted post: חגי קופיט - תיווך נדל״ן
+‏13 דקות
+ 
+·
+להשכרה מתיווך...
+2026-06-23T10:24:53.204398Z | apt_bot.scraper | Skipping screenshot capturing for already seen listing (ID=aab0c712)
+2026-06-23T10:24:53.204463Z | apt_bot.scraper | Extracted post: Idan Levinkron
+‏34 דקות
+ 
+·
++4
+Idan Levinkron
+11 ב...
+2026-06-23T10:24:55.385711Z | apt_bot.scraper | Skipping screenshot capturing for already seen listing (ID=581930f7)
+2026-06-23T10:24:55.385781Z | apt_bot.scraper | Extracted post: Idan Levinkron
+‏35 דקות
+ 
+·
++16
+Idan Levinkron
+מומ...
+2026-06-23T10:24:57.027854Z | apt_bot.scraper | Skipping screenshot capturing for already seen listing (ID=214d932d)
+2026-06-23T10:24:57.027940Z | apt_bot.scraper | Extracted post: Piklas Alex
+‏39 דקות
+ 
+·
+English Version bellow.
+ ...
+2026-06-23T10:24:58.758200Z | apt_bot.scraper | Parsed: ID=666eb209, URL=[OK], Price=None, Phone=0523057250, Location=הצפון הישן, תל אביב, Posted=2026-06-23 13:20:58.661678
+2026-06-23T10:25:00.113410Z | apt_bot.scraper | Extracted post: עומר אליעז
+‏4 דקות
+ 
+·
+מפנה חדר בדירת 3 שותפים
+רחו...
+2026-06-23T10:25:00.300252Z | apt_bot.scraper | Skipping screenshot capturing for already seen listing (ID=9e177615)
+2026-06-23T10:25:00.300326Z | apt_bot.scraper | Extracted post: עוז קובי
+‏1 שעות
+ 
+·
+שלום לכולם,
+מעוניין לרכוש דיר...
+2026-06-23T10:25:01.449890Z | apt_bot.scraper | Skipping screenshot capturing for already seen listing (ID=91b6e978)
+2026-06-23T10:25:01.449970Z | apt_bot.scraper | Extracted post: Ron Gol
+‏1 שעות
+ 
+·
+בנסיבות משמחות מפנה את הדירה ה...
+2026-06-23T10:25:03.713963Z | apt_bot.scraper | Skipping screenshot capturing for already seen listing (ID=78198b53)
+2026-06-23T10:25:03.714037Z | apt_bot.scraper | Extracted post: Ziva Selda Razon
+‏1 שעות
+ 
+·
+להשכרה בלב שכונת למד ...
+2026-06-23T10:25:04.034578Z | apt_bot.scraper | Skipping screenshot capturing for already seen listing (ID=f170f199)
+2026-06-23T10:25:04.034669Z | apt_bot.scraper | Extracted post: Shmulik Leshem
+ 
+·
+מעקב
+‏23 דקות
+ 
+·
+Shmulik Leshe...
+2026-06-23T10:25:04.035424Z | apt_bot.scraper | Parsed: ID=92bec13d, URL=[OK], Price=8000, Phone=050-420-6019, Location=הצפון הישן, תל אביב, Posted=2026-06-23 13:12:03.810177
+2026-06-23T10:25:05.119049Z | apt_bot.scraper | Skipping screenshot capturing for already seen listing (ID=8cf9497b)
+2026-06-23T10:25:05.119128Z | apt_bot.scraper | Extracted post: ThoughtfulReindeer7883
+לפני 1 ימים
+ 
+·
+להשכרה דירת...
+2026-06-23T10:25:05.127966Z | apt_bot.scraper | [‎דירות בתל אביב ללא תיווך‎] Scroll 3/10: 14 posts collected
+2026-06-23T10:25:11.861712Z | apt_bot.scraper | Extracted post: חגי קופיט - תיווך נדל״ן
+‏13 דקות
+ 
+·
+להשכרה מתיווך...
+2026-06-23T10:25:12.019246Z | apt_bot.scraper | Skipping screenshot capturing for already seen listing (ID=aab0c712)
+2026-06-23T10:25:12.019311Z | apt_bot.scraper | Extracted post: Idan Levinkron
+‏35 דקות
+ 
+·
++4
+Idan Levinkron
+11 ב...
+2026-06-23T10:25:12.184657Z | apt_bot.scraper | Skipping screenshot capturing for already seen listing (ID=581930f7)
+2026-06-23T10:25:12.184736Z | apt_bot.scraper | Extracted post: Idan Levinkron
+‏35 דקות
+ 
+·
++16
+Idan Levinkron
+מומ...
+2026-06-23T10:25:12.395049Z | apt_bot.scraper | Skipping screenshot capturing for already seen listing (ID=214d932d)
+2026-06-23T10:25:12.395124Z | apt_bot.scraper | Extracted post: Piklas Alex
+‏39 דקות
+ 
+·
+English Version bellow.
+ ...
+2026-06-23T10:25:14.025973Z | apt_bot.scraper | Parsed: ID=666eb209, URL=[OK], Price=None, Phone=0523057250, Location=הצפון הישן, תל אביב, Posted=2026-06-23 13:21:13.980423
+2026-06-23T10:25:15.450349Z | apt_bot.scraper | Extracted post: עומר אליעז
+‏4 דקות
+ 
+·
+מפנה חדר בדירת 3 שותפים
+רחו...
+2026-06-23T10:25:15.652708Z | apt_bot.scraper | Skipping screenshot capturing for already seen listing (ID=9e177615)
+2026-06-23T10:25:15.652780Z | apt_bot.scraper | Extracted post: עוז קובי
+‏1 שעות
+ 
+·
+שלום לכולם,
+מעוניין לרכוש דיר...
+2026-06-23T10:25:15.843485Z | apt_bot.scraper | Skipping screenshot capturing for already seen listing (ID=91b6e978)
+2026-06-23T10:25:15.843550Z | apt_bot.scraper | Extracted post: Ron Gol
+‏1 שעות
+ 
+·
+בנסיבות משמחות מפנה את הדירה ה...
+2026-06-23T10:25:16.040076Z | apt_bot.scraper | Skipping screenshot capturing for already seen listing (ID=f170f199)
+2026-06-23T10:25:16.040139Z | apt_bot.scraper | Extracted post: Shmulik Leshem
+ 
+·
+מעקב
+‏23 דקות
+ 
+·
+Shmulik Leshe...
+2026-06-23T10:25:16.195973Z | apt_bot.scraper | Skipping screenshot capturing for already seen listing (ID=8cf9497b)
+2026-06-23T10:25:16.196044Z | apt_bot.scraper | Extracted post: ThoughtfulReindeer7883
+לפני 1 ימים
+ 
+·
+להשכרה דירת...
+2026-06-23T10:25:16.222451Z | apt_bot.scraper | [‎דירות בתל אביב ללא תיווך‎] Scroll 4/10: 19 posts collected
+2026-06-23T10:25:19.473011Z | apt_bot.scraper | Parsed: ID=5023757a, URL=[OK], Price=5000, Phone=None, Location=מעוז אביב, תל אביב, Posted=2026-06-23 13:24:19.417168
+2026-06-23T10:25:20.853047Z | apt_bot.scraper | [‎דירות בתל אביב ללא תיווך‎] Scroll 5/10: 19 posts collected
+2026-06-23T10:25:24.900204Z | apt_bot.scraper | [‎דירות בתל אביב ללא תיווך‎] Scroll 6/10: 19 posts collected
+2026-06-23T10:25:26.715266Z | apt_bot.scraper | Extracted post: Tomer Arad Ifergon
+‏1 דקות
+ 
+·
+היי לכולם,
+שמי תומר...
+2026-06-23T10:25:26.843603Z | apt_bot.scraper | Parsed: ID=92bec13d, URL=[OK], Price=8000, Phone=050-420-6019, Location=הצפון הישן, תל אביב, Posted=2026-06-23 13:11:26.793048
+2026-06-23T10:25:29.357403Z | apt_bot.scraper | Parsed: ID=51137d2a, URL=[OK], Price=5000, Phone=052-8279003, Location=נווה אביבים, תל אביב, Posted=2026-06-23 13:24:29.308460
+2026-06-23T10:25:29.359700Z | apt_bot.scraper | Skipping screenshot capturing for cross-source duplicate listing (ID=51137d2a)
+2026-06-23T10:25:29.359781Z | apt_bot.scraper | Extracted post: הדס בר
+‏1 דקות
+ 
+·
+לא מתיווך***
+להשכרה דירת 2 חדרי...
+2026-06-23T10:25:29.468498Z | apt_bot.scraper | Parsed: ID=0244f5a8, URL=[OK], Price=5000, Phone=None, Location=מעוז אביב, תל אביב, Posted=2026-06-23 13:23:29.419425
+2026-06-23T10:25:31.065305Z | apt_bot.scraper | Extracted post: Tomer Arad Ifergon
+‏2 דקות
+ 
+·
+היי לכולם,
+שמי תומר...
+2026-06-23T10:25:31.166559Z | apt_bot.scraper | Skipping screenshot capturing for already seen listing (ID=5d309220)
+2026-06-23T10:25:31.166656Z | apt_bot.scraper | Extracted post: משתתף אנונימי ‏546‏
+מתווכים חזירים אני כבר חודש מפ...
+2026-06-23T10:25:31.282956Z | apt_bot.scraper | Parsed: ID=666eb209, URL=[OK], Price=None, Phone=0523057250, Location=הצפון הישן, תל אביב, Posted=2026-06-23 13:20:31.232538
+2026-06-23T10:25:32.222019Z | apt_bot.scraper | Extracted post: חגי קופיט - תיווך נדל״ן
+‏14 דקות
+ 
+·
+להשכרה מתיווך...
+2026-06-23T10:25:32.712298Z | apt_bot.scraper | Extracted post: עומר אליעז
+‏5 דקות
+ 
+·
+מפנה חדר בדירת 3 שותפים
+רחו...
+2026-06-23T10:25:32.884866Z | apt_bot.scraper | Skipping screenshot capturing for already seen listing (ID=9e177615)
+2026-06-23T10:25:32.884963Z | apt_bot.scraper | Extracted post: עוז קובי
+‏1 שעות
+ 
+·
+שלום לכולם,
+מעוניין לרכוש דיר...
+2026-06-23T10:25:32.929844Z | apt_bot.scraper | [‎דירות בתל אביב ללא תיווך‎] Scroll 7/10: 24 posts collected
+2026-06-23T10:25:39.473654Z | apt_bot.scraper | [‎דירות בתל אביב ללא תיווך‎] Scroll 8/10: 24 posts collected
+2026-06-23T10:25:46.536007Z | apt_bot.scraper | [‎דירות בתל אביב ללא תיווך‎] Scroll 9/10: 24 posts collected
+2026-06-23T10:25:53.269829Z | apt_bot.scraper | [‎דירות בתל אביב ללא תיווך‎] Scroll 10/10: 24 posts collected
+2026-06-23T10:25:59.493083Z | apt_bot.scraper | Skipping screenshot capturing for already seen listing (ID=2e9392c6)
+2026-06-23T10:25:59.493159Z | apt_bot.scraper | Extracted post: Yuval Noy
+‏53 דקות
+ 
+·
+ להשכרה - דירת 3 חדרים ענקי...
+2026-06-23T10:26:01.489070Z | apt_bot.scraper | [‎דירות בתל אביב ללא תיווך‎] Collected 24 raw posts, parsing...
+2026-06-23T10:26:01.489370Z | apt_bot.scraper | Parsed: ID=51137d2a, URL=[OK], Price=5000, Phone=052-8279003, Location=נווה אביבים, תל אביב, Posted=2026-06-23 13:26:01.489263
+2026-06-23T10:26:01.493518Z | apt_bot.scraper | Parsed: ID=0244f5a8, URL=[OK], Price=5000, Phone=None, Location=מעוז אביב, תל אביב, Posted=2026-06-23 13:23:36.172755
+2026-06-23T10:26:01.495504Z | apt_bot.scraper | Parsed: ID=5d309220, URL=[OK], Price=None, Phone=None, Location=תל אביב, Posted=2026-06-23 12:24:38.395196
+2026-06-23T10:26:01.496851Z | apt_bot.scraper | Parsed: ID=fa44eabc, URL=[OK], Price=2690, Phone=None, Location=בבלי, תל אביב, Posted=2026-06-22 13:24:39.453606
+2026-06-23T10:26:01.496964Z | apt_bot.scraper | [‎דירות בתל אביב ללא תיווך‎] Skipping old listing (age: 1d): Guy Yaron: Guy Yaron...
+2026-06-23T10:26:01.497213Z | apt_bot.scraper | Parsed: ID=51137d2a, URL=[OK], Price=5000, Phone=052-8279003, Location=נווה אביבים, תל אביב, Posted=2026-06-23 13:26:01.497103
+2026-06-23T10:26:01.498256Z | apt_bot.scraper | Parsed: ID=0244f5a8, URL=[OK], Price=5000, Phone=None, Location=מעוז אביב, תל אביב, Posted=2026-06-23 13:23:49.986248
+2026-06-23T10:26:01.499001Z | apt_bot.scraper | Parsed: ID=5d309220, URL=[OK], Price=None, Phone=None, Location=, Posted=2026-06-23 12:24:51.314364
+2026-06-23T10:26:01.499575Z | apt_bot.scraper | Parsed: ID=5d309220, URL=[OK], Price=None, Phone=None, Location=, Posted=2026-06-23 12:36:51.485682
+2026-06-23T10:26:01.500859Z | apt_bot.scraper | Parsed: ID=fa44eabc, URL=[OK], Price=2690, Phone=None, Location=בבלי, תל אביב, Posted=2026-06-22 13:24:51.589816
+2026-06-23T10:26:01.500969Z | apt_bot.scraper | [‎דירות בתל אביב ללא תיווך‎] Skipping old listing (age: 1d): Guy Yaron: Guy Yaron...
+2026-06-23T10:26:01.501215Z | apt_bot.scraper | Parsed: ID=666eb209, URL=[OK], Price=None, Phone=0523057250, Location=הצפון הישן, תל אביב, Posted=2026-06-23 13:20:58.661678
+2026-06-23T10:26:01.504261Z | apt_bot.scraper | Parsed: ID=9e177615, URL=[OK], Price=1700000, Phone=0528871488, Location=פלורנטין, תל אביב, Posted=2026-06-23 12:25:00.200525
+2026-06-23T10:26:01.504889Z | apt_bot.scraper | Parsed: ID=91b6e978, URL=[OK], Price=3600, Phone=None, Location=לב העיר, תל אביב, Posted=2026-06-23 12:25:01.347956
+2026-06-23T10:26:01.505593Z | apt_bot.scraper | Parsed: ID=f170f199, URL=[OK], Price=None, Phone=052-8342202, Location=נווה אביבים, תל אביב, Posted=2026-06-23 13:02:03.771005
+2026-06-23T10:26:01.506198Z | apt_bot.scraper | Parsed: ID=8cf9497b, URL=[OK], Price=None, Phone=050-213-5731, Location=הצפון הישן, תל אביב, Posted=2026-06-22 13:25:05.030222
+2026-06-23T10:26:01.506297Z | apt_bot.scraper | [‎דירות בתל אביב ללא תיווך‎] Skipping old listing (age: 1d): ThoughtfulReindeer7883: ThoughtfulReinde...
+2026-06-23T10:26:01.506535Z | apt_bot.scraper | Parsed: ID=666eb209, URL=[OK], Price=None, Phone=0523057250, Location=הצפון הישן, תל אביב, Posted=2026-06-23 13:21:13.980423
+2026-06-23T10:26:01.507245Z | apt_bot.scraper | Parsed: ID=9e177615, URL=[OK], Price=1700000, Phone=0528871488, Location=פלורנטין, תל אביב, Posted=2026-06-23 12:25:15.556144
+2026-06-23T10:26:01.507604Z | apt_bot.scraper | Parsed: ID=91b6e978, URL=[OK], Price=3600, Phone=None, Location=לב העיר, תל אביב, Posted=2026-06-23 12:25:15.731224
+2026-06-23T10:26:01.508338Z | apt_bot.scraper | Parsed: ID=f170f199, URL=[OK], Price=None, Phone=052-8342202, Location=נווה אביבים, תל אביב, Posted=2026-06-23 13:02:15.965045
+2026-06-23T10:26:01.508959Z | apt_bot.scraper | Parsed: ID=8cf9497b, URL=[OK], Price=None, Phone=050-213-5731, Location=הצפון הישן, תל אביב, Posted=2026-06-22 13:25:16.116771
+2026-06-23T10:26:01.509075Z | apt_bot.scraper | [‎דירות בתל אביב ללא תיווך‎] Skipping old listing (age: 1d): ThoughtfulReindeer7883: ThoughtfulReinde...
+2026-06-23T10:26:01.509197Z | apt_bot.scraper | Parsed: ID=51137d2a, URL=[OK], Price=5000, Phone=052-8279003, Location=נווה אביבים, תל אביב, Posted=2026-06-23 13:24:29.308460
+2026-06-23T10:26:01.510241Z | apt_bot.scraper | Parsed: ID=0244f5a8, URL=[OK], Price=5000, Phone=None, Location=מעוז אביב, תל אביב, Posted=2026-06-23 13:23:29.419425
+2026-06-23T10:26:01.511039Z | apt_bot.scraper | Parsed: ID=5d309220, URL=[OK], Price=None, Phone=None, Location=, Posted=2026-06-23 12:36:31.131819
+2026-06-23T10:26:01.511602Z | apt_bot.scraper | Parsed: ID=666eb209, URL=[OK], Price=None, Phone=0523057250, Location=הצפון הישן, תל אביב, Posted=2026-06-23 13:20:31.232538
+2026-06-23T10:26:01.512373Z | apt_bot.scraper | Parsed: ID=9e177615, URL=[OK], Price=1700000, Phone=0528871488, Location=פלורנטין, תל אביב, Posted=2026-06-23 12:25:32.792629
+2026-06-23T10:26:01.585212Z | apt_bot.scraper | [‎דירות בתל אביב ללא תיווך‎] ✅ Group scrape complete in 101.1s
+2026-06-23T10:26:01.585907Z | apt_bot.app | Updated database: group new count = 2 (total collected = 20)
+2026-06-23T10:26:01.586089Z | apt_bot.app | 🧠 Batch #5: flushing 2 remaining listings after group complete
+2026-06-23T10:26:10.854311Z | apt_bot.scraper | Parsed: ID=5023757a, URL=[OK], Price=5000, Phone=None, Location=מעוז אביב, תל אביב, Posted=2026-06-23 13:24:10.752431
+2026-06-23T10:26:13.264782Z | apt_bot.scraper | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Dynamically updated group label and name
+2026-06-23T10:26:13.264945Z | apt_bot.scraper | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] 🔍 Starting scroll & collect (scroll_count=10)
+2026-06-23T10:26:20.678412Z | apt_bot.scraper | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Scroll 1/10: 4 posts collected
+2026-06-23T10:26:36.933712Z | apt_bot.scraper | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Scroll 2/10: 7 posts collected
+2026-06-23T10:26:44.216848Z | apt_bot.scraper | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Scroll 3/10: 7 posts collected
+2026-06-23T10:26:54.735922Z | apt_bot.scraper | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Scroll 4/10: 7 posts collected
+2026-06-23T10:27:08.730774Z | apt_bot.scraper | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Scroll 5/10: 10 posts collected
+2026-06-23T10:27:22.572379Z | apt_bot.scraper | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Scroll 6/10: 16 posts collected
+2026-06-23T10:27:26.960933Z | apt_bot.scraper | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Scroll 7/10: 16 posts collected
+2026-06-23T10:27:36.823809Z | apt_bot.scraper | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Scroll 8/10: 16 posts collected
+2026-06-23T10:27:47.207861Z | apt_bot.scraper | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Scroll 9/10: 16 posts collected
+2026-06-23T10:27:55.131947Z | apt_bot.scraper | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Scroll 10/10: 16 posts collected
+2026-06-23T10:27:59.046775Z | apt_bot.scraper | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Collected 16 raw posts, parsing...
+2026-06-23T10:27:59.077659Z | apt_bot.scraper | [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] ✅ Group scrape complete in 117.5s
+2026-06-23T10:27:59.078650Z | apt_bot.app | Updated database: group new count = 1 (total collected = 16)
+2026-06-23T10:27:59.078821Z | apt_bot.app | 🧠 Batch #7: flushing 1 remaining listings after group complete

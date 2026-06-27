@@ -66,7 +66,7 @@ class ListingFormatter:
             lines.append(f"⏳ *סאבלט:* {duration_val} \\| תאריכים: {dates_val}")
         
         # Location
-        location = enriched.extracted_neighborhood or enriched.extracted_location
+        location = enriched.extracted_neighborhood or enriched.extracted_city or enriched.extracted_location
         street = enriched.extracted_street
         
         if location:
@@ -214,7 +214,7 @@ class ListingFormatter:
             lines.append(f"⏳ *סאבלט:* {duration_val} \\| תאריכים: {dates_val}")
         
         # Location
-        location = enriched.extracted_neighborhood or enriched.extracted_location
+        location = enriched.extracted_neighborhood or enriched.extracted_city or enriched.extracted_location
         street = enriched.extracted_street
         
         if location:
@@ -463,8 +463,8 @@ class ListingFormatter:
             parts.append(enriched.extracted_street)
         if enriched.extracted_neighborhood:
             parts.append(enriched.extracted_neighborhood)
-        # Add city from extracted_location (often "תל אביב" etc.)
-        city = enriched.extracted_location or ""
+        # Add city from extracted_city or extracted_location (often "תל אביב" etc.)
+        city = enriched.extracted_city or enriched.extracted_location or ""
         if city and city not in parts:
             parts.append(city)
         

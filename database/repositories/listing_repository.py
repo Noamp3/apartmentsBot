@@ -375,9 +375,9 @@ class ListingRepository:
             """
             INSERT OR REPLACE INTO enriched_listings 
             (listing_id, source, url, title, description, location, raw_text, images, screenshots, phone,
-             extracted_price, extracted_bedrooms, extracted_size, extracted_location, extracted_neighborhood, extracted_street,
+             extracted_price, extracted_bedrooms, extracted_size, extracted_location, extracted_neighborhood, extracted_street, extracted_city,
              has_broker_fee, roomies, is_sublet, sublet_duration, sublet_dates, attributes, area_matches, bordering_areas, posted_at, scraped_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 enriched.listing.id,
@@ -396,6 +396,7 @@ class ListingRepository:
                 enriched.extracted_location,
                 enriched.extracted_neighborhood,
                 enriched.extracted_street,
+                enriched.extracted_city,
                 enriched.has_broker_fee,
                 enriched.roomies,
                 enriched.is_sublet,
@@ -502,6 +503,7 @@ class ListingRepository:
             extracted_location=row["extracted_location"] or "",
             extracted_neighborhood=row["extracted_neighborhood"] or "",
             extracted_street=row["extracted_street"] or "" if "extracted_street" in row.keys() else "",
+            extracted_city=row["extracted_city"] or "" if "extracted_city" in row.keys() else "",
             has_broker_fee=bool(row["has_broker_fee"]),
             roomies=bool(row["roomies"]) if "roomies" in row.keys() else False,
             is_sublet=bool(row["is_sublet"]) if "is_sublet" in row.keys() else False,

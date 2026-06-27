@@ -65,6 +65,7 @@ CREATE TABLE IF NOT EXISTS enriched_listings (
     extracted_location TEXT,
     extracted_neighborhood TEXT,
     extracted_street TEXT,
+    extracted_city TEXT,
     has_broker_fee BOOLEAN DEFAULT FALSE,
     roomies BOOLEAN DEFAULT FALSE,
     is_sublet BOOLEAN DEFAULT FALSE,
@@ -208,6 +209,35 @@ class DatabaseManager:
         await self._connection.executescript(SCHEMA)
         await self._connection.commit()
         
+        # Safe migration: Split existing active comma-separated AREA rules into individual rules
+        try:
+            cursor = await self._connection.execute(
+                "SELECT id, user_id, rule_type, value, original_text, created_at FROM search_rules WHERE is_active = 1 AND rule_type = 'area' AND value LIKE '%,%'"
+            )
+            rows = await cursor.fetchall()
+            for row in rows:
+                rule_id, user_id, rule_type, value, original_text, created_at = row
+                parts = [p.strip() for p in value.split(",") if p.strip()]
+                if len(parts) > 1:
+                    # Deactivate the old combined rule
+                    await self._connection.execute(
+                        "UPDATE search_rules SET is_active = 0 WHERE id = ?", (rule_id,)
+                    )
+                    # Insert new rules for each part
+                    for part in parts:
+                        await self._connection.execute(
+                            """
+                            INSERT INTO search_rules (user_id, rule_type, value, original_text, is_active, created_at)
+                            VALUES (?, 'area', ?, ?, 1, ?)
+                            """,
+                            (user_id, part, part, created_at)
+                        )
+            await self._connection.commit()
+        except Exception as e:
+            from utils.logger import Loggers
+            Loggers.db().error(f"Failed to split existing comma-separated AREA rules: {e}")
+
+        
         # Safe migration: Add 'persona' column if it doesn't exist
         try:
             await self._connection.execute("ALTER TABLE users ADD COLUMN persona TEXT DEFAULT 'barakush'")
@@ -302,6 +332,13 @@ class DatabaseManager:
         # Safe migration: Add 'phone' column to enriched_listings if it doesn't exist
         try:
             await self._connection.execute("ALTER TABLE enriched_listings ADD COLUMN phone TEXT DEFAULT NULL")
+            await self._connection.commit()
+        except aiosqlite.OperationalError:
+            pass
+            
+        # Safe migration: Add 'extracted_city' column to enriched_listings if it doesn't exist
+        try:
+            await self._connection.execute("ALTER TABLE enriched_listings ADD COLUMN extracted_city TEXT DEFAULT NULL")
             await self._connection.commit()
         except aiosqlite.OperationalError:
             pass

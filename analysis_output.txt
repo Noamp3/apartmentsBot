@@ -1,0 +1,1128 @@
+Total cycles found: 27
+
+=================== CYCLE -5 ===================
+Tag: [2065942027026008]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [282971075172305]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [s://www.facebook.com/share/g/1ED4VsGsWb/]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [s://www.facebook.com/share/g/1D82J29zAc/]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [785935868134249]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [35819517694]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [457465901082882]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  Scraper complete details: [457465901082882] ✅ Group scrape complete in 61.2s
+  DB Update: new = 0, total = 0
+
+Tag: [442556049185912]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  Scraper complete details: [442556049185912] ✅ Group scrape complete in 66.4s
+  DB Update: new = 0, total = 0
+
+Tag: [s://www.facebook.com/share/g/18m6GA3j8x/]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [s://www.facebook.com/share/g/1BbBDG8VcN/]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [s://www.facebook.com/share/g/1axQJr335E/]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [s://www.facebook.com/share/g/1EkuLgWx6A/]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [s://www.facebook.com/share/g/1Q3cdhSSxE/]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [s://www.facebook.com/share/g/18Ra9Fs9C7/]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [s://www.facebook.com/share/g/196mQxH7dg/]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [534654323319632]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [101875683484689]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [‎דירות מפה לאוזן בתל אביב‎]
+  Started: True
+  Last Scroll Log: [‎דירות מפה לאוזן בתל אביב‎] Scroll 4/10: 9 posts collected
+  Early Terminated: True
+  Scraper complete details: [‎דירות מפה לאוזן בתל אביב‎] ✅ Group scrape complete in 69.4s
+  DB Update: new = 0, total = 10
+
+Tag: [‎דירות מציאה מפייס לאוזן בתל אביב המאגר המלא‎]
+  Started: True
+  Last Scroll Log: [‎דירות מציאה מפייס לאוזן בתל אביב המאגר המלא‎] Scroll 3/10: 8 posts collected
+  Early Terminated: True
+  Scraper complete details: [‎דירות מציאה מפייס לאוזן בתל אביב המאגר המלא‎] ✅ Group scrape complete in 42.8s
+  DB Update: new = 0, total = 7
+
+Tag: [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎]
+  Started: True
+  Last Scroll Log: [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Scroll 10/10: 18 posts collected
+  Early Terminated: False
+  Scraper complete details: [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] ✅ Group scrape complete in 110.0s
+  DB Update: new = 2, total = 18
+
+Tag: [‎דירות להשכרה בת״א לב העיר צפון ישן ומשרדים‎]
+  Started: True
+  Last Scroll Log: [‎דירות להשכרה בת״א לב העיר צפון ישן ומשרדים‎] Scroll 4/10: 9 posts collected
+  Early Terminated: True
+  Scraper complete details: [‎דירות להשכרה בת״א לב העיר צפון ישן ומשרדים‎] ✅ Group scrape complete in 49.3s
+  DB Update: new = 0, total = 13
+
+Tag: [‎דירות מפה לאוזן בת"א‎]
+  Started: True
+  Last Scroll Log: [‎דירות מפה לאוזן בת"א‎] Scroll 1/10: 4 posts collected
+  Early Terminated: True
+  Scraper complete details: [‎דירות מפה לאוזן בת"א‎] ✅ Group scrape complete in 25.1s
+  DB Update: new = 0, total = 10
+
+Tag: [‎דירות להשכרה צפון תל אביב‎]
+  Started: True
+  Last Scroll Log: [‎דירות להשכרה צפון תל אביב‎] Scroll 2/10: 9 posts collected
+  Early Terminated: True
+  Scraper complete details: [‎דירות להשכרה צפון תל אביב‎] ✅ Group scrape complete in 39.4s
+  DB Update: new = 0, total = 11
+
+Tag: [‎דירות להשכרה בתל אביב‎]
+  Started: True
+  Last Scroll Log: [‎דירות להשכרה בתל אביב‎] Scroll 2/10: 8 posts collected
+  Early Terminated: True
+  Scraper complete details: [‎דירות להשכרה בתל אביב‎] ✅ Group scrape complete in 27.6s
+  DB Update: new = 0, total = 10
+
+Tag: [‎דירות צפון ישן מרכז לב תל אביב זה כאן‎]
+  Started: True
+  Last Scroll Log: [‎דירות צפון ישן מרכז לב תל אביב זה כאן‎] Scroll 7/10: 28 posts collected
+  Early Terminated: True
+  Scraper complete details: [‎דירות צפון ישן מרכז לב תל אביב זה כאן‎] ✅ Group scrape complete in 83.9s
+  DB Update: new = 0, total = 31
+
+Tag: [‎דירות בצפון הישן לב תל אביב‎]
+  Started: True
+  Last Scroll Log: [‎דירות בצפון הישן לב תל אביב‎] Scroll 1/10: 4 posts collected
+  Early Terminated: True
+  Scraper complete details: [‎דירות בצפון הישן לב תל אביב‎] ✅ Group scrape complete in 23.1s
+  DB Update: new = 0, total = 10
+
+Tag: [‎דירות שוות בפלורנטין ללא תיווך‎]
+  Started: True
+  Last Scroll Log: [‎דירות שוות בפלורנטין ללא תיווך‎] Scroll 4/10: 13 posts collected
+  Early Terminated: True
+  Scraper complete details: [‎דירות שוות בפלורנטין ללא תיווך‎] ✅ Group scrape complete in 48.3s
+  DB Update: new = 1, total = 11
+
+Tag: [‎דירות להשכרה בפלורנטין‎]
+  Started: True
+  Last Scroll Log: [‎דירות להשכרה בפלורנטין‎] Scroll 2/10: 6 posts collected
+  Early Terminated: True
+  Scraper complete details: [‎דירות להשכרה בפלורנטין‎] ✅ Group scrape complete in 32.4s
+  DB Update: new = 0, total = 1
+
+Tag: [‎דירות להשכרה בתל אביב שכונת נווה שאנן. שפירא ושכונת התקוה‎]
+  Started: True
+  Last Scroll Log: [‎דירות להשכרה בתל אביב שכונת נווה שאנן. שפירא ושכונת התקוה‎] Scroll 3/10: 9 posts collected
+  Early Terminated: True
+  Scraper complete details: [‎דירות להשכרה בתל אביב שכונת נווה שאנן. שפירא ושכונת התקוה‎] ✅ Group scrape complete in 48.8s
+  DB Update: new = 0, total = 10
+
+Tag: [‎דירות בפלורנטין בכרם נווה צדק  לב העיר והסביבה‎]
+  Started: True
+  Last Scroll Log: [‎דירות בפלורנטין בכרם נווה צדק  לב העיר והסביבה‎] Scroll 7/10: 36 posts collected
+  Early Terminated: True
+  Scraper complete details: [‎דירות בפלורנטין בכרם נווה צדק  לב העיר והסביבה‎] ✅ Group scrape complete in 127.0s
+  DB Update: new = 0, total = 18
+
+Tag: [‎דירות להשכרה בתל אביב ללא תיווך‎]
+  Started: True
+  Last Scroll Log: [‎דירות להשכרה בתל אביב ללא תיווך‎] Scroll 2/10: 9 posts collected
+  Early Terminated: True
+  Scraper complete details: [‎דירות להשכרה בתל אביב ללא תיווך‎] ✅ Group scrape complete in 36.3s
+  DB Update: new = 0, total = 10
+
+Tag: [‎דירות להשכרה בכרם התימנים , נווה צדק , פלורנטין , יד אליהו‎]
+  Started: True
+  Last Scroll Log: [‎דירות להשכרה בכרם התימנים , נווה צדק , פלורנטין , יד אליהו‎] Scroll 3/10: 6 posts collected
+  Early Terminated: True
+  Scraper complete details: [‎דירות להשכרה בכרם התימנים , נווה צדק , פלורנטין , יד אליהו‎] ✅ Group scrape complete in 36.0s
+  DB Update: new = 0, total = 10
+
+Tag: [feed]
+  Started: False
+  Last Scroll Log: [feed] Scroll 5/10: 9 posts collected
+  Early Terminated: True
+  DB Update: NOT FOUND
+
+
+=================== CYCLE -4 ===================
+Tag: [s://www.facebook.com/share/g/1axQJr335E/]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [101875683484689]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [35819517694]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [457465901082882]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [442556049185912]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [2065942027026008]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [s://www.facebook.com/share/g/18m6GA3j8x/]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [s://www.facebook.com/share/g/1ED4VsGsWb/]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [s://www.facebook.com/share/g/1BbBDG8VcN/]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [s://www.facebook.com/share/g/1EkuLgWx6A/]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [s://www.facebook.com/share/g/1Q3cdhSSxE/]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [s://www.facebook.com/share/g/18Ra9Fs9C7/]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [s://www.facebook.com/share/g/1D82J29zAc/]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [s://www.facebook.com/share/g/196mQxH7dg/]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [785935868134249]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [534654323319632]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [282971075172305]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [‎דירות שוות בפלורנטין ללא תיווך‎]
+  Started: True
+  Last Scroll Log: [‎דירות שוות בפלורנטין ללא תיווך‎] Scroll 4/10: 12 posts collected
+  Early Terminated: True
+  Scraper complete details: [‎דירות שוות בפלורנטין ללא תיווך‎] ✅ Group scrape complete in 64.5s
+  DB Update: new = 2, total = 11
+
+Tag: [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎]
+  Started: True
+  Last Scroll Log: [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Scroll 2/10: 8 posts collected
+  Early Terminated: True
+  Scraper complete details: [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] ✅ Group scrape complete in 48.8s
+  DB Update: new = 0, total = 10
+
+Tag: [‎דירות מפה לאוזן בתל אביב‎]
+  Started: True
+  Last Scroll Log: [‎דירות מפה לאוזן בתל אביב‎] Scroll 5/10: 17 posts collected
+  Early Terminated: True
+  Scraper complete details: [‎דירות מפה לאוזן בתל אביב‎] ✅ Group scrape complete in 101.8s
+  DB Update: new = 3, total = 21
+
+Tag: [‎דירות מפה לאוזן בת"א‎]
+  Started: True
+  Last Scroll Log: [‎דירות מפה לאוזן בת"א‎] Scroll 3/10: 12 posts collected
+  Early Terminated: True
+  Scraper complete details: [‎דירות מפה לאוזן בת"א‎] ✅ Group scrape complete in 43.7s
+  DB Update: new = 2, total = 16
+
+Tag: [‎דירות בתל אביב ללא תיווך‎]
+  Started: True
+  Last Scroll Log: [‎דירות בתל אביב ללא תיווך‎] Scroll 9/10: 21 posts collected
+  Early Terminated: True
+  Scraper complete details: [‎דירות בתל אביב ללא תיווך‎] ✅ Group scrape complete in 134.8s
+  DB Update: new = 3, total = 25
+
+Tag: [‎דירות בין הומונים בת"א‎]
+  Started: True
+  Last Scroll Log: [‎דירות בין הומונים בת"א‎] Scroll 3/10: 9 posts collected
+  Early Terminated: True
+  Scraper complete details: [‎דירות בין הומונים בת"א‎] ✅ Group scrape complete in 32.6s
+  DB Update: new = 0, total = 3
+
+Tag: [‎דירות מציאה מפייס לאוזן בתל אביב המאגר המלא‎]
+  Started: True
+  Last Scroll Log: [‎דירות מציאה מפייס לאוזן בתל אביב המאגר המלא‎] Scroll 10/10: 25 posts collected
+  Early Terminated: False
+  Scraper complete details: [‎דירות מציאה מפייס לאוזן בתל אביב המאגר המלא‎] ✅ Group scrape complete in 124.8s
+  DB Update: new = 4, total = 21
+
+Tag: [‎דירות צפון ישן מרכז לב תל אביב זה כאן‎]
+  Started: True
+  Last Scroll Log: [‎דירות צפון ישן מרכז לב תל אביב זה כאן‎] Scroll 6/10: 14 posts collected
+  Early Terminated: True
+  Scraper complete details: [‎דירות צפון ישן מרכז לב תל אביב זה כאן‎] ✅ Group scrape complete in 62.2s
+  DB Update: new = 2, total = 18
+
+Tag: [‎דירות להשכרה בת״א לב העיר צפון ישן ומשרדים‎]
+  Started: True
+  Last Scroll Log: [‎דירות להשכרה בת״א לב העיר צפון ישן ומשרדים‎] Scroll 10/10: 9 posts collected
+  Early Terminated: False
+  Scraper complete details: [‎דירות להשכרה בת״א לב העיר צפון ישן ומשרדים‎] ✅ Group scrape complete in 123.2s
+  DB Update: new = 4, total = 9
+
+Tag: [‎דירות בצפון הישן לב תל אביב‎]
+  Started: True
+  Last Scroll Log: [‎דירות בצפון הישן לב תל אביב‎] Scroll 7/10: 7 posts collected
+  Early Terminated: True
+  Scraper complete details: [‎דירות בצפון הישן לב תל אביב‎] ✅ Group scrape complete in 70.5s
+  DB Update: new = 0, total = 9
+
+Tag: [‎דירות להשכרה בפלורנטין‎]
+  Started: True
+  Last Scroll Log: [‎דירות להשכרה בפלורנטין‎] Scroll 2/10: 6 posts collected
+  Early Terminated: True
+  Scraper complete details: [‎דירות להשכרה בפלורנטין‎] ✅ Group scrape complete in 32.8s
+  DB Update: new = 0, total = 1
+
+Tag: [‎דירות להשכרה בתל אביב שכונת נווה שאנן. שפירא ושכונת התקוה‎]
+  Started: True
+  Last Scroll Log: [‎דירות להשכרה בתל אביב שכונת נווה שאנן. שפירא ושכונת התקוה‎] Scroll 5/10: 10 posts collected
+  Early Terminated: True
+  Scraper complete details: [‎דירות להשכרה בתל אביב שכונת נווה שאנן. שפירא ושכונת התקוה‎] ✅ Group scrape complete in 70.1s
+  DB Update: new = 1, total = 14
+
+Tag: [‎דירות בפלורנטין בכרם נווה צדק  לב העיר והסביבה‎]
+  Started: True
+  Last Scroll Log: [‎דירות בפלורנטין בכרם נווה צדק  לב העיר והסביבה‎] Scroll 2/10: 8 posts collected
+  Early Terminated: True
+  Scraper complete details: [‎דירות בפלורנטין בכרם נווה צדק  לב העיר והסביבה‎] ✅ Group scrape complete in 36.7s
+  DB Update: new = 1, total = 9
+
+Tag: [‎דירות להשכרה צפון תל אביב‎]
+  Started: True
+  Last Scroll Log: [‎דירות להשכרה צפון תל אביב‎] Scroll 10/10: 17 posts collected
+  Early Terminated: False
+  Scraper complete details: [‎דירות להשכרה צפון תל אביב‎] ✅ Group scrape complete in 120.3s
+  DB Update: new = 1, total = 17
+
+Tag: [‎דירות להשכרה בתל אביב ללא תיווך‎]
+  Started: True
+  Last Scroll Log: [‎דירות להשכרה בתל אביב ללא תיווך‎] Scroll 1/10: 4 posts collected
+  Early Terminated: True
+  Scraper complete details: [‎דירות להשכרה בתל אביב ללא תיווך‎] ✅ Group scrape complete in 26.5s
+  DB Update: new = 0, total = 8
+
+Tag: [‎דירות להשכרה בתל אביב‎]
+  Started: True
+  Last Scroll Log: [‎דירות להשכרה בתל אביב‎] Scroll 10/10: 24 posts collected
+  Early Terminated: False
+  Scraper complete details: [‎דירות להשכרה בתל אביב‎] ✅ Group scrape complete in 101.9s
+  DB Update: new = 3, total = 24
+
+Tag: [‎דירות להשכרה בכרם התימנים , נווה צדק , פלורנטין , יד אליהו‎]
+  Started: True
+  Last Scroll Log: [‎דירות להשכרה בכרם התימנים , נווה צדק , פלורנטין , יד אליהו‎] Scroll 3/10: 6 posts collected
+  Early Terminated: True
+  Scraper complete details: [‎דירות להשכרה בכרם התימנים , נווה צדק , פלורנטין , יד אליהו‎] ✅ Group scrape complete in 38.9s
+  DB Update: new = 0, total = 10
+
+Tag: [feed]
+  Started: False
+  Last Scroll Log: [feed] Scroll 10/10: 8 posts collected
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+
+=================== CYCLE -3 ===================
+Tag: [s://www.facebook.com/share/g/1ED4VsGsWb/]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [101875683484689]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [457465901082882]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [785935868134249]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [35819517694]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [s://www.facebook.com/share/g/18m6GA3j8x/]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [s://www.facebook.com/share/g/1axQJr335E/]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [s://www.facebook.com/share/g/1Q3cdhSSxE/]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [s://www.facebook.com/share/g/18Ra9Fs9C7/]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [s://www.facebook.com/share/g/1D82J29zAc/]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [442556049185912]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [282971075172305]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [s://www.facebook.com/share/g/1BbBDG8VcN/]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [s://www.facebook.com/share/g/1EkuLgWx6A/]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [s://www.facebook.com/share/g/196mQxH7dg/]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [534654323319632]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [2065942027026008]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [‎דירות מציאה מפייס לאוזן בתל אביב המאגר המלא‎]
+  Started: True
+  Last Scroll Log: [‎דירות מציאה מפייס לאוזן בתל אביב המאגר המלא‎] Scroll 10/10: 24 posts collected
+  Early Terminated: False
+  Scraper complete details: [‎דירות מציאה מפייס לאוזן בתל אביב המאגר המלא‎] ✅ Group scrape complete in 179.6s
+  DB Update: new = 4, total = 20
+
+Tag: [‎דירות להשכרה בת״א לב העיר צפון ישן ומשרדים‎]
+  Started: True
+  Last Scroll Log: [‎דירות להשכרה בת״א לב העיר צפון ישן ומשרדים‎] Scroll 3/10: 9 posts collected
+  Early Terminated: True
+  Scraper complete details: [‎דירות להשכרה בת״א לב העיר צפון ישן ומשרדים‎] ✅ Group scrape complete in 40.2s
+  DB Update: new = 0, total = 10
+
+Tag: [‎דירות בתל אביב ללא תיווך‎]
+  Started: True
+  Last Scroll Log: [‎דירות בתל אביב ללא תיווך‎] Scroll 4/10: 21 posts collected
+  Early Terminated: True
+  Scraper complete details: [‎דירות בתל אביב ללא תיווך‎] ✅ Group scrape complete in 68.7s
+  DB Update: new = 3, total = 23
+
+Tag: [‎דירות מפה לאוזן בתל אביב‎]
+  Started: True
+  Last Scroll Log: [‎דירות מפה לאוזן בתל אביב‎] Scroll 9/10: 29 posts collected
+  Early Terminated: True
+  Scraper complete details: [‎דירות מפה לאוזן בתל אביב‎] ✅ Group scrape complete in 114.8s
+  DB Update: new = 3, total = 26
+
+Tag: [‎דירות שוות בפלורנטין ללא תיווך‎]
+  Started: True
+  Last Scroll Log: [‎דירות שוות בפלורנטין ללא תיווך‎] Scroll 2/10: 6 posts collected
+  Early Terminated: True
+  Scraper complete details: [‎דירות שוות בפלורנטין ללא תיווך‎] ✅ Group scrape complete in 38.0s
+  DB Update: new = 1, total = 5
+
+Tag: [‎דירות להשכרה בתל אביב שכונת נווה שאנן. שפירא ושכונת התקוה‎]
+  Started: True
+  Last Scroll Log: [‎דירות להשכרה בתל אביב שכונת נווה שאנן. שפירא ושכונת התקוה‎] Scroll 3/10: 9 posts collected
+  Early Terminated: True
+  Scraper complete details: [‎דירות להשכרה בתל אביב שכונת נווה שאנן. שפירא ושכונת התקוה‎] ✅ Group scrape complete in 54.7s
+  DB Update: new = 0, total = 11
+
+Tag: [‎דירות להשכרה בתל אביב‎]
+  Started: True
+  Last Scroll Log: [‎דירות להשכרה בתל אביב‎] Scroll 2/10: 7 posts collected
+  Early Terminated: True
+  Scraper complete details: [‎דירות להשכרה בתל אביב‎] ✅ Group scrape complete in 33.0s
+  DB Update: new = 0, total = 11
+
+Tag: [‎דירות מפה לאוזן בת"א‎]
+  Started: True
+  Last Scroll Log: [‎דירות מפה לאוזן בת"א‎] Scroll 2/10: 8 posts collected
+  Early Terminated: True
+  Scraper complete details: [‎דירות מפה לאוזן בת"א‎] ✅ Group scrape complete in 44.6s
+  DB Update: new = 0, total = 10
+
+Tag: [‎דירות צפון ישן מרכז לב תל אביב זה כאן‎]
+  Started: True
+  Last Scroll Log: [‎דירות צפון ישן מרכז לב תל אביב זה כאן‎] Scroll 2/10: 8 posts collected
+  Early Terminated: True
+  Scraper complete details: [‎דירות צפון ישן מרכז לב תל אביב זה כאן‎] ✅ Group scrape complete in 30.7s
+  DB Update: new = 0, total = 14
+
+Tag: [‎דירות בפלורנטין בכרם נווה צדק  לב העיר והסביבה‎]
+  Started: True
+  Last Scroll Log: [‎דירות בפלורנטין בכרם נווה צדק  לב העיר והסביבה‎] Scroll 5/10: 28 posts collected
+  Early Terminated: True
+  Scraper complete details: [‎דירות בפלורנטין בכרם נווה צדק  לב העיר והסביבה‎] ✅ Group scrape complete in 93.8s
+  DB Update: new = 0, total = 17
+
+Tag: [‎דירות להשכרה צפון תל אביב‎]
+  Started: True
+  Last Scroll Log: [‎דירות להשכרה צפון תל אביב‎] Scroll 2/10: 7 posts collected
+  Early Terminated: True
+  Scraper complete details: [‎דירות להשכרה צפון תל אביב‎] ✅ Group scrape complete in 33.0s
+  DB Update: new = 0, total = 10
+
+Tag: [‎דירות בין הומונים בת"א‎]
+  Started: True
+  Last Scroll Log: [‎דירות בין הומונים בת"א‎] Scroll 3/10: 9 posts collected
+  Early Terminated: True
+  Scraper complete details: [‎דירות בין הומונים בת"א‎] ✅ Group scrape complete in 42.3s
+  DB Update: new = 0, total = 3
+
+Tag: [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎]
+  Started: True
+  Last Scroll Log: [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Scroll 3/10: 9 posts collected
+  Early Terminated: True
+  Scraper complete details: [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] ✅ Group scrape complete in 58.0s
+  DB Update: new = 3, total = 23
+
+Tag: [‎דירות בצפון הישן לב תל אביב‎]
+  Started: True
+  Last Scroll Log: [‎דירות בצפון הישן לב תל אביב‎] Scroll 1/10: 4 posts collected
+  Early Terminated: True
+  Scraper complete details: [‎דירות בצפון הישן לב תל אביב‎] ✅ Group scrape complete in 25.9s
+  DB Update: new = 0, total = 10
+
+Tag: [‎דירות להשכרה בפלורנטין‎]
+  Started: True
+  Last Scroll Log: [‎דירות להשכרה בפלורנטין‎] Scroll 2/10: 6 posts collected
+  Early Terminated: True
+  Scraper complete details: [‎דירות להשכרה בפלורנטין‎] ✅ Group scrape complete in 38.9s
+  DB Update: new = 0, total = 1
+
+Tag: [‎דירות להשכרה בתל אביב ללא תיווך‎]
+  Started: True
+  Last Scroll Log: [‎דירות להשכרה בתל אביב ללא תיווך‎] Scroll 4/10: 14 posts collected
+  Early Terminated: True
+  Scraper complete details: [‎דירות להשכרה בתל אביב ללא תיווך‎] ✅ Group scrape complete in 62.2s
+  DB Update: new = 0, total = 11
+
+Tag: [‎דירות להשכרה בכרם התימנים , נווה צדק , פלורנטין , יד אליהו‎]
+  Started: True
+  Last Scroll Log: [‎דירות להשכרה בכרם התימנים , נווה צדק , פלורנטין , יד אליהו‎] Scroll 3/10: 6 posts collected
+  Early Terminated: True
+  Scraper complete details: [‎דירות להשכרה בכרם התימנים , נווה צדק , פלורנטין , יד אליהו‎] ✅ Group scrape complete in 41.1s
+  DB Update: new = 0, total = 10
+
+Tag: [feed]
+  Started: False
+  Last Scroll Log: [feed] Scroll 2/10: 6 posts collected
+  Early Terminated: True
+  DB Update: NOT FOUND
+
+
+=================== CYCLE -2 ===================
+Tag: [101875683484689]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [457465901082882]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [282971075172305]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [s://www.facebook.com/share/g/1axQJr335E/]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [35819517694]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [442556049185912]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [s://www.facebook.com/share/g/18m6GA3j8x/]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [s://www.facebook.com/share/g/1ED4VsGsWb/]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [s://www.facebook.com/share/g/1BbBDG8VcN/]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [s://www.facebook.com/share/g/1EkuLgWx6A/]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [s://www.facebook.com/share/g/1Q3cdhSSxE/]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [s://www.facebook.com/share/g/18Ra9Fs9C7/]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [s://www.facebook.com/share/g/1D82J29zAc/]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [s://www.facebook.com/share/g/196mQxH7dg/]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [785935868134249]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [534654323319632]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [2065942027026008]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [‎דירות מציאה מפייס לאוזן בתל אביב המאגר המלא‎]
+  Started: True
+  Last Scroll Log: [‎דירות מציאה מפייס לאוזן בתל אביב המאגר המלא‎] Scroll 10/10: 26 posts collected
+  Early Terminated: False
+  Scraper complete details: [‎דירות מציאה מפייס לאוזן בתל אביב המאגר המלא‎] ✅ Group scrape complete in 175.7s
+  DB Update: new = 3, total = 18
+
+Tag: [‎דירות מפה לאוזן בתל אביב‎]
+  Started: True
+  Last Scroll Log: [‎דירות מפה לאוזן בתל אביב‎] Scroll 10/10: 24 posts collected
+  Early Terminated: False
+  Scraper complete details: [‎דירות מפה לאוזן בתל אביב‎] ✅ Group scrape complete in 83.9s
+  DB Update: new = 2, total = 20
+
+Tag: [‎דירות בתל אביב ללא תיווך‎]
+  Started: True
+  Last Scroll Log: [‎דירות בתל אביב ללא תיווך‎] Scroll 10/10: 21 posts collected
+  Early Terminated: False
+  Scraper complete details: [‎דירות בתל אביב ללא תיווך‎] ✅ Group scrape complete in 109.4s
+  DB Update: new = 1, total = 21
+
+Tag: [‎דירות מפה לאוזן בת"א‎]
+  Started: True
+  Last Scroll Log: [‎דירות מפה לאוזן בת"א‎] Scroll 5/10: 9 posts collected
+  Early Terminated: True
+  Scraper complete details: [‎דירות מפה לאוזן בת"א‎] ✅ Group scrape complete in 69.8s
+  DB Update: new = 1, total = 14
+
+Tag: [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎]
+  Started: True
+  Last Scroll Log: [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Scroll 3/10: 12 posts collected
+  Early Terminated: True
+  Scraper complete details: [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] ✅ Group scrape complete in 45.2s
+  DB Update: new = 1, total = 21
+
+Tag: [‎דירות בין הומונים בת"א‎]
+  Started: True
+  Last Scroll Log: [‎דירות בין הומונים בת"א‎] Scroll 2/10: 7 posts collected
+  Early Terminated: True
+  Scraper complete details: [‎דירות בין הומונים בת"א‎] ✅ Group scrape complete in 31.8s
+  DB Update: new = 0, total = 3
+
+Tag: [‎דירות שוות בפלורנטין ללא תיווך‎]
+  Started: True
+  Last Scroll Log: [‎דירות שוות בפלורנטין ללא תיווך‎] Scroll 1/10: 4 posts collected
+  Early Terminated: True
+  Scraper complete details: [‎דירות שוות בפלורנטין ללא תיווך‎] ✅ Group scrape complete in 37.1s
+  DB Update: new = 0, total = 4
+
+Tag: [‎דירות צפון ישן מרכז לב תל אביב זה כאן‎]
+  Started: True
+  Last Scroll Log: [‎דירות צפון ישן מרכז לב תל אביב זה כאן‎] Scroll 10/10: 28 posts collected
+  Early Terminated: False
+  Scraper complete details: [‎דירות צפון ישן מרכז לב תל אביב זה כאן‎] ✅ Group scrape complete in 163.9s
+  DB Update: new = 3, total = 28
+
+Tag: [‎דירות להשכרה בת״א לב העיר צפון ישן ומשרדים‎]
+  Started: True
+  Last Scroll Log: [‎דירות להשכרה בת״א לב העיר צפון ישן ומשרדים‎] Scroll 3/10: 9 posts collected
+  Early Terminated: True
+  Scraper complete details: [‎דירות להשכרה בת״א לב העיר צפון ישן ומשרדים‎] ✅ Group scrape complete in 34.0s
+  DB Update: new = 0, total = 10
+
+Tag: [‎דירות בצפון הישן לב תל אביב‎]
+  Started: True
+  Last Scroll Log: [‎דירות בצפון הישן לב תל אביב‎] Scroll 1/10: 4 posts collected
+  Early Terminated: True
+  Scraper complete details: [‎דירות בצפון הישן לב תל אביב‎] ✅ Group scrape complete in 27.4s
+  DB Update: new = 0, total = 10
+
+Tag: [‎דירות להשכרה בפלורנטין‎]
+  Started: True
+  Last Scroll Log: [‎דירות להשכרה בפלורנטין‎] Scroll 2/10: 7 posts collected
+  Early Terminated: True
+  Scraper complete details: [‎דירות להשכרה בפלורנטין‎] ✅ Group scrape complete in 27.0s
+  DB Update: new = 0, total = 1
+
+Tag: [‎דירות להשכרה בתל אביב שכונת נווה שאנן. שפירא ושכונת התקוה‎]
+  Started: True
+  Last Scroll Log: [‎דירות להשכרה בתל אביב שכונת נווה שאנן. שפירא ושכונת התקוה‎] Scroll 2/10: 7 posts collected
+  Early Terminated: True
+  Scraper complete details: [‎דירות להשכרה בתל אביב שכונת נווה שאנן. שפירא ושכונת התקוה‎] ✅ Group scrape complete in 27.8s
+  DB Update: new = 0, total = 10
+
+Tag: [‎דירות בפלורנטין בכרם נווה צדק  לב העיר והסביבה‎]
+  Started: True
+  Last Scroll Log: [‎דירות בפלורנטין בכרם נווה צדק  לב העיר והסביבה‎] Scroll 6/10: 26 posts collected
+  Early Terminated: True
+  Scraper complete details: [‎דירות בפלורנטין בכרם נווה צדק  לב העיר והסביבה‎] ✅ Group scrape complete in 88.8s
+  DB Update: new = 0, total = 9
+
+Tag: [‎דירות להשכרה צפון תל אביב‎]
+  Started: True
+  Last Scroll Log: [‎דירות להשכרה צפון תל אביב‎] Scroll 6/10: 14 posts collected
+  Early Terminated: True
+  Scraper complete details: [‎דירות להשכרה צפון תל אביב‎] ✅ Group scrape complete in 59.6s
+  DB Update: new = 2, total = 16
+
+Tag: [‎דירות להשכרה בתל אביב ללא תיווך‎]
+  Started: True
+  Last Scroll Log: [‎דירות להשכרה בתל אביב ללא תיווך‎] Scroll 4/10: 9 posts collected
+  Early Terminated: True
+  Scraper complete details: [‎דירות להשכרה בתל אביב ללא תיווך‎] ✅ Group scrape complete in 62.0s
+  DB Update: new = 0, total = 8
+
+Tag: [‎דירות להשכרה בתל אביב‎]
+  Started: True
+  Last Scroll Log: [‎דירות להשכרה בתל אביב‎] Scroll 5/10: 12 posts collected
+  Early Terminated: True
+  Scraper complete details: [‎דירות להשכרה בתל אביב‎] ✅ Group scrape complete in 52.0s
+  DB Update: new = 2, total = 16
+
+Tag: [‎דירות להשכרה בכרם התימנים , נווה צדק , פלורנטין , יד אליהו‎]
+  Started: True
+  Last Scroll Log: [‎דירות להשכרה בכרם התימנים , נווה צדק , פלורנטין , יד אליהו‎] Scroll 3/10: 6 posts collected
+  Early Terminated: True
+  Scraper complete details: [‎דירות להשכרה בכרם התימנים , נווה צדק , פלורנטין , יד אליהו‎] ✅ Group scrape complete in 40.4s
+  DB Update: new = 0, total = 10
+
+Tag: [feed]
+  Started: False
+  Last Scroll Log: [feed] Scroll 3/10: 9 posts collected
+  Early Terminated: True
+  DB Update: NOT FOUND
+
+
+=================== CYCLE -1 ===================
+Tag: [s://www.facebook.com/share/g/18m6GA3j8x/]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [101875683484689]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [282971075172305]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [s://www.facebook.com/share/g/1D82J29zAc/]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [785935868134249]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [35819517694]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [457465901082882]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [442556049185912]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [s://www.facebook.com/share/g/1ED4VsGsWb/]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [s://www.facebook.com/share/g/1BbBDG8VcN/]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [s://www.facebook.com/share/g/1axQJr335E/]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [s://www.facebook.com/share/g/1EkuLgWx6A/]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [s://www.facebook.com/share/g/1Q3cdhSSxE/]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [s://www.facebook.com/share/g/18Ra9Fs9C7/]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [s://www.facebook.com/share/g/196mQxH7dg/]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [534654323319632]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [2065942027026008]
+  Started: False
+  Last Scroll Log: None
+  Early Terminated: False
+  DB Update: NOT FOUND
+
+Tag: [‎דירות מציאה מפייס לאוזן בתל אביב המאגר המלא‎]
+  Started: True
+  Last Scroll Log: [‎דירות מציאה מפייס לאוזן בתל אביב המאגר המלא‎] Scroll 10/10: 27 posts collected
+  Early Terminated: False
+  Scraper complete details: [‎דירות מציאה מפייס לאוזן בתל אביב המאגר המלא‎] ✅ Group scrape complete in 156.0s
+  DB Update: new = 1, total = 19
+
+Tag: [‎דירות צפון ישן מרכז לב תל אביב זה כאן‎]
+  Started: True
+  Last Scroll Log: [‎דירות צפון ישן מרכז לב תל אביב זה כאן‎] Scroll 10/10: 36 posts collected
+  Early Terminated: False
+  Scraper complete details: [‎דירות צפון ישן מרכז לב תל אביב זה כאן‎] ✅ Group scrape complete in 106.7s
+  DB Update: new = 2, total = 36
+
+Tag: [‎דירות מפה לאוזן בתל אביב‎]
+  Started: True
+  Last Scroll Log: [‎דירות מפה לאוזן בתל אביב‎] Scroll 10/10: 23 posts collected
+  Early Terminated: False
+  Scraper complete details: [‎דירות מפה לאוזן בתל אביב‎] ✅ Group scrape complete in 160.7s
+  DB Update: new = 4, total = 23
+
+Tag: [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎]
+  Started: True
+  Last Scroll Log: [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] Scroll 3/10: 12 posts collected
+  Early Terminated: True
+  Scraper complete details: [‎דירות בתל אביב ללא תיווך. הודעות מתיווך יוסרו.‎] ✅ Group scrape complete in 43.7s
+  DB Update: new = 1, total = 16
+
+Tag: [‎דירות להשכרה צפון תל אביב‎]
+  Started: True
+  Last Scroll Log: [‎דירות להשכרה צפון תל אביב‎] Scroll 6/10: 13 posts collected
+  Early Terminated: True
+  Scraper complete details: [‎דירות להשכרה צפון תל אביב‎] ✅ Group scrape complete in 64.0s
+  DB Update: new = 1, total = 15
+
+Tag: [‎דירות להשכרה בתל אביב‎]
+  Started: True
+  Last Scroll Log: [‎דירות להשכרה בתל אביב‎] Scroll 2/10: 9 posts collected
+  Early Terminated: True
+  Scraper complete details: [‎דירות להשכרה בתל אביב‎] ✅ Group scrape complete in 37.7s
+  DB Update: new = 0, total = 10
+
+Tag: [‎דירות מפה לאוזן בת"א‎]
+  Started: True
+  Last Scroll Log: [‎דירות מפה לאוזן בת"א‎] Scroll 5/10: 8 posts collected
+  Early Terminated: True
+  Scraper complete details: [‎דירות מפה לאוזן בת"א‎] ✅ Group scrape complete in 69.3s
+  DB Update: new = 1, total = 12
+
+Tag: [‎דירות בתל אביב ללא תיווך‎]
+  Started: True
+  Last Scroll Log: [‎דירות בתל אביב ללא תיווך‎] Scroll 4/10: 8 posts collected
+  Early Terminated: True
+  Scraper complete details: [‎דירות בתל אביב ללא תיווך‎] ✅ Group scrape complete in 55.5s
+  DB Update: new = 1, total = 13
+
+Tag: [‎דירות בין הומונים בת"א‎]
+  Started: True
+  Last Scroll Log: [‎דירות בין הומונים בת"א‎] Scroll 3/10: 7 posts collected
+  Early Terminated: True
+  Scraper complete details: [‎דירות בין הומונים בת"א‎] ✅ Group scrape complete in 47.5s
+  DB Update: new = 0, total = 3
+
+Tag: [‎דירות להשכרה בת״א לב העיר צפון ישן ומשרדים‎]
+  Started: True
+  Last Scroll Log: [‎דירות להשכרה בת״א לב העיר צפון ישן ומשרדים‎] Scroll 7/10: 25 posts collected
+  Early Terminated: True
+  Scraper complete details: [‎דירות להשכרה בת״א לב העיר צפון ישן ומשרדים‎] ✅ Group scrape complete in 113.6s
+  DB Update: new = 0, total = 27
+
+Tag: [‎דירות בצפון הישן לב תל אביב‎]
+  Started: True
+  Last Scroll Log: [‎דירות בצפון הישן לב תל אביב‎] Scroll 1/10: 4 posts collected
+  Early Terminated: True
+  Scraper complete details: [‎דירות בצפון הישן לב תל אביב‎] ✅ Group scrape complete in 25.1s
+  DB Update: new = 0, total = 10
+
+Tag: [‎דירות שוות בפלורנטין ללא תיווך‎]
+  Started: True
+  Last Scroll Log: [‎דירות שוות בפלורנטין ללא תיווך‎] Scroll 2/10: 8 posts collected
+  Early Terminated: True
+  Scraper complete details: [‎דירות שוות בפלורנטין ללא תיווך‎] ✅ Group scrape complete in 32.8s
+  DB Update: new = 0, total = 2
+
+Tag: [‎דירות להשכרה בפלורנטין‎]
+  Started: True
+  Last Scroll Log: [‎דירות להשכרה בפלורנטין‎] Scroll 2/10: 6 posts collected
+  Early Terminated: True
+  Scraper complete details: [‎דירות להשכרה בפלורנטין‎] ✅ Group scrape complete in 27.0s
+  DB Update: new = 0, total = 1
+
+Tag: [‎דירות להשכרה בתל אביב שכונת נווה שאנן. שפירא ושכונת התקוה‎]
+  Started: True
+  Last Scroll Log: [‎דירות להשכרה בתל אביב שכונת נווה שאנן. שפירא ושכונת התקוה‎] Scroll 3/10: 9 posts collected
+  Early Terminated: True
+  Scraper complete details: [‎דירות להשכרה בתל אביב שכונת נווה שאנן. שפירא ושכונת התקוה‎] ✅ Group scrape complete in 53.7s
+  DB Update: new = 0, total = 10
+
+Tag: [‎דירות בפלורנטין בכרם נווה צדק  לב העיר והסביבה‎]
+  Started: True
+  Last Scroll Log: [‎דירות בפלורנטין בכרם נווה צדק  לב העיר והסביבה‎] Scroll 4/10: 16 posts collected
+  Early Terminated: True
+  Scraper complete details: [‎דירות בפלורנטין בכרם נווה צדק  לב העיר והסביבה‎] ✅ Group scrape complete in 67.6s
+  DB Update: new = 0, total = 7
+
+Tag: [‎דירות להשכרה בתל אביב ללא תיווך‎]
+  Started: True
+  Last Scroll Log: [‎דירות להשכרה בתל אביב ללא תיווך‎] Scroll 3/10: 9 posts collected
+  Early Terminated: True
+  Scraper complete details: [‎דירות להשכרה בתל אביב ללא תיווך‎] ✅ Group scrape complete in 51.0s
+  DB Update: new = 0, total = 10
+
+Tag: [‎דירות להשכרה בכרם התימנים , נווה צדק , פלורנטין , יד אליהו‎]
+  Started: True
+  Last Scroll Log: [‎דירות להשכרה בכרם התימנים , נווה צדק , פלורנטין , יד אליהו‎] Scroll 3/10: 6 posts collected
+  Early Terminated: True
+  Scraper complete details: [‎דירות להשכרה בכרם התימנים , נווה צדק , פלורנטין , יד אליהו‎] ✅ Group scrape complete in 38.6s
+  DB Update: new = 0, total = 10
+

@@ -156,6 +156,61 @@ class TestIsraeliLocationDatabase:
         assert is_match, f"Failed: {reasons}"
         assert len(reasons) == 0
 
+    def test_comma_separated_area_rule_evaluated_as_or(self):
+        """Test that a single AREA rule with comma-separated values matches any of the locations."""
+        from core.matcher import ZeroAIUserMatcher
+        from models.listing import Listing, EnrichedListing
+        from models.search_rule import SearchRule, RuleType
+        from datetime import datetime
+
+        matcher = ZeroAIUserMatcher()
+        
+        # Florentin listing
+        listing_flo = Listing(
+            id="test_flo", source="facebook", url="url", title="title", 
+            description="דירה בפלורנטין", location="תל אביב", raw_text="text",
+            posted_at=datetime.now()
+        )
+        enriched_flo = EnrichedListing(listing=listing_flo)
+        enriched_flo.extracted_location = "תל אביב"
+        enriched_flo.extracted_neighborhood = "פלורנטין"
+
+        # Lev HaIr listing
+        listing_lh = Listing(
+            id="test_lh", source="facebook", url="url", title="title", 
+            description="דירה בלב העיר", location="תל אביב", raw_text="text",
+            posted_at=datetime.now()
+        )
+        enriched_lh = EnrichedListing(listing=listing_lh)
+        enriched_lh.extracted_location = "תל אביב"
+        enriched_lh.extracted_neighborhood = "לב העיר"
+
+        # Single rule with comma-separated neighborhoods
+        combined_rule = SearchRule(
+            id=1, user_id=123, rule_type=RuleType.AREA, 
+            value="פלורנטין, נווה צדק, לב העיר", is_active=True
+        )
+
+        is_match_flo, _ = matcher.evaluate_listing(enriched_flo, [combined_rule])
+        assert is_match_flo, "Florentin listing should match combined area rule"
+
+        is_match_lh, _ = matcher.evaluate_listing(enriched_lh, [combined_rule])
+        assert is_match_lh, "Lev HaIr listing should match combined area rule"
+
+        # Unrelated neighborhood (e.g. Ramat Aviv)
+        listing_ra = Listing(
+            id="test_ra", source="facebook", url="url", title="title", 
+            description="דירה ברמת אביב", location="תל אביב", raw_text="text",
+            posted_at=datetime.now()
+        )
+        enriched_ra = EnrichedListing(listing=listing_ra)
+        enriched_ra.extracted_location = "תל אביב"
+        enriched_ra.extracted_neighborhood = "רמת אביב א"
+
+        is_match_ra, _ = matcher.evaluate_listing(enriched_ra, [combined_rule])
+        assert not is_match_ra, "Ramat Aviv listing should NOT match combined area rule"
+
+
     def test_is_city_mismatch(self):
         """Test the is_city_mismatch helper method."""
         # Exact and alias matches

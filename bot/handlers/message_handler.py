@@ -457,9 +457,20 @@ class MessageHandler:
                         else:
                             rules_adjusted = True
                     elif rule.rule_type == RuleType.AREA:
-                        if rule.value in removed_neighborhoods:
+                        current = [n.strip() for n in rule.value.split(",") if n.strip()]
+                        original_len = len(current)
+                        
+                        # Apply removals
+                        for r_name in removed_neighborhoods:
+                            if r_name in current:
+                                current.remove(r_name)
+                                
+                        if len(current) != original_len:
                             rules_adjusted = True
-                        else:
+                            
+                        if current:
+                            rule.value = ",".join(current)
+                            rule.original_text = ", ".join(current)
                             updated_pending_rules.append(rule)
                     else:
                         updated_pending_rules.append(rule)
@@ -468,7 +479,7 @@ class MessageHandler:
                 existing_areas = set()
                 for rule in updated_pending_rules:
                     if rule.rule_type == RuleType.AREA:
-                        existing_areas.add(rule.value)
+                        existing_areas.update(n.strip() for n in rule.value.split(",") if n.strip())
                     elif rule.rule_type == RuleType.BORDER_AREA:
                         existing_areas.update(n.strip() for n in rule.value.split(",") if n.strip())
                 
@@ -625,7 +636,39 @@ class MessageHandler:
             if rule_type in (RuleType.AREA, RuleType.BORDER_AREA):
                 original_text = clean_hebrew_location_text(original_text)
             
-            # If value is returned as a list, join it cleanly with commas
+            # For AREA rules, split comma-separated values (or list values) into separate rules
+            if rule_type == RuleType.AREA:
+                if isinstance(rule_value, list):
+                    vals = [str(item).strip() for item in rule_value if str(item).strip()]
+                else:
+                    vals = [v.strip() for v in str(rule_value).split(",") if v.strip()]
+                
+                for val in vals:
+                    if not val:
+                        continue
+                    rule = SearchRule(
+                        user_id=user.id,
+                        rule_type=RuleType.AREA,
+                        value=val,
+                        original_text=val
+                    )
+                    
+                    should_add = True
+                    for existing in existing_rules:
+                        if (existing.rule_type == RuleType.AREA and 
+                            existing.is_active and 
+                            existing.value == rule.value):
+                            log.info(f"Duplicate rule found: {existing.value}, skipping addition")
+                            should_add = False
+                            break
+                    
+                    if should_add:
+                        if not any(r.rule_type == RuleType.AREA and r.value == rule.value for r in rules_to_add):
+                            rules_to_add.append(rule)
+                            added_count += 1
+                continue
+            
+            # If value is returned as a list (for other types), join it cleanly with commas
             if isinstance(rule_value, list):
                 rule_value = ",".join(str(item) for item in rule_value)
             

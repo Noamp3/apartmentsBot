@@ -27,6 +27,7 @@ class MockAIEngine(GeminiAIEngine):
                     "price": 5000,
                     "bedrooms": 2,
                     "location": "Tel Aviv",
+                    "city": "Tel Aviv",
                     "neighborhood": "Florentin",
                     "street": "Herzl",
                     "has_broker": false,
@@ -69,6 +70,7 @@ async def run_verification():
     # 4. Verify data extraction
     print(f"Extracted Neighborhood: {enriched.extracted_neighborhood}")
     print(f"Extracted Street: {enriched.extracted_street}")
+    print(f"Extracted City: {enriched.extracted_city}")
     
     if enriched.extracted_street == "Herzl":
         print("✅ Street extracted correctly")
@@ -79,6 +81,11 @@ async def run_verification():
         print("✅ Neighborhood extracted correctly")
     else:
         print(f"❌ Neighborhood extraction failed. Got: {enriched.extracted_neighborhood}")
+        
+    if enriched.extracted_city == "Tel Aviv":
+        print("✅ City extracted correctly")
+    else:
+        print(f"❌ City extraction failed. Got: {enriched.extracted_city}")
         
     # 5. Verify Formatting
     formatted_msg = ListingFormatter.format_listing(enriched)
