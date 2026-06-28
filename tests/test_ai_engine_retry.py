@@ -163,39 +163,34 @@ async def test_openai_engine_retry():
 
 
 @pytest.mark.asyncio
-async def test_gemini_engine_no_rotation_on_503():
-    """Test GeminiAIEngine raises 503 error directly and does NOT rotate to the next model."""
+async def test_gemini_engine_no_rotation():
+    """Test GeminiAIEngine only ever uses the primary model and doesn't rotate on errors."""
     with patch("google.genai.Client") as mock_client_cls:
         mock_client = MagicMock()
         mock_client_cls.return_value = mock_client
         
-        # Configure GeminiAIEngine with multiple models
+        # Configure GeminiAIEngine with multiple models in settings
         with patch("config.settings.GEMINI_MODEL", "model-1,model-2"):
             engine = GeminiAIEngine(api_key="test_key")
         
-        # Ensure we have both models in rotation
-        assert engine.models == ["model-1", "model-2"]
+        # Ensure only the first model is in the engine models list
+        assert engine.models == ["model-1"]
+        assert engine.current_model == "model-1"
         
         calls_model_1 = 0
-        calls_model_2 = 0
         
         def mock_generate(*args, **kwargs):
-            nonlocal calls_model_1, calls_model_2
+            nonlocal calls_model_1
             model_used = kwargs.get("model")
             if model_used == "model-1":
                 calls_model_1 += 1
                 raise MockAPIError("503 UNAVAILABLE: Model demand is high", code=503)
-            elif model_used == "model-2":
-                calls_model_2 += 1
-                mock_resp = MagicMock()
-                mock_resp.text = "success_model_2"
-                return mock_resp
             else:
                 raise ValueError(f"Unknown model: {model_used}")
                 
         mock_client.models.generate_content.side_effect = mock_generate
         
-        # Patch retry_with_backoff to use low max_retries for model_1 call so it fails quickly
+        # Patch retry_with_backoff to use low max_retries
         with patch("core.ai_engine.retry_with_backoff") as mock_retry:
             async def side_effect_fn(func, *args, **kwargs):
                 kwargs.pop("max_retries", None)
@@ -208,7 +203,6 @@ async def test_gemini_engine_no_rotation_on_503():
             assert "503 UNAVAILABLE" in str(exc_info.value)
             
         assert calls_model_1 == 1
-        assert calls_model_2 == 0
         assert engine.current_model == "model-1"
 
 

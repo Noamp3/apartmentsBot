@@ -544,7 +544,7 @@ class BaseAIEngine(ABC):
         return True, []
 
 class GeminiAIEngine(BaseAIEngine):
-    """Gemini AI engine with automatic model rotation."""
+    """Gemini AI engine using a single model (no rotation)."""
     
     def __init__(
         self, 
@@ -553,56 +553,32 @@ class GeminiAIEngine(BaseAIEngine):
         rate_limiter: RateLimiter = None, # Default rate limiter (will be used for primary model)
         cache_repo = None
     ):
-        # We don't use the single rate limiter passed to super().__init__ 
-        # because we need one per model. We'll manage them internally.
-        super().__init__(RateLimiter(), cache_repo) 
+        super().__init__(rate_limiter, cache_repo) 
         
         from google import genai
         from google.genai import types
         
         self.api_key = api_key or settings.GEMINI_API_KEY
-        # If model passed explicitly, use it as primary, otherwise use first from settings
-        explicit_model = model
-        self.primary_model = explicit_model or (settings.gemini_models[0] if settings.gemini_models else "gemini-3.1-flash-lite")
+        # If model passed explicitly, use it, otherwise use first from settings
+        self.model_name = model or (settings.gemini_models[0] if settings.gemini_models else "gemini-3.1-flash-lite")
+        self.models = [self.model_name]
+        self.current_model_index = 0
         
         # Set a 10 minute timeout for all API requests to prevent hanging
         http_options = types.HttpOptions(timeout=600000)
         self.client = genai.Client(api_key=self.api_key, http_options=http_options)
         
-        # Build list of all available models for rotation
-        self.models = []
+        # Create a single rate limiter in the limiters dict for compatibility
+        self.limiters = {
+            self.model_name: self.rate_limiter
+        }
         
-        # If explicit model provided, it goes first
-        if explicit_model:
-            self.models.append(explicit_model)
-            
-        # Add models from settings
-        for m in settings.gemini_models:
-            if m not in self.models:
-                self.models.append(m)
-                
-        # Ensure we have at least one model
-        if not self.models:
-            self.models = ["gemini-3.1-flash-lite"]
-                
-        # Create a rate limiter for EACH model
-        self.limiters = {}
-        for m_name in self.models:
-            self.limiters[m_name] = RateLimiter(
-                requests_per_minute=settings.GEMINI_RPM_LIMIT,
-                daily_limit=settings.GEMINI_DAILY_LIMIT,
-                safety_margin=settings.RATE_LIMIT_SAFETY_MARGIN
-            )
-            
-        self.current_model_index = 0
-        
-        log.info(f"Initialized Gemini engine with rotation", 
-                 models=self.models, 
-                 daily_limit_per_model=settings.GEMINI_DAILY_LIMIT)
+        log.info(f"Initialized Gemini engine (no rotation)", 
+                 model=self.model_name)
     
     @property
     def current_model(self) -> str:
-        return self.models[self.current_model_index]
+        return self.model_name
     
     async def generate_content(
         self, 
@@ -613,16 +589,9 @@ class GeminiAIEngine(BaseAIEngine):
         latitude: Optional[float] = None,
         longitude: Optional[float] = None
     ) -> str:
-        """Generate content with model rotation on rate limits, with multimodal image support and Google Maps grounding support."""
+        """Generate content with the configured Gemini model, with multimodal image support and Google Maps grounding support."""
         if max_retries is None:
             max_retries = settings.GEMINI_503_RETRIES
-        
-        # We try to fulfill the request by trying available models.
-        # We allow for a few failures per model before giving up entirely.
-        attempts_across_models = 0
-        total_models = len(self.models)
-        # Allow cycling through all models at least once, plus some retries
-        max_total_attempts = total_models * 2
         
         # Setup multimodal content if image_path is provided
         from google.genai import types
@@ -642,120 +611,65 @@ class GeminiAIEngine(BaseAIEngine):
             except Exception as ie:
                 log.warning(f"Could not load image bytes for multimodal call: {ie}")
         
-        while attempts_across_models < max_total_attempts:
-            model_name = self.current_model
-            limiter = self.limiters[model_name]
-            
-            try:
-                # 1. Acquire quota for specific model (local check)
-                await limiter.acquire()
-                
-                log.debug(f"Sending prompt to Gemini ({model_name}): {prompt[:100]}...")
-
-                if attempts_across_models > 0:
-                      log.info(f"🔄 Retrying request with model {model_name} (Attempt {attempts_across_models + 1})...")
-
-                if enable_grounding:
-                    log.info(f"Using Google Maps Grounding via Interactions API for model: {model_name}")
-                    response = await asyncio.wait_for(
-                        retry_with_backoff(
-                            self.client.interactions.create,
-                            model=model_name,
-                            input=prompt,
-                            tools=[{
-                                "type": "google_maps",
-                                "latitude": latitude or 32.0853,
-                                "longitude": longitude or 34.7818
-                            }],
-                            max_retries=max_retries
-                        ),
-                        timeout=600.0
-                    )
-                    text_blocks = []
-                    if hasattr(response, "outputs") and response.outputs:
-                        for out in response.outputs:
-                            if hasattr(out, "type") and out.type == "text" and hasattr(out, "text") and out.text:
-                                text_blocks.append(out.text)
-                    elif hasattr(response, "steps") and response.steps:
-                        for step in response.steps:
-                            if step.type == "model_output":
-                                for content_block in step.content:
-                                    if content_block.type == "text":
-                                        text_blocks.append(content_block.text)
-                    resp_text = "\n".join(text_blocks)
-                else:
-                    # 2. Call API (retrying transient errors safely)
-                    response = await asyncio.wait_for(
-                        retry_with_backoff(
-                            self.client.models.generate_content,
-                            model=model_name,
-                            contents=contents,
-                            max_retries=max_retries
-                        ),
-                        timeout=600.0
-                    )
-                    resp_text = response.text or ""
-                
-                if attempts_across_models > 0:
-                     log.info(f"✅ Successfully generated content with {model_name} after recovery.")
-                     
-                log.debug(f"Received response from Gemini ({model_name}): {resp_text[:100]}...")
-                return resp_text
-                
-            except RateLimitExceeded:
-                # Local limiter says stop
-                log.warning(f"Daily limit explicitly reached for {model_name}. Rotating directly...")
-                self._rotate_model()
-                attempts_across_models += 1
-                continue
-                
-            except Exception as e:
-                # Handle API errors
-                err_str = str(e)
-                # Check for various rate limit indicators
-                is_rate_limit = (
-                    "429" in err_str or 
-                    "RESOURCE_EXHAUSTED" in err_str or
-                    "Quota exceeded" in err_str or
-                    "Too Many Requests" in err_str
-                )
-                
-                if is_rate_limit:
-                    log.warning(
-                        f"API Rate limit hit for {model_name} (Server side). "
-                        f"Rotating to next model...", 
-                        error=err_str
-                    )
-                    # Mark local limiter as exhausted to prevent immediate retry on this model
-                    # Set daily count to limit so it fails locally next time
-                    if limiter.daily_limit:
-                        limiter.daily_count = limiter.daily_limit
-                    
-                    self._rotate_model()
-                    attempts_across_models += 1
-                    
-                    # Brief pause to let things settle
-                    await asyncio.sleep(1) 
-                    continue
-                else:
-                    # Genuine error (e.g. 400 Bad Request, 500/503 Server Error)
-                    # We might want to retry SAME model if it's a 500, or fail if 400
-                    log.error(f"AI generation failed on {model_name}", error=err_str)
-                    raise
+        model_name = self.model_name
         
-        raise Exception(f"All Gemini models exhausted or failed after {attempts_across_models} attempts.")
+        # 1. Acquire quota (local check)
+        await self.rate_limiter.acquire()
+        
+        log.debug(f"Sending prompt to Gemini ({model_name}): {prompt[:100]}...")
+        
+        try:
+            if enable_grounding:
+                log.info(f"Using Google Maps Grounding via Interactions API for model: {model_name}")
+                response = await asyncio.wait_for(
+                    retry_with_backoff(
+                        self.client.interactions.create,
+                        model=model_name,
+                        input=prompt,
+                        tools=[{
+                            "type": "google_maps",
+                            "latitude": latitude or 32.0853,
+                            "longitude": longitude or 34.7818
+                        }],
+                        max_retries=max_retries
+                    ),
+                    timeout=600.0
+                )
+                text_blocks = []
+                if hasattr(response, "outputs") and response.outputs:
+                    for out in response.outputs:
+                        if hasattr(out, "type") and out.type == "text" and hasattr(out, "text") and out.text:
+                            text_blocks.append(out.text)
+                elif hasattr(response, "steps") and response.steps:
+                    for step in response.steps:
+                        if step.type == "model_output":
+                            for content_block in step.content:
+                                if content_block.type == "text":
+                                    text_blocks.append(content_block.text)
+                resp_text = "\n".join(text_blocks)
+            else:
+                # 2. Call API (retrying transient errors safely)
+                response = await asyncio.wait_for(
+                    retry_with_backoff(
+                        self.client.models.generate_content,
+                        model=model_name,
+                        contents=contents,
+                        max_retries=max_retries
+                    ),
+                    timeout=600.0
+                )
+                resp_text = response.text or ""
+            
+            log.debug(f"Received response from Gemini ({model_name}): {resp_text[:100]}...")
+            return resp_text
+            
+        except Exception as e:
+            log.error(f"AI generation failed on {model_name}", error=str(e))
+            raise
 
     def _rotate_model(self):
-        """Switch to next available model."""
-        next_index = (self.current_model_index + 1) % len(self.models)
-        
-        # Check if we fully cycled through safely? 
-        # For now just simple rotation. If all are full, we will just keep rotating and failing.
-        # But the RateLimiter checks daily limits, so if all are full, we will loop 
-        # until 'attempts_across_models' breaks the loop.
-        
-        self.current_model_index = next_index
-        log.info(f"Switched to Gemini model: {self.current_model}")
+        """No-op when model rotation is disabled."""
+        log.warning("Model rotation is disabled.")
 
 
 class OpenAIEngine(BaseAIEngine):
