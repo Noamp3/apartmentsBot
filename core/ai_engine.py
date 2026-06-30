@@ -111,15 +111,19 @@ class RateLimiter:
         now = datetime.now()
         return (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
     
+    def _check_and_reset_daily_quota(self):
+        """Check if daily quota reset time has passed and reset if so."""
+        if self.daily_limit and datetime.now() >= self.daily_reset:
+            self.daily_count = 0
+            self.daily_reset = self._next_midnight()
+            log.info("Daily quota reset")
+
     async def acquire(self) -> bool:
         """Acquire permission to make an API call."""
         async with self._lock:
             # Check daily limit if set
             if self.daily_limit:
-                if datetime.now() >= self.daily_reset:
-                    self.daily_count = 0
-                    self.daily_reset = self._next_midnight()
-                    log.info("Daily quota reset")
+                self._check_and_reset_daily_quota()
                 
                 if self.daily_count >= self.daily_limit:
                     log.error("Daily API limit reached!", 
@@ -149,6 +153,7 @@ class RateLimiter:
     
     def get_remaining_quota(self) -> dict:
         """Get remaining API quota for monitoring."""
+        self._check_and_reset_daily_quota()
         return {
             "rpm_used": len(self.request_times),
             "rpm_limit": self.rpm_limit,
@@ -156,6 +161,7 @@ class RateLimiter:
             "daily_limit": self.daily_limit or "unlimited",
             "daily_remaining": (self.daily_limit - self.daily_count) if self.daily_limit else "unlimited"
         }
+
 
 
 # Alias for backward compatibility

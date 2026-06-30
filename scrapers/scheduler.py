@@ -202,19 +202,7 @@ class QuotaAwareScheduler(ScrapingScheduler):
         self.auto_adjust = True
     
     def calculate_optimal_interval(self, new_listings_found: Optional[int] = None) -> int:
-        """Calculate optimal minutes between cycles based on quota and listings yield."""
-        quota = self.rate_limiter.get_remaining_quota()
-        daily_remaining = quota["daily_remaining"]
-        
-        # Handle unlimited quota (e.g., OpenAI models without daily limits)
-        if not isinstance(daily_remaining, (int, float)):
-            return self.DEFAULT_UNLIMITED_INTERVAL
-        
-        hours_remaining = (self.rate_limiter.daily_reset - datetime.now()).seconds / 3600
-        
-        if hours_remaining <= 0:
-            return self.DEFAULT_UNLIMITED_INTERVAL
-            
+        """Calculate optimal minutes between cycles based on listings yield (quota limits disabled)."""
         # 1. Update the base interval adaptively based on listings yield
         if new_listings_found is not None:
             min_interval = max(10, settings.SCRAPE_INTERVAL_MINUTES // 2)
@@ -227,38 +215,20 @@ class QuotaAwareScheduler(ScrapingScheduler):
                 # Slow market: back off frequency (increase interval)
                 self.interval = min(max_interval, self.interval + 5)
         
-        # 2. Calculate the quota constraint boundary (minimum interval required to stay within daily limit)
-        remaining_cycles = daily_remaining / self.ESTIMATED_CALLS_PER_CYCLE
-        
-        if remaining_cycles < self.LOW_QUOTA_THRESHOLD:
-            quota_min_interval = self.LOW_QUOTA_INTERVAL
-        else:
-            cycles_per_hour = remaining_cycles / hours_remaining
-            quota_min_interval = int(60 / cycles_per_hour) if cycles_per_hour > 0 else 240
-            
-        # 3. Enforce that our adaptive interval does not violate the quota constraint
-        return max(self.interval, quota_min_interval)
+        return self.interval
     
     async def _run_cycle(self):
-        """Run cycle with quota awareness."""
-        # Check quota before running
-        quota = self.rate_limiter.get_remaining_quota()
-        daily_remaining = quota["daily_remaining"]
-        
-        # Skip quota check for unlimited-quota providers
-        if isinstance(daily_remaining, (int, float)) and daily_remaining < self.MIN_DAILY_REMAINING_QUOTA:
-            log.warning("Quota too low, skipping cycle",
-                       daily_remaining=daily_remaining)
-            return None
-        
+        """Run cycle with quota awareness (quota checking disabled by user request)."""
+        # Run standard cycle directly (quota skipping check removed)
         res = await super()._run_cycle()
         
         new_listings_found = sum(res) if isinstance(res, tuple) and len(res) == 2 else 0
         
-        # Adjust next interval based on remaining quota and listings yield
+        # Adjust next interval based on listings yield
         if getattr(self, "auto_adjust", True):
             new_interval = self.calculate_optimal_interval(new_listings_found=new_listings_found)
             if new_interval != self.interval:
                 self.update_interval(new_interval)
                 log.info(f"Adjusted interval to {new_interval} minutes")
         return res
+

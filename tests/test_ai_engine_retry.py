@@ -232,3 +232,21 @@ def test_gemini_default_retries_is_20():
     assert Settings.model_fields['GEMINI_503_RETRIES'].default == 20
 
 
+def test_rate_limiter_daily_reset_via_get_remaining_quota():
+    """Test that RateLimiter resets its daily count when get_remaining_quota is called after daily_reset time."""
+    from datetime import datetime, timedelta
+    from core.ai_engine import RateLimiter
+    
+    # Initialize with a daily limit and custom reset time
+    limiter = RateLimiter(requests_per_minute=10, daily_limit=5)
+    limiter.daily_count = 5
+    limiter.daily_reset = datetime.now() - timedelta(seconds=1)  # Already expired
+    
+    # Check that calling get_remaining_quota triggers the reset
+    quota = limiter.get_remaining_quota()
+    assert quota["daily_used"] == 0
+    assert quota["daily_remaining"] == 5
+    assert limiter.daily_reset > datetime.now()
+
+
+
